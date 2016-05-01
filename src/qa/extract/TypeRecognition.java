@@ -22,10 +22,15 @@ public class TypeRecognition {
 	public static final int[] type_Organisation = {33,57};
 	*/	
 	// dbpedia3.9
-	public static final int[] type_Person = {19,20,21};
-	public static final int[] type_Place = {43,45};
-	public static final int[] type_Organisation = {2,12};	
+	// public static final int[] type_Person = {19,20,21};
+	// public static final int[] type_Place = {43,45};
+	// public static final int[] type_Organisation = {2,12};	
 	
+	// dbpedia 2014
+	public static final int[] type_Person = {180,279};
+	public static final int[] type_Place = {49,228};
+	public static final int[] type_Organisation = {419,53};
+
 	public HashMap<String,String> extendTypeMap = null; 
 	
 	SearchInTypeShortName st = new SearchInTypeShortName();
