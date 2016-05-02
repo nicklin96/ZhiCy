@@ -12,8 +12,10 @@ import java.util.List;
 
 import paradict.ParaphraseDictionary;
 import qa.Globals;
+import rdf.Sparql;
 import rdf.Triple;
 import lcn.EntityFragmentFields;
+import log.QueryLogger;
 import fgmt.EntityFragment;
 import fgmt.TypeFragment;
 import nlp.ds.Word;
@@ -21,8 +23,8 @@ import nlp.tool.CoreNLP;
 
 public class ExtractImplicitRelation {
 	
-	static final int SamplingNumber = 500;	//计算过程中，候选实体过多时，选择的最大数目
-	static final int k = 3;	//可能有多个关系时，选择前top-k个
+	static final int SamplingNumber = 100;	//计算过程中，候选实体过多时，选择的最大数目
+	static final int k = 3;	//可能有多个关系时，选择前top-k个；word可能对应多个ent时，选择前k个
 	
 	//eg: "president Obama", "Andy Liu's Hero(film)".
 	public ArrayList<Integer> getPrefferdPidListBetweenTwoConstant(Word w1, Word w2)
@@ -52,6 +54,88 @@ public class ExtractImplicitRelation {
 		return res;
 	}
 	
+	public ArrayList<Triple> supplementTriplesByModifyWord(QueryLogger qlog)
+	{
+		ArrayList<Triple> res = new ArrayList<Triple>();
+		ArrayList<Word> typeVariableList = new ArrayList<Word>();
+		
+		//修饰词
+		for(Word word: qlog.s.words)
+		{
+			if(word.modifiedWord != null)
+			{
+				ArrayList<ImplicitRelation> irList = null;
+				// ent -> typeVariable | eg: Chinese actor, Czech movies
+				if(word.mayEnt && word.modifiedWord.mayType)
+				{
+					typeVariableList.add(word.modifiedWord);
+					int tId = word.modifiedWord.tmList.get(0).typeID;
+					String tName = word.modifiedWord.tmList.get(0).typeName;
+					for(int i=0; i<k&&i<word.emList.size(); i++)
+					{
+						int eId = word.emList.get(0).entityID;
+						String eName = word.emList.get(0).entityName;
+						irList = getPrefferdPidListBetween_Entity_TypeVariable(eId, tId);
+						
+						if(irList!=null && irList.size()>0)
+						{
+							ImplicitRelation ir = irList.get(0);
+							String subjName = null, objName = null;
+							Word subjWord = null, objWord = null;
+							if(ir.subjId == eId)
+							{
+								subjName = eName;
+								objName = "?"+tName;
+								subjWord = word;
+								objWord = word.modifiedWord;
+							}
+							else
+							{
+								subjName = "?"+tName;
+								objName = eName;
+								subjWord = word.modifiedWord;
+								objWord = word;
+							}
+							Triple triple = new Triple(ir.subjId, subjName, ir.pId, ir.objId, objName, null, ir.score, subjWord, objWord);
+							res.add(triple);
+							break;
+						}
+					}
+				}
+			}
+		}
+		
+		if(qlog.rankedSparqls == null || qlog.rankedSparqls.size() == 0)
+		{
+			if(res != null && res.size() > 0)
+			{
+				Sparql spq = new Sparql();
+				for(Triple t: res)
+					spq.addTriple(t);
+				
+				//因为之前是空集，所以这条 ”ent + type变量“的triple中的type变量并没有抽取出type triple，这里添加进去
+				for(Word typeVar: typeVariableList)
+				{
+					Triple triple =	new Triple(Triple.VAR_ROLE_ID, "?"+typeVar.baseForm, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeVar.tmList.get(0).typeName, null, 100);
+					spq.addTriple(triple);
+				}
+				
+				qlog.rankedSparqls.add(spq);
+			}
+			
+		}
+		else
+		{
+			for(Sparql spq: qlog.rankedSparqls)
+			{
+				for(Triple t: res)
+					spq.addTriple(t);
+			}
+		}
+		
+		return res;
+	}
+	
 	/*
 	 * Which is the film directed by Obama and starred by a Chinese ?x
 	 * [What] is in a [chocolate_chip_cookie]      ?var + ent
@@ -63,14 +147,15 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 	 * eg：Czech|ent movies|?type	Chinese|ent actor|?type
 	 * type变量 + entity，转化为求该type下属entities与该ent的可能relation，取频繁 top 3
 	 * */
-	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_TypeVariable_Entity(Integer typeId, Integer entId)
+	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_Entity_TypeVariable(Integer entId, Integer typeId)
 	{
 		ArrayList<ImplicitRelation> res = new ArrayList<ImplicitRelation>();
 		
 		TypeFragment tf = TypeFragment.typeFragments.get(typeId);
-		if(tf == null)
+		EntityFragment ef2 = EntityFragment.getEntityFragmentByEntityId(entId);
+		if(tf == null || ef2 == null)
 		{
-			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity ：Type no fragments.");
+			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity ：Type or Entity no fragments.");
 			return null;
 		}
 		
@@ -79,12 +164,17 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 		HashMap<ImplicitRelation, Integer> irCount = new HashMap<ImplicitRelation, Integer>();
 		for(int candidateEid: tf.entSet)
 		{
-			if(!EntityFragmentFields.entityId2Name.containsKey(candidateEid))
+			EntityFragment ef1 = EntityFragment.getEntityFragmentByEntityId(candidateEid);
+			if(ef1 == null)
 				continue;
+			
+			ArrayList<ImplicitRelation> tmp = getPrefferdPidListBetween_TwoEntities(ef1, ef2);
+			if(tmp == null || tmp.size() == 0)	//type的这个下属ent找不到与给出ent2之间的关系，不计数，继续下一个下属ent
+				continue;
+			
 			if(samplingCnt++ > SamplingNumber)
 				break;
-	
-			ArrayList<ImplicitRelation> tmp = getPrefferdPidListBetween_TwoEntities(candidateEid, entId);
+			
 			for(ImplicitRelation ir: tmp)
 			{
 				//将type下属ent替换回?type
@@ -114,11 +204,11 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 		return res;
 	}
 	
-	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_TypeVariable_Entity(String typeName, String entName)
+	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_Entity_TypeVariable(String entName, String typeName)
 	{
 		if(!TypeFragment.typeShortName2IdList.containsKey(typeName) || !EntityFragmentFields.entityName2Id.containsKey(entName))
 			return null;
-		return getPrefferdPidListBetween_TypeVariable_Entity(TypeFragment.typeShortName2IdList.get(typeName).get(0), EntityFragmentFields.entityName2Id.get(entName));
+		return getPrefferdPidListBetween_Entity_TypeVariable(EntityFragmentFields.entityName2Id.get(entName), TypeFragment.typeShortName2IdList.get(typeName).get(0));
 	}
 	
 	/*
@@ -297,8 +387,7 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 	}
 	
 	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_TwoEntities(Integer eId1, Integer eId2)
-	{
-		ArrayList<ImplicitRelation> res = new ArrayList<ImplicitRelation>();
+	{	
 		EntityFragment ef1 = null, ef2 = null;
 		ef1 = EntityFragment.getEntityFragmentByEntityId(eId1);
 		ef2 = EntityFragment.getEntityFragmentByEntityId(eId2);
@@ -308,7 +397,19 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 			System.out.println("Error in GetPrefferdPidListBetweenTwoEntities: Entity No Fragments!");
 			return null;
 		}
-			
+	
+		return getPrefferdPidListBetween_TwoEntities(ef1,ef2);
+	}
+	
+	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_TwoEntities(EntityFragment ef1, EntityFragment ef2)
+	{
+		ArrayList<ImplicitRelation> res = new ArrayList<ImplicitRelation>();
+		if(ef1 == null || ef2 == null)
+			return null;
+		
+		int eId1 = ef1.eId;
+		int eId2 = ef2.eId;
+		
 		// subj : ent1
 		if(ef1.outEntMap.containsKey(eId2))
 		{
@@ -359,19 +460,19 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 			
 			ArrayList<ImplicitRelation> irList = null;
 			
-//			irList = eir.getPrefferdPidListBetween_TwoEntities(name1, name2);
-//			if(irList == null || irList.size()==0)
-//				System.out.println("Can't find!");
-//			else
-//			{
-//				for(ImplicitRelation ir: irList)
-//				{
-//					int pId = ir.pId;
-//					String p = Globals.pd.getPredicateById(pId);
-//					System.out.println(ir.subjId+"\t"+p+"\t"+ir.objId);
-//					System.out.println(ir.subj+"\t"+p+"\t"+ir.obj);
-//				}
-//			}
+			irList = eir.getPrefferdPidListBetween_TwoEntities(name1, name2);
+			if(irList == null || irList.size()==0)
+				System.out.println("Can't find!");
+			else
+			{
+				for(ImplicitRelation ir: irList)
+				{
+					int pId = ir.pId;
+					String p = Globals.pd.getPredicateById(pId);
+					System.out.println(ir.subjId+"\t"+p+"\t"+ir.objId);
+					System.out.println(ir.subj+"\t"+p+"\t"+ir.obj);
+				}
+			}
 			
 //			irList = eir.getPrefferdPidListBetween_TypeConstant_Entity(name1, name2);
 //			if(irList == null || irList.size()==0)
@@ -386,18 +487,31 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 //				}
 //			}
 			
-			irList = eir.getPrefferdPidListBetween_TypeVariable_Entity(name1, name2);
-			if(irList == null || irList.size()==0)
-				System.out.println("Can't find!");
-			else
-			{
-				for(ImplicitRelation ir: irList)
-				{
-					int pId = ir.pId;
-					String p = Globals.pd.getPredicateById(pId);
-					System.out.println(ir.subjId+"\t"+p+"\t"+ir.objId);
-				}
-			}
+//			irList = eir.getPrefferdPidListBetween_Entity_Variable(name1, name2);
+//			if(irList == null || irList.size()==0)
+//				System.out.println("Can't find!");
+//			else
+//			{
+//				for(ImplicitRelation ir: irList)
+//				{
+//					int pId = ir.pId;
+//					String p = Globals.pd.getPredicateById(pId);
+//					System.out.println(ir.subjId+"\t"+p+"\t"+ir.objId);
+//				}
+//			}
+			
+//			irList = eir.getPrefferdPidListBetween_Entity_TypeVariable(name1, name2);
+//			if(irList == null || irList.size()==0)
+//				System.out.println("Can't find!");
+//			else
+//			{
+//				for(ImplicitRelation ir: irList)
+//				{
+//					int pId = ir.pId;
+//					String p = Globals.pd.getPredicateById(pId);
+//					System.out.println(ir.subjId+"\t"+p+"\t"+ir.objId);
+//				}
+//			}
 		}
 	}
 }

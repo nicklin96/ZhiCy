@@ -88,7 +88,7 @@ public class Query
 		ArrayList<String> mergedQuestionList = null;
 		//entity & type recognize
 		//TODO: 这里保存多个实体划分方案
-		EntityRecognition er = new EntityRecognition();
+		EntityRecognition er = new EntityRecognition(); 
 		mergedQuestionList = er.process(question);
 		preLog = er.preLog;
 		mWordList = er.mWordList;

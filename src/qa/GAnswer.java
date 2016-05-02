@@ -53,13 +53,13 @@ public class GAnswer {
 			if (input.length() <= 5)
 				return null;
 						
-			// step 0: Node (entity & type & literal) Recognition
+			// step 0: Node (entity & type & literal) Recognition 
 			long t0 = System.currentTimeMillis(), t;
 			Query query = new Query(input);
 			ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
-			System.out.println("step0 [Node Recognition] : "+(int)(System.currentTimeMillis()-t0)+"ms");
+			System.out.println("step0 [Node Recognition] : "+(int)(System.currentTimeMillis()-t0)+"ms"); 
 			
-			//这样写就只输出最后一次的qlog中的日志，因为前面的qlog.fw还未close就new qlog了；所以倒过来遍历，因为sList(0)是得分最高的，最后访问它来输出它的log
+			//这样写就只输出最后一次的qlog中的日志，因为前面的qlog.fw还未close就new qlog了；所以倒过来遍历，因为sList(0)是得分最高的，最后访问它来输出它的log 
 			for(int i=query.sList.size()-1;i>=0;i--)
 			{
 				Sentence possibleSentence = query.sList.get(i);

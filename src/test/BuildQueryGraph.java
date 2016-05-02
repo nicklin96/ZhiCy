@@ -90,7 +90,7 @@ public class BuildQueryGraph
 			fixStopWord(qlog);
 			
 			//step1:识别query target，部分共指消解 |  现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的target。   
-			DependencyTreeNode target = detectTarget(ds,qlog);
+			DependencyTreeNode target = detectTarget(ds,qlog); 
 			qlog.fw.write("++++ Target detect: "+target+"\n");
 			if(target == null)
 				return null;
@@ -114,7 +114,7 @@ public class BuildQueryGraph
 				stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);	
 			
 			//修饰词识别，依据sentence而不是dependency tree  
-			for(Word word: qlog.s.words)
+			for(Word word: qlog.s.words) 
 			{
 				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, word);
 				if(modifiedWord != word)
@@ -133,7 +133,7 @@ public class BuildQueryGraph
 			queue.add(target);
 			visited.clear();
 			
-			//step2:核心，一步步扩展查询图  
+			//step2:核心，一步步扩展查询图   
 			while((curCenterNode=queue.poll())!=null)
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null)
@@ -172,27 +172,29 @@ public class BuildQueryGraph
 				}
 			}
 			
-			//step3: 注意这时认为已经处理了 "指代消解"。确定各unit之间的relation, 这里认为只要两个unit不直接相连都可以通过ganswer的relation extract解决。 
+			//step3: 注意这时认为已经处理了 "指代消解"。确定各unit之间的relation, 这里认为只要两个unit不直接相连都可以通过ganswer的relation extract解决。  
 			extractRelation(semanticUnitList, qlog);
 			matchRelation(semanticUnitList, qlog);
 			
-//			//step4: [这步没有实际作用]找每个unit的描述词，处理describe，包括聚集函数、形容词，转化成semantic relation形式加入matchedSR进行item mapping.
-//			findDescribe(semanticUnitList, qlog);
+//			//TODO：step4: [这步没有实际作用]找每个unit的描述词，处理describe，包括聚集函数、形容词，转化成semantic relation形式加入matchedSR进行item mapping.
 			
-			//item mapping前的准备，即识别 “常量” 和 “变量”
+			//item mapping前的准备，即识别 “常量” 和 “变量” 
 			//TODO 这个函数要改进，将step0得到的信息考虑进来；常量、变量信息是否应该存储在WORD中而不是SR中？
 			ExtractRelation er = new ExtractRelation();
 			er.constantVariableRecognition(qlog.semanticRelations,qlog);
 		
 			//step5: item mappping & top-k join
 			TypeRecognition tr = new TypeRecognition();	
-			tr.recognize(qlog.semanticRelations);	//这一步可能是无用功
+			tr.recognize(qlog.semanticRelations);	//这一步是加入 who、where的type信息【其实没什么用，还经常因为多出type而找不到答案】 
 			
 			SemanticItemMapping step5 = new SemanticItemMapping();
-			step5.process(qlog, qlog.semanticRelations);
+			step5.process(qlog, qlog.semanticRelations);	//top-k join，disambiguation
 		
+			//step6: implicit relation [modify word]
+			ExtractImplicitRelation step6 = new ExtractImplicitRelation();
+			step6.supplementTriplesByModifyWord(qlog);
 			
-			// 输出查询图的结构，这是不进行fragment check的原始图，用于观察图结构
+			// 输出查询图的结构，这是不进行fragment check的原始图，用于观察图结构 
 			printTriples_SUList(semanticUnitList, qlog);
 			
 		} catch (IOException e) {
@@ -204,27 +206,6 @@ public class BuildQueryGraph
 		return semanticUnitList;
 	}
 	
-	private void findDescribe(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
-	{
-		DependencyTree ds = qlog.s.dependencyTreeStanford;
-		if(qlog.isMaltParserUsed)
-			ds = qlog.s.dependencyTreeMalt;
-		
-		for(SemanticUnit curSU: semanticUnitList)
-		{
-			DependencyTreeNode curNode = ds.getNodeByIndex(curSU.centerWord.position);
-			for(DependencyTreeNode child: curNode.childrenList)
-			{
-				if(child.dep_father2child.contains("mod"))
-				{
-					curSU.describeNodeList.add(child);
-				}
-			}
-		}
-		
-		//TO DO
-	}
-
 	public void extractRelation(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
 	{
 		ExtractRelation er = new ExtractRelation();
@@ -489,7 +470,7 @@ public class BuildQueryGraph
 		
 		for(DependencyTreeNode cur : ds.nodesList)
 		{
-			if(isWh(cur.word))
+			if(isWh(cur.word)) 
 			{
 				target = cur;
 				break;
@@ -684,17 +665,18 @@ public class BuildQueryGraph
 				}
 				else
 				{
-					//Who produced films starring Natalie_Portman，target设为film图才正确，否则就是who和Natalie相连
+					//2016.5.2, target还是用来表示最终问的东西，所以注释掉这条规则
+					//Who produced films starring Natalie_Portman，target设为film图才正确，否则就是who和Natalie相连 
 					//注意目前 Who produced Goofy? 这种，target还是设为 who，因为 “规则：特殊疑问句的target不为ent”，所以target还是用来代表最终要问的那个东西
 					//TODO:是否另起一个标记“start”，之后在考虑，现在用长度判断来区分开以上两例情况
-					if(curPos+2<words.length && words[curPos+1].posTag.startsWith("V"))
-					{
-						Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
-						if(isNodeCandidate(modifiedWord) && words.length>=5)
-						{
-							target = ds.getNodeByIndex(modifiedWord.position);
-						}
-					}
+//					if(curPos+2<words.length && words[curPos+1].posTag.startsWith("V"))
+//					{
+//						Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
+//						if(isNodeCandidate(modifiedWord) && words.length>=5)
+//						{
+//							target = ds.getNodeByIndex(modifiedWord.position);
+//						}
+//					}
 				}
 			}
 		}
@@ -783,6 +765,13 @@ public class BuildQueryGraph
 //				if(s.words[i].baseForm.equals("do"))
 //					return modifiedWord;
 //		}
+		
+		//[ent1] 's [ent2], 则ent1是ent2的修饰词，且通常不需要出现在sparql中。| eg：Show me all books in Asimov 's Foundation_series
+		if(modifier.position+1 < s.words.length && modifier.mayEnt && s.words[modifier.position].baseForm.equals("'s") && s.words[modifier.position+1].mayEnt)
+		{
+			modifiedWord = s.words[modifier.position+1];
+			return modifiedWord;
+		}
 		
 		//干脆认为 ent+noun 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake?
 		if(modifier.position<s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)

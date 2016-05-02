@@ -72,6 +72,10 @@ public class EntityRecognition {
 		stopEntList.add("population");
 		stopEntList.add("density");
 		stopEntList.add("population_density");
+		stopEntList.add("company");
+		stopEntList.add("indian_company");
+		stopEntList.add("score");
+		stopEntList.add("series");
 		
 		badTagListForEntAndType = new ArrayList<String>();
 		badTagListForEntAndType.add("RBS");
@@ -109,7 +113,7 @@ public class EntityRecognition {
 		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0, hitLuceneEntCnt = 0;
 		boolean needRemoveCommas = false;
 		
-		//check entity & type，之后看要不要分开检测
+		//check entity & type，之后看要不要分开检测 
 		//注意len由小到大的顺序不能变，因为一些长ent是否保留或得分策略依赖于短ent的识别情况
 		for(int len=1;len<=words.length;len++)
 		{
@@ -140,20 +144,20 @@ public class EntityRecognition {
 				}
 				allCnt++;
 /*
- * 加一些规则减少find次数，但是这些规则可能牺牲某些entity
+ * 加一些规则减少find次数，但是这些规则可能牺牲某些entity 
  * 一系列经过不断增加和修正的手写规则
 */
 				
 				boolean entOmit = false, typeOmit = false;
 				int prep_cnt=0;
 				
-				//如果这一串word都是大写字母开头（符号如果在两个word中间，则也算作大写，eg："Melbourne , Florida"），则必定做mapping，否则进行规则判断是否做mapping
+				//如果这一串word都是大写字母开头（符号如果在两个word中间，则也算作大写，eg："Melbourne , Florida"），则必定做mapping，否则进行规则判断是否做mapping 
 				int UpperWordCnt = 0;
 				for(int i=st;i<ed;i++)
 					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') || (words[i].posTag.equals(",") && i>st && i<ed-1))
 						UpperWordCnt++;
 				
-				//如果符合一些 "基本不可能用作entity"的规则，则不进行ent检测
+				//如果符合一些 "基本不可能用作entity"的规则，则不进行ent检测 
 				if(UpperWordCnt<len || st==0)
 				{
 					if(st==0)
@@ -165,7 +169,7 @@ public class EntityRecognition {
 						}
 					}
 					
-					//这些rule需要判断上一个词，所以要求st大于0；注意这些rule只针对ent
+					//这些rule需要判断上一个词，所以要求st大于0；注意这些rule只针对ent 
 					if(st>0)
 					{
 						Word formerWord = words[st-1];
@@ -176,8 +180,8 @@ public class EntityRecognition {
 						if(formerWord.baseForm.equals("many"))
 							entOmit = true;
 						
-						//obama's daughter ; your height
-						if(formerWord.posTag.startsWith("POS") || formerWord.posTag.startsWith("PRP"))
+						//obama's daughter ; your height | 2016.5.2,增加len=1限制，因为Asimov's Foundation series这种会识别错
+						if(len == 1 && (formerWord.posTag.startsWith("POS") || formerWord.posTag.startsWith("PRP")))
 							entOmit = true;
 						//the father of you
 						if(ed<words.length)
@@ -563,15 +567,15 @@ public class EntityRecognition {
 			int key = mWord.st * (words.length+1) + mWord.ed;
 			if(mWord.mayEnt)
 			{
-				System.out.println("Detect entity mapping: "+mWord.name+": "+entityMappings.get(key)+" score:"+entityScores.get(key));
-	        	preLog += "++++ Entity detect: "+mWord.name+": "+entityMappings.get(key)+" score:"+entityScores.get(key)+"\n";
+				System.out.println("Detect entity mapping: "+mWord.name+": "+mWord.emList.get(0).entityName +" score:"+entityScores.get(key));
+	        	preLog += "++++ Entity detect: "+mWord.name+": "+mWord.emList.get(0).entityName+" score:"+entityScores.get(key)+"\n";
 	        	//统计hit
 				hitEntCnt++;
 			}
 			if(mWord.mayType)
 			{
-				System.out.println("Detect type mapping: "+mWord.name+": "+typeMappings.get(key)+" score:"+typeScores.get(key));
-	    		preLog += "++++ Type detect: "+mWord.name+": "+typeMappings.get(key)+" score:"+typeScores.get(key)+"\n";
+				System.out.println("Detect type mapping: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key));
+	    		preLog += "++++ Type detect: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key)+"\n";
 	    		//统计hit
 				hitTypeCnt++;
 			}

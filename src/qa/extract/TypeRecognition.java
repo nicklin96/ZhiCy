@@ -15,22 +15,16 @@ import rdf.SemanticRelation;
 import rdf.TypeMapping;
 
 public class TypeRecognition {
-	// dbpedia
-	/*
-	public static final int[] type_Person = {9,10,11};
-	public static final int[] type_Place = {16, 17};
-	public static final int[] type_Organisation = {33,57};
-	*/	
 	// dbpedia3.9
-	// public static final int[] type_Person = {19,20,21};
-	// public static final int[] type_Place = {43,45};
-	// public static final int[] type_Organisation = {2,12};	
+//	public static final int[] type_Person = {19,20,21};
+//	public static final int[] type_Place = {43,45};
+//	public static final int[] type_Organisation = {2,12};	
 	
 	// dbpedia 2014
 	public static final int[] type_Person = {180,279};
 	public static final int[] type_Place = {49,228};
 	public static final int[] type_Organisation = {419,53};
-
+	
 	public HashMap<String,String> extendTypeMap = null; 
 	
 	SearchInTypeShortName st = new SearchInTypeShortName();
@@ -38,12 +32,6 @@ public class TypeRecognition {
 	public TypeRecognition()
 	{
 		extendTypeMap = new HashMap<String, String>();
-		// 都在yago type中，所以注释掉
-//		extendTypeList.add("queen");
-//		extendTypeList.add("prince");
-//		extendTypeList.add("surfer");
-//		extendTypeList.add("bandleader");
-//		extendTypeList.add("state_of_germany");
 		
 		//一些形式上变换的type
 		extendTypeMap.put("NonprofitOrganizations", "dbo:Non-ProfitOrganisation");

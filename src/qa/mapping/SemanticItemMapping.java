@@ -59,7 +59,7 @@ public class SemanticItemMapping {
 		// 1. collect names of constant(entities), and map them to the entities
 		t = System.currentTimeMillis();
 		
-		Iterator<Map.Entry<Integer, SemanticRelation>> it = semanticRelations.entrySet().iterator();
+		Iterator<Map.Entry<Integer, SemanticRelation>> it = semanticRelations.entrySet().iterator(); 
         while(it.hasNext())
         {
             Map.Entry<Integer, SemanticRelation> entry = it.next();
@@ -79,8 +79,8 @@ public class SemanticItemMapping {
 				continue;
 			}
 			
-			//因为type而标记常量的情况在score and ranking中处理，这里只处理ent
-			if (sr.isArg1Constant && !sr.arg1Word.mayType) 
+			//因为type而标记常量的情况在score and ranking中处理，这里只处理ent | 2016.5.2：subject以ent为优先
+			if (sr.isArg1Constant && sr.arg1Word.mayEnt) 
 			{
 				//因为ent而标记常量
 				if (!entityDictionary.containsKey(sr.arg1Word)) 
@@ -133,7 +133,7 @@ public class SemanticItemMapping {
 		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t));
 
 		// 3. sort and rank
-		Collections.sort(rankedSparqls);
+		Collections.sort(rankedSparqls);		
 		
 		//qlog.rankedSparqls = rankedSparqls;
 		qlog.rankedSparqls.addAll(rankedSparqls);
@@ -271,7 +271,7 @@ public class SemanticItemMapping {
 	 * 注意：在这里加入embedded type信息：
 	 * 例如：为?who <height> ?how 补充  ?who <type1> <Person> 或者 ?book <author> <Tom> 补充 ?book <type1> <Book>
 	 * 注意：在这里加入constant type信息：
-	 * 例如：ask: <YaoMing> <type1> <BasketballPlayer>
+	 * 例如：ask: <YaoMing> <type1> <BasketballPlayer> 
 	 * */
 	public void scoringAndRanking() 
 	{			
@@ -290,7 +290,8 @@ public class SemanticItemMapping {
 			// argument1 | 如果(sr.arg1Word.mayEnt || sr.arg1Word.mayType)=true但是sr.isArg1Constant=false，意味着 这是一个 变量版“type”；例如“the book of ..”中的book
 			if(sr.isArg1Constant && (sr.arg1Word.mayEnt || sr.arg1Word.mayType) ) 
 			{
-				if(!sr.arg1Word.mayType)
+				//2016.5.2：对于subj，还是ent优先
+				if(sr.arg1Word.mayEnt)
 				{
 					EntityMapping em = currentEntityMappings.get(sr.arg1Word.hashCode());
 					subjId = em.entityID;
@@ -477,7 +478,7 @@ public class SemanticItemMapping {
 			// 方法三：进行complete compatibility check，并且枚举subj/obj顺序 
 			sparql.typesComesFirst();			
 
-			//这里isTripleCompatibleCanSwap就是判断triple是否符合碎片，可以交换subj和obj，如果有一条不满足，直接return（注意这里只是第一层检验，通过后还要在enumerateEubjObjOrders函数里进行第二步检验）
+			//这里isTripleCompatibleCanSwap就是判断triple是否符合碎片，可以交换subj和obj，如果有一条不满足，直接return（注意这里只是第一层检验，通过后还要在enumerateEubjObjOrders函数里进行第二步检验）  
 			for (Triple t : sparql.tripleList)				
 				if(t.predicateID!=Globals.pd.typePredicateID && !isTripleCompatibleCanSwap(t))
 					return;
