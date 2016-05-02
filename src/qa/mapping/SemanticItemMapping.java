@@ -79,8 +79,8 @@ public class SemanticItemMapping {
 				continue;
 			}
 			
-			//因为type而标记常量的情况在score and ranking中处理，这里只处理ent
-			if (sr.isArg1Constant && !sr.arg1Word.mayType) 
+			//因为type而标记常量的情况在score and ranking中处理，这里只处理ent | 2016.5.2：subject以ent为优先
+			if (sr.isArg1Constant && sr.arg1Word.mayEnt) 
 			{
 				//因为ent而标记常量
 				if (!entityDictionary.containsKey(sr.arg1Word)) 
@@ -289,7 +289,8 @@ public class SemanticItemMapping {
 			// argument1 | 如果(sr.arg1Word.mayEnt || sr.arg1Word.mayType)=true但是sr.isArg1Constant=false，意味着 这是一个 变量版“type”；例如“the book of ..”中的book
 			if(sr.isArg1Constant && (sr.arg1Word.mayEnt || sr.arg1Word.mayType) ) 
 			{
-				if(!sr.arg1Word.mayType)
+				//2016.5.2：对于subj，还是ent优先
+				if(sr.arg1Word.mayEnt)
 				{
 					EntityMapping em = currentEntityMappings.get(sr.arg1Word.hashCode());
 					sub = em.entityID;

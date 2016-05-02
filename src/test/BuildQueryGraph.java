@@ -780,6 +780,13 @@ public class BuildQueryGraph
 //					return modifiedWord;
 //		}
 		
+		//[ent1] 's [ent2], 则ent1是ent2的修饰词，且通常不需要出现在sparql中。| eg：Show me all books in Asimov 's Foundation_series
+		if(modifier.position+1 < s.words.length && modifier.mayEnt && s.words[modifier.position].baseForm.equals("'s") && s.words[modifier.position+1].mayEnt)
+		{
+			modifiedWord = s.words[modifier.position+1];
+			return modifiedWord;
+		}
+
 		//干脆认为 ent+noun 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake?
 		if(modifier.position<s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)
 		{
