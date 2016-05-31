@@ -1,4 +1,4 @@
-package test;
+package rdf;
 
 import java.util.ArrayList;
 import java.util.HashMap;

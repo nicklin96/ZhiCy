@@ -1,4 +1,4 @@
-package test;
+package qa.parsing;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,19 +9,16 @@ import java.util.Queue;
 
 import fgmt.TypeFragment;
 import log.QueryLogger;
+import nlp.ds.*;
+import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
-import qa.extract.CorefResolution;
-import qa.extract.SimpleRelation;
-import qa.extract.TypeRecognition;
+import qa.extract.*;
 import qa.mapping.SemanticItemMapping;
 import rdf.PredicateMapping;
 import rdf.Triple;
-import nlp.ds.DependencyTree;
-import nlp.ds.DependencyTreeNode;
-import nlp.ds.Sentence;
-import nlp.ds.Sentence.SentenceType;
-import nlp.ds.Word;
 import rdf.SemanticRelation;
+import rdf.SimpleRelation;
+import rdf.SemanticUnit;
 import paradict.ParaphraseDictionary;
 
 /*
@@ -89,9 +86,9 @@ public class BuildQueryGraph
  * */		
 			fixStopWord(qlog);
 			
-			//step1:识别query target，部分共指消解 |  现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的target。   
+			//step1:识别query target，部分共指消解 |  现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的target。     
 			DependencyTreeNode target = detectTarget(ds,qlog); 
-			qlog.fw.write("++++ Target detect: "+target+"\n");
+			qlog.fw.write("++++ Target detect: "+target+"\n"); 
 			if(target == null)
 				return null;
 			
@@ -104,7 +101,7 @@ public class BuildQueryGraph
 			}
 			
 			//共指消解，cr中有一系列规则；因为共指分为好几种情况需要不同的处理方式，不能简单的删掉其中一个，所以要确定图结构后再处理
-			//ganswer以关系为核心，确定每一组”关系加两端变量“后做指代消解，用其中一个替换掉所有共指的变量就可以 
+			//ganswer以关系为核心，确定每一组”关系加两端变量“后做指代消解，用其中一个替换掉所有共指的变量就可以  
 			CorefResolution cr = new CorefResolution();
 			
 			//这里随手加一个指代消解，之后应该在结构清晰的地方统一进行指代消解。
@@ -112,6 +109,10 @@ public class BuildQueryGraph
 			//为简便，直接将要消除的词加入stopNodeList。因为represent有时需要复制被指代词的信息，也可能影响结构，还没搞清楚
 			if(qlog.s.words[0].baseForm.equals("be") && isNode(ds.getNodeByIndex(2)) && ds.getNodeByIndex(3).dep_father2child.equals("det") && isNode(ds.getNodeByIndex(4)))
 				stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);	
+			//which在句中的时候，通常不作为node
+			for(int i=2;i<qlog.s.words.length;i++)
+				if(qlog.s.words[i].baseForm.equals("which"))
+					stopNodeList.add(qlog.s.words[i].baseForm);
 			
 			//修饰词识别，依据sentence而不是dependency tree  
 			for(Word word: qlog.s.words) 
@@ -133,14 +134,14 @@ public class BuildQueryGraph
 			queue.add(target);
 			visited.clear();
 			
-			//step2:核心，一步步扩展查询图   
+			//step2:核心，一步步扩展查询图    
 			while((curCenterNode=queue.poll())!=null)
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null)
 				{
 					//被扩展SU被其他SU代表，则直接略过此次扩展; TODO: 共指消解应该在结构确定后做，直接抛弃可能会丢失部分边信息
 					//[2015-12-13]这样相当于丢失了这个方向，沿该SU继续走本来能找到其他点，但直接continue就断绝了找到这些点的希望; 之所以一直没有发现问题是因为绝大多数情况被代表的SU都在query graph的边缘，即不会中断探索
-					//[2015-12-13]干脆先剥夺他们在dfs中被探索到的权利，即在isNode中拒绝represent，注意先只针对 represent; 
+					//[2015-12-13]干脆先剥夺他们在dfs中被探索到的权利，即在isNode中拒绝represent，注意先只针对 represent;  
 					continue;
 				}					
 				
@@ -172,7 +173,7 @@ public class BuildQueryGraph
 				}
 			}
 			
-			//step3: 注意这时认为已经处理了 "指代消解"。确定各unit之间的relation, 这里认为只要两个unit不直接相连都可以通过ganswer的relation extract解决。  
+			//step3: 注意这时认为已经处理了 "指代消解"。确定各unit之间的relation, 这里认为只要两个unit不直接相连都可以通过ganswer的relation extract解决。    
 			extractRelation(semanticUnitList, qlog);
 			matchRelation(semanticUnitList, qlog);
 			

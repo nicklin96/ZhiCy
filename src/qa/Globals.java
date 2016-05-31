@@ -19,7 +19,7 @@ import nlp.tool.CoreNLP;
 import nlp.tool.MaltParser;
 import nlp.tool.StanfordParser;
 import nlp.tool.StopWordsList;
-import test.PosTagPattern;
+import addition.PosTagPattern;
 
 public class Globals {
 	// nlp tools

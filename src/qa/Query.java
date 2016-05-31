@@ -4,7 +4,7 @@ import java.util.ArrayList;
 
 import nlp.ds.Sentence;
 import qa.extract.EntityRecognition;
-import test.MergedWord;
+import rdf.MergedWord;
 
 public class Query 
 {

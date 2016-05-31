@@ -9,15 +9,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-
-
-
-
-
-
-
-
-
 import javax.servlet.http.HttpServletRequest;
 
 import qa.Matches;
@@ -25,8 +16,8 @@ import qa.Query;
 import rdf.EntityMapping;
 import rdf.SemanticRelation;
 import rdf.Sparql;
-import test.MergedWord;
-import test.SemanticUnit;
+import rdf.MergedWord;
+import rdf.SemanticUnit;
 import qa.Answer;
 import nlp.ds.Sentence;
 import nlp.ds.Word;

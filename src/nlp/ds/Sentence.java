@@ -5,7 +5,7 @@ import java.util.HashMap;
 
 import qa.Globals;
 import qa.Query;
-import test.MergedWord;
+import rdf.MergedWord;
 
 public class Sentence {
 	public String plainText = null;

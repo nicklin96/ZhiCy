@@ -20,13 +20,14 @@ import nlp.ds.Sentence.SentenceType;
 import qa.extract.EntityRecognition;
 import qa.mapping.SemanticItemMapping;
 import qa.parsing.QuestionParsing;
+import qa.parsing.BuildQueryGraph;
 import rdf.EntityMapping;
 import rdf.PredicateMapping;
 import rdf.SemanticRelation;
 import rdf.Sparql;
 import rdf.Triple;
-import test.AddtionalFix;
-import test.BuildQueryGraph;
+import addition.AddtionalFix;
+
 
 public class GAnswer {
 	

@@ -1,4 +1,4 @@
-package test;
+package addition;
 
 import nlp.ds.DependencyTree;
 import nlp.ds.DependencyTreeNode;

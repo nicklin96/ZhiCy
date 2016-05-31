@@ -1,4 +1,4 @@
-package test;
+package qa.extract;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -14,6 +14,7 @@ import paradict.ParaphraseDictionary;
 import qa.Globals;
 import rdf.Sparql;
 import rdf.Triple;
+import rdf.ImplicitRelation;
 import lcn.EntityFragmentFields;
 import log.QueryLogger;
 import fgmt.EntityFragment;

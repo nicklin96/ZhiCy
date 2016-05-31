@@ -16,22 +16,12 @@ import java.util.HashMap;
 import java.util.List;
 
 import fgmt.EntityFragment;
-import nlp.ds.Sentence;
 import nlp.ds.Word;
-import nlp.ds.Sentence.SentenceType;
-import log.QueryLogger;
-import qa.GAnswer;
 import qa.Globals;
-import qa.Query;
 import rdf.EntityMapping;
 import rdf.NodeSelectedWithScore;
-import rdf.PredicateMapping;
-import rdf.SemanticRelation;
-import rdf.Sparql;
-import rdf.Triple;
 import rdf.TypeMapping;
-import test.MergedWord;
-import qa.mapping.SemanticItemMapping;
+import rdf.MergedWord;
 
 public class EntityRecognition {
 	public String preLog = "";
@@ -76,6 +66,7 @@ public class EntityRecognition {
 		stopEntList.add("indian_company");
 		stopEntList.add("score");
 		stopEntList.add("series");
+		stopEntList.add("chinese_girl");
 		
 		badTagListForEntAndType = new ArrayList<String>();
 		badTagListForEntAndType.add("RBS");

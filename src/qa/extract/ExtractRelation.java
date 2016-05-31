@@ -1,4 +1,4 @@
-package test;
+package qa.extract;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,9 +13,10 @@ import nlp.ds.DependencyTreeNode;
 import nlp.ds.Word;
 import paradict.ParaphraseDictionary;
 import qa.Globals;
-import qa.extract.SimpleRelation;
+import rdf.SimpleRelation;
 import rdf.PredicateMapping;
 import rdf.SemanticRelation;
+import rdf.SemanticUnit;
 
 public class ExtractRelation {
 
