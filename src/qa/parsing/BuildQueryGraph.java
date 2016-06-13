@@ -86,9 +86,11 @@ public class BuildQueryGraph
  * */		
 			fixStopWord(qlog);
 			
-			//step1:识别query target，部分共指消解 |  现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的target。     
+			//step1:识别query target，部分共指消解 | 现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的question focus。     
 			DependencyTreeNode target = detectTarget(ds,qlog); 
+			qlog.SQGlog += "++++ Target detect: "+target+"\n";
 			qlog.fw.write("++++ Target detect: "+target+"\n"); 
+			
 			if(target == null)
 				return null;
 			
@@ -123,6 +125,7 @@ public class BuildQueryGraph
 					modifierList.add(word);
 					word.modifiedWord = modifiedWord;
 					qlog.fw.write("++++ Modify detect: "+word+" --> "+modifiedWord+"\n");
+					qlog.SQGlog += "++++ Modify detect: "+word+" --> "+modifiedWord+"\n";
 				}
 			}
 		
@@ -297,6 +300,7 @@ public class BuildQueryGraph
 			{
 				try {
 					qlog.fw.write("sr not found: "+sr+"\n");
+					qlog.SQGlog += "sr not found: "+sr+"\n";
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -364,6 +368,7 @@ public class BuildQueryGraph
 						
 					Triple next = new Triple(-1, subj,rel, -1, obj,null,0);
 					qlog.fw.write("++++ Triple detect: "+next+"\n");
+					qlog.SQGlog += "++++ Triple detect: "+next+"\n";
 				}
 				// 当前unit是否拥有type
 				if(curSU.prefferdType != null)

@@ -28,7 +28,7 @@ public class ResultJspFile
 	{
 		qlog = q;
 		saveAnswerText();
-		saveAnswerJsp();
+		saveAnswerJspForNBganswer();
 		saveDependencyTreeJsp();
 		saveTextCoverageJsp();
 		saveSemanticRelationsJsp();
@@ -58,6 +58,82 @@ public class ResultJspFile
 			e.printStackTrace();					
 		}
 	}
+	
+	public void saveAnswerJspForNBganswer() 
+	{
+		//System.out.println("printAnswerJsp..."+beginResult+" "+endResult+ " "+ qlog.answers.size());
+		if (qlog==null || qlog.match == null 
+			|| qlog.match.answers == null 
+			|| qlog.match.answers.length == 0
+			|| qlog.sparql == null) {
+			return ;
+		}
+		try 
+		{	
+			int resultCount = qlog.answers.size();
+			
+			StringBuilder ret = new StringBuilder("");
+
+			for (int i = 0; i < resultCount; i ++) 
+			{
+				Answer ans = qlog.answers.get(i);
+				
+				if (i%2 == 0)
+					ret.append("<tr>");
+				if (!Character.isDigit(ans.questionFocusValue.charAt(0))) 
+				{
+					String link = null;
+					if (ans.questionFocusValue.startsWith("http")) 
+					{
+						link = ans.questionFocusValue;
+					}
+					else 
+					{
+						link = "http://en.wikipedia.org/wiki/"+ans.questionFocusValue;
+					}
+					ret.append("<td id=\"hit\"><a id=\"entity_name\" href=\""+link+"\" target=\"_blank\">");
+					ret.append(ans.questionFocusValue);
+					ret.append("</a><br/>");
+					for (int j = 0; j < ans.otherInformationKey.size(); j ++) 
+					{
+						ret.append("<span id=\"properties\">"+ans.otherInformationKey.get(j).substring(1)
+								+":</span><span id=\"values\">"
+								+ans.otherInformationValue.get(j)
+								+"   </span>");
+					}
+					ret.append("</td>");
+				}
+				else 
+				{
+					ret.append("<td id=\"hit\">");
+					ret.append(ans.questionFocusValue);
+					ret.append("<br/>");
+					for (int j = 0; j < ans.otherInformationKey.size(); j ++) {
+						ret.append("<span id=\"properties\">"+ans.otherInformationKey.get(j).substring(1)
+								+":</span><span id=\"values\">"
+								+ans.otherInformationValue.get(j)
+								+"   </span>");
+					}
+					ret.append("</td>");
+				}
+				
+				if (i%2 == 1)
+					ret.append("</tr>");
+				
+			}
+			
+			String path = localpath+"ansJsp.dat";
+			File outputFile = new File(path);
+			FileWriter writer = new FileWriter(outputFile);
+			writer.write(ret.toString());
+			writer.close();
+			
+			
+		} catch (Exception e) {
+			e.printStackTrace();					
+		}
+	}
+	
 	public void saveAnswerJsp() {
 		//QueryLogger qlog = this;
 		
@@ -78,11 +154,12 @@ public class ResultJspFile
 				int beginResult = curPageNum*pageSize;
 				int endResult = (curPageNum+1)*pageSize;
 				int i;
-				for (i = beginResult; i < Math.min(endResult,resultCount); i ++) {
+				for (i = beginResult; i < Math.min(endResult,resultCount); i ++) 
+				{
 	
 					Answer ans = qlog.answers.get(i);
 					
-					if (i%3 == 0)
+					if (i%2 == 0)
 						ret.append("<tr>");
 					if (!Character.isDigit(ans.questionFocusValue.charAt(0))) {
 						String link = null;
@@ -117,17 +194,17 @@ public class ResultJspFile
 						ret.append("</td>");
 					}
 					
-					if (i%3 == 2)
+					if (i%2 == 1)
 						ret.append("</tr>");
 					
 				}
 				
 				while (i<endResult)
 				{
-					if (i%3 == 0)
+					if (i%2 == 0)
 						ret.append("<tr>");
 					ret.append("<td valign=\"top\"> </td>");
-					if (i%3 == 2)
+					if (i%2 == 1)
 						ret.append("</tr>");
 					i++;
 				}
@@ -391,6 +468,7 @@ public class ResultJspFile
 	{
 		//QueryLogger qlog = this;
 		String resultCount = "0";
+		String time0 = "0";
 		String time1 = "0";
 		String time2 = "0";
 		String time3 = "0";
@@ -402,26 +480,34 @@ public class ResultJspFile
 		if (qlog!=null)
 		{
 			resultCount = String.valueOf(qlog.answers.size());
+			// step0 is Node Recognition 
+			time0 = ""+qlog.timeTable.get("step0");
+			// step1 is DependencyTree
 			time1 = ""+qlog.timeTable.get("step1");
-			time2 = ""+qlog.timeTable.get("step2");
-			time3 = ""+qlog.timeTable.get("CollectEntityNames");
-			time4 = ""+(qlog.timeTable.get("step3")-qlog.timeTable.get("CollectEntityNames"));
+			// step2 is Build Query Graph (including fix, top-k join;)
+			time2 = ""+(qlog.timeTable.get("step2")-qlog.timeTable.get("TopkJoin"));
+			// topk join
+			time3 = ""+qlog.timeTable.get("TopkJoin");
 			
-			if (time_gStore.length()>0) time5 = time_gStore.substring(1);
-			else time5 = "0";
+//			time4 = ""+(qlog.timeTable.get("step3")-qlog.timeTable.get("CollectEntityNames"));
+			
+			if (time_gStore.length()>0) 
+				time5 = time_gStore.substring(1);
+			else 
+				time5 = "0";
 		}
 
 		
 		/*TimeTable format:
 		 resultCount\n
 		 time\n
+		 time0\n
 		 time1\n
 		 time2\n
 		 time3\n
-		 time4\n
 		 time5\n
 		*/
-		String ret = resultCount+"\n"+time+"\n"+time1+"\n"+time2+"\n"+time3+"\n"+time4+"\n"+time5;
+		String ret = resultCount+"\n"+time+"\n"+time0+"\n"+time1+"\n"+time2+"\n"+time3+"\n"+time5;
 		
 		try
 		{

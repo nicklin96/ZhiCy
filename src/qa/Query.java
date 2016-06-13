@@ -25,6 +25,7 @@ public class Query
 		
 		NLQuestion = removeQueryId(NLQuestion);
 		//将KB中的entity & type & literal识别出并用下划线替代同一实体间的空格
+		//实际上就是 step1： NODE Recognition
 		
 		/*
 		 * 把等价替换放在后面，以防有某个实体名包含”as well as“等被替换词

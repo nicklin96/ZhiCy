@@ -43,7 +43,7 @@ public class GAnswer {
 		
 		Globals.init();
 		
-		System.out.println("ganswer init ... ok!");
+		System.out.println("gAnswer init ... ok!");
 	}
 	
 	public QueryLogger getSparqlList(String input) 
@@ -55,28 +55,34 @@ public class GAnswer {
 				return null;
 						
 			// step 0: Node (entity & type & literal) Recognition 
-			long t0 = System.currentTimeMillis(), t;
+			long t0 = System.currentTimeMillis(), t, NRtime;
 			Query query = new Query(input);
 			ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
-			System.out.println("step0 [Node Recognition] : "+(int)(System.currentTimeMillis()-t0)+"ms"); 
+			NRtime = (int)(System.currentTimeMillis()-t0);
+			System.out.println("step0 [Node Recognition] : "+ NRtime +"ms");	
 			
-			//这样写就只输出最后一次的qlog中的日志，因为前面的qlog.fw还未close就new qlog了；所以倒过来遍历，因为sList(0)是得分最高的，最后访问它来输出它的log 
+			//对每种NR结果，新建qlog并尝试生成querys，把所有querys合并到plan 0的qlog中；
+			//因为plan 0的得分是最高的，我们只保留plan 0求解过程中的日志（在for过程中fw的数据因为还没close就new了qlog，所以丢失掉，相当于只输出最后plan 0的log）；
+			//system.out是输出了每种方案的日志。
 			for(int i=query.sList.size()-1;i>=0;i--)
 			{
 				Sentence possibleSentence = query.sList.get(i);
 				qlog = new QueryLogger(query,possibleSentence);
 			
 				System.out.println("transQ: "+qlog.s.plainText);
+				qlog.NRlog = query.preLog;
+				qlog.SQGlog += "Id: "+query.queryId+"\nQuery: "+query.MergedQuestionList.get(0)+"\n";
+				qlog.timeTable.put("step0", (int)NRtime);
 				qlog.fw.write("Id: "+query.queryId+"\nQuery: "+query.MergedQuestionList.get(0)+"\n");
 				qlog.fw.write(query.preLog);
 							
-				// step 1: question parsing
+				// step 1: question parsing (dependency tree, sentence type)
 				t = System.currentTimeMillis();
 				QuestionParsing step1 = new QuestionParsing();
 				step1.process(qlog);
 				qlog.timeTable.put("step1", (int)(System.currentTimeMillis()-t));
 			
-				// step 2: build query graph
+				// step 2: build query graph (structure construction, relation extraction, top-k join)
 				t = System.currentTimeMillis();
 				BuildQueryGraph step2 = new BuildQueryGraph();
 				step2.process(qlog);
@@ -148,8 +154,8 @@ public class GAnswer {
 	
 	public Matches getAnswerFromGStore2 (Sparql spq)
 	{
-		GstoreConnector gc = new GstoreConnector("127.0.0.1", 3305);
-		//GstoreConnector gc = new GstoreConnector("172.31.19.15", 3305);
+		//GstoreConnector gc = new GstoreConnector("127.0.0.1", 3304);
+		GstoreConnector gc = new GstoreConnector("172.31.222.72", 3304);
 		
 		//gc.load("db_dbpedia_ganswer");
 		String rawAnswer = gc.query(spq.toStringForGStore2());
@@ -419,7 +425,7 @@ public class GAnswer {
 	public static void main (String[] args){
 				
 		Globals.init();
-		File inputFile = new File("./test/test_in.txt");
+		File inputFile = new File(Globals.localPath+"data/test/test_in.txt");
 		try {
 			GAnswer ga = new GAnswer();
 			
@@ -440,51 +446,16 @@ public class GAnswer {
 				while (curSpq != null) 
 				{
 					qlog.sparql = curSpq;
-					idx_sparql++;
-					System.out.println("[" + idx_sparql + "]" + "score=" + qlog.sparql.score);
+					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
 					
-					if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
-						System.out.println("ask where");
-					else
-					{
-						if(!curSpq.countTarget)
-							System.out.println("select " + curSpq.questionFocus + " where");		
-						else
-							System.out.println("select COUNT(DISTINCT " + curSpq.questionFocus + ") where");	
-					}
-					System.out.println(curSpq.toStringForGStore());
-					if(qlog.moreThanStr != null)
-					{
-						System.out.println(qlog.moreThanStr);
-					}
-					if(qlog.mostStr != null)
-					{
-						System.out.println(qlog.mostStr);
-					}
+					idx_sparql++;
+					System.out.println("[" + idx_sparql + "]" + "score=" + curSpq.score);
+					System.out.println(stdSPQwoPrefix);
 
 					if(idx_sparql <= 3)
 					{
-						qlog.fw.write("[" + idx_sparql + "]" + "score=" + curSpq.score+"\n");
-						if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
-							qlog.fw.write("ask where");
-						else
-						{
-							if(!curSpq.countTarget)
-								qlog.fw.write("select " + curSpq.questionFocus + " where");		
-							else
-								qlog.fw.write("select COUNT(DISTINCT " + curSpq.questionFocus + ") where");	
-						}					
-						qlog.fw.write("\n");
-						qlog.fw.write(curSpq.toStringForGStore());
-						if(qlog.moreThanStr != null)
-						{
-							qlog.fw.write(qlog.moreThanStr+"\n");
-						}
-						if(qlog.mostStr != null)
-						{
-							qlog.fw.write(qlog.mostStr+"\n");
-						}
-						qlog.fw.write("\n");
+						qlog.fw.write("[" + idx_sparql + "]" + "score=" + curSpq.score + "\n");
+						qlog.fw.write(stdSPQwoPrefix+"\n");
 					}
 					
 					curSpq = ga.getNextSparql(qlog);
@@ -500,5 +471,34 @@ public class GAnswer {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public String getStdSparqlWoPrefix(QueryLogger qlog, Sparql curSpq) 
+	{
+		if(qlog == null || curSpq == null)
+			return null;
+		
+		String res = "";
+		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
+			res += "ask where";
+		else
+		{
+			if(!curSpq.countTarget)
+				res += ("select " + curSpq.questionFocus + " where");		
+			else
+				res += ("select COUNT(DISTINCT " + curSpq.questionFocus + ") where");	
+		}					
+		res += "\n";
+		res += curSpq.toStringForGStore();
+		if(qlog.moreThanStr != null)
+		{
+			res += qlog.moreThanStr+"\n";
+		}
+		if(qlog.mostStr != null)
+		{
+			res += qlog.mostStr+"\n";
+		}
+		
+		return res;
 	}
 }

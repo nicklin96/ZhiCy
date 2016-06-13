@@ -9,8 +9,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+
 import javax.servlet.http.HttpServletRequest;
 
+import qa.Globals;
 import qa.Matches;
 import qa.Query;
 import rdf.EntityMapping;
@@ -52,9 +54,11 @@ public class QueryLogger {
 	public ArrayList<MergedWord> mWordList = null;
 	public ArrayList<SemanticUnit> semanticUnitList = null;
 	
-	File outputFile = new File("./test/test_out.txt");
+	File outputFile = new File(Globals.localPath + "data/test/test_out.txt");
 	public OutputStreamWriter fw;
 	
+	public String NRlog = "";
+	public String SQGlog = "";
 	public String moreThanStr = null;
 	public String mostStr = null;
 	
@@ -101,6 +105,7 @@ public class QueryLogger {
 	
 	public void reviseAnswers()
 	{	
+		System.out.println("Revise Answers:");
 		answers = new ArrayList<Answer>();
 		if (match == null || sparql == null || match.answers == null || sparql.questionFocus == null)
 			return;

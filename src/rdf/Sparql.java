@@ -62,10 +62,17 @@ public class Sparql implements Comparable<Sparql>
 		for (String v : variables)
 			ret += v + " ";
 		ret += "where\n{\n";
-		for (Triple t : tripleList) {
+		for (Triple t : tripleList) 
+		{
 			if (!t.object.equals("literal_HRZ")) {	// 显式说明的literal类型不用输出
 				ret += t.toStringForGStore();
 				ret += " .\n";
+			}
+			
+			//Movie 在 gstore中查不到，只能查 Film
+			if(t.predicateID == Globals.pd.typePredicateID)
+			{
+				ret = ret.replace("<Movie>", "<Film>");
 			}
 		}
 		ret += "}.";

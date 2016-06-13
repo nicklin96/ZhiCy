@@ -71,7 +71,7 @@ public class ExtractImplicitRelation {
 				{
 					typeVariableList.add(word.modifiedWord);
 					int tId = word.modifiedWord.tmList.get(0).typeID;
-					String tName = word.modifiedWord.tmList.get(0).typeName;
+					String tName = word.modifiedWord.originalForm;
 					for(int i=0; i<k&&i<word.emList.size(); i++)
 					{
 						int eId = word.emList.get(0).entityID;
@@ -117,7 +117,7 @@ public class ExtractImplicitRelation {
 				//因为之前是空集，所以这条 ”ent + type变量“的triple中的type变量并没有抽取出type triple，这里添加进去
 				for(Word typeVar: typeVariableList)
 				{
-					Triple triple =	new Triple(Triple.VAR_ROLE_ID, "?"+typeVar.baseForm, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeVar.tmList.get(0).typeName, null, 100);
+					Triple triple =	new Triple(Triple.VAR_ROLE_ID, "?"+typeVar.originalForm, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeVar.tmList.get(0).typeName, null, 100);
 					spq.addTriple(triple);
 				}
 				

@@ -20,12 +20,13 @@ public class AddtionalFix
 {
 	public void process(QueryLogger qlog)
 	{
-		askOneTriple(qlog);
+		askOneTriple(qlog); //
 		oneNode(qlog);
 		
 		//aggregation
 		AggregationRecognition ar = new AggregationRecognition();
 		ar.recognize(qlog);
+	
 	}
 	
 	// recognize one-Node query

@@ -752,7 +752,7 @@ public class EntityRecognition {
         long t2 = System.currentTimeMillis();
         preLog += "Total hit/check/all ent num: "+hitEntCnt+" / "+checkEntCnt+" / "+allCnt+"\n";
         preLog += "Total hit/check/all type num: "+hitTypeCnt+" / "+checkTypeCnt+" / "+allCnt+"\n";
-        preLog += "Total check time: "+ (t2-t1) + "ms\n";
+        preLog += "Total Node Recognition time: "+ (t2-t1) + "ms\n";
 		System.out.println("Total check time: "+ (t2-t1) + "ms");
 		System.out.println("--------- pre entity/type recognition end ---------");
 		

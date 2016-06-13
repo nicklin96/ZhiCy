@@ -36,7 +36,7 @@ public class Globals {
 //	public static PosTagPattern pp;
 	
 	public static String localPath="D:/husen/gAnswer/";
-	//public static String localPath="/media/wip/hanshuo/gAnswer/";
+	//public static String localPath="/media/wip/husen/NBgAnswer/";
 	
 	public static void init () {
 		System.out.println("====== gAnswer over DBpedia ======");
