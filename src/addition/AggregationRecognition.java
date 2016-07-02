@@ -30,7 +30,7 @@ public class AggregationRecognition {
 				for(Triple triple: sp.tripleList)
 				{
 					String p = Globals.pd.getPredicateById(triple.predicateID).toLowerCase();
-					if(p.contains("number") || p.contains("total"))
+					if(p.contains("number") || p.contains("total") || p.contains("calories"))
 					{
 						sp.countTarget = false;
 					}
@@ -48,7 +48,16 @@ public class AggregationRecognition {
 					DependencyTreeNode tmp = dtn.father;
 					if(tmp.father!=null && tmp.father.word.posTag.equals("CD") && tmp.father.father!=null && tmp.father.father.word.posTag.startsWith("N"))
 					{
-						qlog.moreThanStr = "FILTER (?"+tmp.father.father.word.originalForm+"> "+tmp.father.word.baseForm+")";
+						DependencyTreeNode target = tmp.father.father;
+						
+						// Which caves have more than 3 entrances | entranceCount | filter
+						
+						if(target.father !=null && target.father.word.baseForm.equals("have"))
+						{
+							qlog.moreThanStr = "GROUP BY ?" + qlog.target.originalForm + "\nHAVING (COUNT(?"+target.word.originalForm + ") > "+tmp.father.word.baseForm+")";
+						}
+						else
+							qlog.moreThanStr = "FILTER (?"+target.word.originalForm+"> "+tmp.father.word.baseForm+")";
 					}
 				}
 			}
@@ -61,7 +70,21 @@ public class AggregationRecognition {
 			{
 				Word modifiedWord = word.modifiedWord;
 				if(modifiedWord != null)
-					qlog.mostStr = "ORDER BY DESC(COUNT(?"+modifiedWord.originalForm+"))\nOFFSET 0 LIMIT 1";
+				{
+					for(Sparql sp: qlog.rankedSparqls)
+					{
+						//  Which Indian company has the most employees? --> ... dbo:numberOfEmployees ?n . || ?employees dbo:company ...
+						sp.mostStr = "ORDER BY DESC(COUNT(?"+modifiedWord.originalForm+"))\nOFFSET 0 LIMIT 1";
+						for(Triple triple: sp.tripleList)
+						{
+							String p = Globals.pd.getPredicateById(triple.predicateID).toLowerCase();
+							if(p.contains("number") || p.contains("total"))
+							{
+								sp.mostStr = "ORDER BY DESC(?"+modifiedWord.originalForm+")\nOFFSET 0 LIMIT 1";
+							}
+						}
+					}
+				}
 			}
 		}
 	}

@@ -25,6 +25,7 @@ import rdf.MergedWord;
 
 public class EntityRecognition {
 	public String preLog = "";
+	public String stopEntFile = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
 	
 	double EntAcceptedScore = 26;	//the_mayor_of_Berlin: Governing Mayor of Berlin score:25.8919727593077
 	double TypeAcceptedScore = 0.5;
@@ -35,39 +36,11 @@ public class EntityRecognition {
 	public ArrayList<String> badTagListForEntAndType = null;
 	ArrayList<ArrayList<Integer>> selectedList = null;
 	
-	public void init()
+	public EntityRecognition() 
 	{
-		preLog = "";
-		stopEntList = new ArrayList<String>();
-		stopEntList.add("people");
-		stopEntList.add("list");
-		stopEntList.add("car");
-		stopEntList.add("flow");
-		stopEntList.add("i");
-		stopEntList.add("state");
-		stopEntList.add("instrument");
-		stopEntList.add("inhabitant");
-		stopEntList.add("employee");
-		stopEntList.add("entrance");
-		stopEntList.add("war");
-		stopEntList.add("city");
-		stopEntList.add("capital");
-		stopEntList.add("host");
-		stopEntList.add("munch");
-		stopEntList.add("show");
-		stopEntList.add("show_I");
-		stopEntList.add("president_of_the_unite_state");
-		stopEntList.add("span");
-		stopEntList.add("budget");
-		stopEntList.add("population");
-		stopEntList.add("density");
-		stopEntList.add("population_density");
-		stopEntList.add("company");
-		stopEntList.add("indian_company");
-		stopEntList.add("score");
-		stopEntList.add("series");
-		stopEntList.add("chinese_girl");
+		loadStopEntityDict();
 		
+		// pos tag
 		badTagListForEntAndType = new ArrayList<String>();
 		badTagListForEntAndType.add("RBS");
 		badTagListForEntAndType.add("JJS");
@@ -80,10 +53,35 @@ public class EntityRecognition {
 		badTagListForEntAndType.add("POS");
 	}
 	
+	public void loadStopEntityDict()
+	{
+		preLog = "";
+		stopEntList = new ArrayList<String>();
+		
+		try 
+		{
+			File file = new File(stopEntFile);
+			InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
+			BufferedReader br = new BufferedReader(in);
+
+			String line = null;
+			
+			while ((line = br.readLine())!= null) 
+			{
+				if(line.startsWith("#"))
+					continue;
+				stopEntList.add(line);
+			}	
+			br.close();
+			System.out.println("StopEntities load : ok!");
+			
+		} catch (Exception e) {
+			// TODO: handle exception
+		}
+	}
+	
 	public ArrayList<String> process(String question)
 	{
-		init();
-		
 		TypeRecognition tr = new TypeRecognition();
 		ArrayList<String> fixedQuestionList = new ArrayList<String>();
 		ArrayList<Integer> literalList = new ArrayList<Integer>();
@@ -100,7 +98,7 @@ public class EntityRecognition {
 		mWordList = new ArrayList<MergedWord>();
 		
 		long t1 = System.currentTimeMillis();
-		//这里的hit是指通过lucene或者dbpedia lookup找到了结果，但不保证结果正确（事实上有很多时候是错误结果，例如 than 都有对应的 实体，显然是不对的）
+		//这里的hit是指通过lucene或者dbpedia lookup找到了结果，但不保证结果正确（事实上有很多时候是错误结果，例如 than 都有对应的 实体，显然是不对的） 
 		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0, hitLuceneEntCnt = 0;
 		boolean needRemoveCommas = false;
 		

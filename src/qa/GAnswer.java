@@ -82,7 +82,7 @@ public class GAnswer {
 				step1.process(qlog);
 				qlog.timeTable.put("step1", (int)(System.currentTimeMillis()-t));
 			
-				// step 2: build query graph (structure construction, relation extraction, top-k join)
+				// step 2: build query graph (structure construction, relation extraction, top-k join) 
 				t = System.currentTimeMillis();
 				BuildQueryGraph step2 = new BuildQueryGraph();
 				step2.process(qlog);
@@ -147,6 +147,9 @@ public class GAnswer {
 	
 	public Sparql getUntypedSparql (Sparql spq, QueryLogger qlog) {
 		qlog.gStoreCallTimes ++;
+		if(spq == null)
+			return null;
+		//注意，这是直接在传入的spq里去掉所有type，执行后，原spq就被改变了
 		spq.removeAllTypeInfo();
 		if (spq.tripleList.size() == 0) return null;
 		return spq;
@@ -154,8 +157,8 @@ public class GAnswer {
 	
 	public Matches getAnswerFromGStore2 (Sparql spq)
 	{
-		//GstoreConnector gc = new GstoreConnector("127.0.0.1", 3304);
-		GstoreConnector gc = new GstoreConnector("172.31.222.72", 3304);
+		GstoreConnector gc = new GstoreConnector("127.0.0.1", 3304);
+		//GstoreConnector gc = new GstoreConnector("172.31.222.72", 3304);
 		
 		//gc.load("db_dbpedia_ganswer");
 		String rawAnswer = gc.query(spq.toStringForGStore2());
@@ -435,31 +438,53 @@ public class GAnswer {
 			
 			while ((input = fr.readLine()) != null) 
 			{	
+				long st_time = System.currentTimeMillis();
 				QueryLogger qlog = ga.getSparqlList(input);
 				
-				Sparql curSpq = ga.getNextSparql(qlog);				
+				Sparql curSpq = ga.getNextSparql(qlog);		
+				Sparql bestSpq = curSpq;
 				int idx_sparql = 0;
 				
-				qlog.fw.write("zhiCy:\n");
-				
+				long ed_time = System.currentTimeMillis();
+				qlog.fw.write("zhiCy running time: "+ (int)(ed_time - st_time)+"ms\n");
+						
 				System.out.println("[RESULT]");
+				ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
 				while (curSpq != null) 
 				{
 					qlog.sparql = curSpq;
 					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
 					
-					idx_sparql++;
-					System.out.println("[" + idx_sparql + "]" + "score=" + curSpq.score);
-					System.out.println(stdSPQwoPrefix);
-
-					if(idx_sparql <= 3)
+					if(!lastSpqList.contains(stdSPQwoPrefix))
 					{
-						qlog.fw.write("[" + idx_sparql + "]" + "score=" + curSpq.score + "\n");
+						idx_sparql++;
+						System.out.println("[" + idx_sparql + "]" + "score=" + curSpq.score);
+						System.out.println(stdSPQwoPrefix);
+	
+						if(idx_sparql <= 3)
+						{
+							qlog.fw.write("[" + idx_sparql + "]" + "score=" + curSpq.score + "\n");
+							qlog.fw.write(stdSPQwoPrefix+"\n");
+							lastSpqList.add(stdSPQwoPrefix);
+						}
+						
+						//这去重先只对要输出文件的使用，即只保留”不同的前三个“+“第一的untyped”
+						//lastSpqList.add(stdSPQwoPrefix);
+					}
+					curSpq = ga.getNextSparql(qlog);
+				}		
+				
+				//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
+				Sparql untypedSparql = ga.getUntypedSparql(bestSpq, qlog);
+				if(untypedSparql != null)
+				{
+					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
+					if(!lastSpqList.contains(stdSPQwoPrefix))
+					{
+						qlog.fw.write("[" + Math.min(4,idx_sparql) + "]" + "score=" + 1000 + "\n");
 						qlog.fw.write(stdSPQwoPrefix+"\n");
 					}
-					
-					curSpq = ga.getNextSparql(qlog);
-				}				
+				}
 				
 				//System.out.println(ga.printMappingJsp(qlog));
 				System.out.println("sentenceType="+qlog.s.sentenceType);
@@ -484,7 +509,7 @@ public class GAnswer {
 		else
 		{
 			if(!curSpq.countTarget)
-				res += ("select " + curSpq.questionFocus + " where");		
+				res += ("select DISTINCT " + curSpq.questionFocus + " where");		
 			else
 				res += ("select COUNT(DISTINCT " + curSpq.questionFocus + ") where");	
 		}					
@@ -494,9 +519,9 @@ public class GAnswer {
 		{
 			res += qlog.moreThanStr+"\n";
 		}
-		if(qlog.mostStr != null)
+		if(curSpq.mostStr != null)
 		{
-			res += qlog.mostStr+"\n";
+			res += curSpq.mostStr+"\n";
 		}
 		
 		return res;

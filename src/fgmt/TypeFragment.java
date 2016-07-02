@@ -49,7 +49,8 @@ public class TypeFragment extends Fragment {
 		stopYagoTypeList.add("Care");
 		stopYagoTypeList.add("Peace");
 		stopYagoTypeList.add("Vice");
-		
+		stopYagoTypeList.add("Dodo");
+		stopYagoTypeList.add("CzechFilms");
 	}
 	
 	public TypeFragment(String fgmt, int fid) 
@@ -120,6 +121,9 @@ public class TypeFragment extends Fragment {
 		}	
 		
 		br.close();
+		
+		// fix some data
+		
 	
 		// load Type Id
 		loadId();

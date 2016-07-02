@@ -60,7 +60,6 @@ public class QueryLogger {
 	public String NRlog = "";
 	public String SQGlog = "";
 	public String moreThanStr = null;
-	public String mostStr = null;
 	
 	public QueryLogger (Query query, Sentence sentence) 
 	{

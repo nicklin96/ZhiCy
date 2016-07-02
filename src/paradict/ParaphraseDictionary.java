@@ -34,6 +34,7 @@ public class ParaphraseDictionary {
 	public HashSet<String> relns_subject;
 	public HashSet<String> relns_object;
 	public HashSet<String> prepositions;
+	public HashSet<String> bannedTypes;
 	
 	//public final int typePredicateID = 88; // dbpedia: <type1>=88
 	//public final int typePredicateID = 471; // dbpedia3.9: <type1>=471
@@ -60,6 +61,9 @@ public class ParaphraseDictionary {
 		
 		dbpedia_predicate_id = localDataPath + "DBpedia2014_predicates_id.txt";
 		dbpedia_dbo_predicate = localDataPath + "DBpedia2014_dbo_predicates.txt";
+		
+		bannedTypes = new HashSet<String>();
+		bannedTypes.add("Mayor");
 		
 		relns_subject = new HashSet<String>();
 		relns_subject.add("subj");
@@ -235,12 +239,11 @@ public class ParaphraseDictionary {
 		int predicate_id;
 		for (String p : predicate_2_id.keySet()) 
 		{
-			/*
-			 * DBpedia 3.9的补丁，现忽略 by husen
+			
 			//忽略一些基本不会用到，反而常常作为错误谓词出现的predicate（如film）
-			if(p.equals("film"))
+			if(p.equals("president") || p.equals("state") || p.equals("states"))
 				continue;
-			*/
+			
 			
 			predicate_id = predicate_2_id.get(p);
 			StringBuilder pattern = new StringBuilder("");

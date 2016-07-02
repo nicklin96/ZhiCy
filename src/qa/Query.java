@@ -81,6 +81,10 @@ public class Query
 		//rule2: as well as -> and
 		ret = ret.replace("as well as", "and");
 		
+		//rule3: movie -> film
+		ret = ret.replace(" movie", " film");
+		ret = ret.replace(" movies", " films");
+		
 		return ret;
 	}
 	

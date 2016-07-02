@@ -13,6 +13,7 @@ public class Sparql implements Comparable<Sparql>
 {
 	public ArrayList<Triple> tripleList = new ArrayList<Triple>();
 	public boolean countTarget = false;
+	public String mostStr = null;
 	public double score = 0;
 	int isSubjObjOrderPreferedCount = 0;
 	
@@ -38,11 +39,19 @@ public class Sparql implements Comparable<Sparql>
 	
 	public String toStringForGStore() {
 		String ret = "";
-		for (Triple t : tripleList) {
-			if (!t.object.equals("literal_HRZ")) {	// 显式说明的literal类型不用输出
-				ret += t.toStringForGStore();
-				ret += '\n';
-			}
+		for (Triple t : tripleList) 
+		{
+			// 显式说明的literal类型不用输出
+			if(t.object.equals("literal_HRZ"))
+				continue;
+			
+			// 抛弃一些没意义且总出错的type
+			if(t.predicateID==Globals.pd.typePredicateID && Globals.pd.bannedTypes.contains(t.object))
+				continue;
+			
+			ret += t.toStringForGStore();
+			ret += '\n';
+			
 		}
 		return ret;
 	}
@@ -67,12 +76,6 @@ public class Sparql implements Comparable<Sparql>
 			if (!t.object.equals("literal_HRZ")) {	// 显式说明的literal类型不用输出
 				ret += t.toStringForGStore();
 				ret += " .\n";
-			}
-			
-			//Movie 在 gstore中查不到，只能查 Film
-			if(t.predicateID == Globals.pd.typePredicateID)
-			{
-				ret = ret.replace("<Movie>", "<Film>");
 			}
 		}
 		ret += "}.";

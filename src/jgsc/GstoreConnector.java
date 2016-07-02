@@ -297,24 +297,25 @@ public class GstoreConnector
 //				+ "?South_American_countries	<type>	<yago:SouthAmericanCountries>. "
 //				+ "}";
 		
-		//¶Î´íÎó
-//		String sparql = "select ?x where {"
-//				+ "<The_Lower_Depths_(1936_film)>	<type>	?x. "
-//				+ "}";	
+		/*
+		 * select DISTINCT ?birthdays where { ?actors rdf:type dbo:Actor. ?birthdays dbp:actor ?actors. dbr:Charmed dbo:starring ?actors. }
+		 * */
+		
+		String sparql = "select DISTINCT ?x where {<Charles_I_of_England>	<alias>	?x.  }";
 		
 		//empty result
 //		String sparql = "select ?x where {"
 //				+ "?x	<type>	<http://schema.org/Movie>. "
 //				+ "}";
 		
-		String sparql = "select ?x where {"
-				+ "?x	<country>	<Czech_Republic>."
-				+ "?x	<type>	<Film>. "
-				+ "}";
+//		String sparql = "select ?x where {"
+//				+ "?x	<country>	<Czech_Republic>."
+//				+ "?x	<type>	<Film>. "
+//				+ "}";
 				
 	    //boolean flag = gc.load("db_dbpedia_ganswer");
-	    //boolean flag = gc.load("DBpediaYago");
-		//System.out.println(flag);
+//	    boolean flag = gc.load("DBpediaYago");
+//		System.out.println(flag);
 	    String answer = gc.query(sparql);	    
 		System.out.println(answer);
 		

@@ -18,4 +18,11 @@ public class PredicateMapping implements Comparable<PredicateMapping> {
 		else if (diff < 0) return 1;
 		else return 0;
 	}
+	
+	@Override
+	public String toString() {
+		String ret = "";
+		ret = "<"+pid+" : "+parapharase+" : "+score+">";
+		return ret;
+	}
 }

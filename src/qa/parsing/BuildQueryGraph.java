@@ -52,6 +52,7 @@ public class BuildQueryGraph
 		stopNodeList.add("show");
 		stopNodeList.add("star");
 		stopNodeList.add("theme");
+		stopNodeList.add("world");
 	}
 	
 	public void fixStopWord(QueryLogger qlog)
@@ -78,7 +79,7 @@ public class BuildQueryGraph
 			if(qlog.isMaltParserUsed)
 				ds = qlog.s.dependencyTreeMalt;
 		
-/*在build query graph前的一些准备，包括： 
+/*在build query graph前的一些准备，包括：  
  * 0)根据词组特性选择加入一些可能的stop node
  * 1)确定从哪个点入手建图；（因为从不同的点开始会对图结构有影响）
  * 2)共指消解； 
@@ -95,7 +96,7 @@ public class BuildQueryGraph
 				return null;
 			
 			qlog.target = target.word;
-			//认为target不能是ent，一般疑问句除外
+			//认为target不能是ent，一般疑问句除外 
 			if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
 			{
 				target.word.mayEnt = false;
@@ -116,7 +117,8 @@ public class BuildQueryGraph
 				if(qlog.s.words[i].baseForm.equals("which"))
 					stopNodeList.add(qlog.s.words[i].baseForm);
 			
-			//修饰词识别，依据sentence而不是dependency tree  
+			//修饰词识别，依据sentence而不是dependency tree
+			//同时会做一些修正，如 ent+noun(noType&&noEnt)形式的noun被设为omitNode
 			for(Word word: qlog.s.words) 
 			{
 				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, word);
@@ -137,7 +139,7 @@ public class BuildQueryGraph
 			queue.add(target);
 			visited.clear();
 			
-			//step2:核心，一步步扩展查询图    
+			//step2:核心，一步步扩展查询图     
 			while((curCenterNode=queue.poll())!=null)
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null)
@@ -182,15 +184,15 @@ public class BuildQueryGraph
 			
 //			//TODO：step4: [这步没有实际作用]找每个unit的描述词，处理describe，包括聚集函数、形容词，转化成semantic relation形式加入matchedSR进行item mapping.
 			
-			//item mapping前的准备，即识别 “常量” 和 “变量” 
-			//TODO 这个函数要改进，将step0得到的信息考虑进来；常量、变量信息是否应该存储在WORD中而不是SR中？
+			//item mapping前的准备，识别 “常量” 和 “变量” 
+			TypeRecognition tr = new TypeRecognition();	
+			//这一步是加入 who、where的type信息【其实没什么用，还经常因为多出type而找不到答案】
+			tr.AddTypesOfWhwords(qlog.semanticRelations); 
+			//TODO 这个函数要改进，将step0得到的信息考虑进来，并考虑extend variable；常量、变量信息是否应该存储在WORD中而不是SR中？
 			ExtractRelation er = new ExtractRelation();
-			er.constantVariableRecognition(qlog.semanticRelations,qlog);
+			er.constantVariableRecognition(qlog.semanticRelations,qlog,tr);
 		
 			//step5: item mappping & top-k join
-			TypeRecognition tr = new TypeRecognition();	
-			tr.recognize(qlog.semanticRelations);	//这一步是加入 who、where的type信息【其实没什么用，还经常因为多出type而找不到答案】 
-			
 			SemanticItemMapping step5 = new SemanticItemMapping();
 			step5.process(qlog, qlog.semanticRelations);	//top-k join，disambiguation
 		
@@ -621,19 +623,29 @@ public class BuildQueryGraph
 					
 				}
 			}
-			
+			//再用sentence检测，因为dependenchy tree有时会生成错误
+			if(target.word.baseForm.equals("what"))
+			{
+				int curPos = target.word.position - 1;
+				// what be the [node] ...
+				if(words.length > 4 && words[curPos+1].baseForm.equals("be") && words[curPos+2].baseForm.equals("the") && isNodeCandidate(words[curPos+3]))
+				{
+					target.word.represent = words[curPos+3];
+					target = ds.getNodeByIndex(words[curPos+3].position);
+				}
+			}
 			
 		}
 		//who
 		else if(target.word.baseForm.equals("who"))
 		{
-			//检测：who is [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? 
+			//检测：who is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
 			//其他诸如 who is sth? who do sth? 的target都为who
 			//形如 Who is the daughter of Robert_Kennedy married to的query在stanford tree中，who和is不是父子关系而是并列，所以who还是target
 			if(target.father != null && ds.nodesList.size()>=5)
 			{	//who
 				DependencyTreeNode tmp1 = target.father;
-				if(tmp1.word.baseForm.equals("be"))
+				if(tmp1.word.baseForm.equals("be") || tmp1.word.baseForm.equals("do"))
 				{	//is
 					for(DependencyTreeNode child: tmp1.childrenList)
 					{
@@ -671,6 +683,7 @@ public class BuildQueryGraph
 				}
 				else
 				{
+					//2016.6.18, 下例问题预计由“多入口框架”解决
 					//2016.5.2, target还是用来表示最终问的东西，所以注释掉这条规则
 					//Who produced films starring Natalie_Portman，target设为film图才正确，否则就是who和Natalie相连 
 					//注意目前 Who produced Goofy? 这种，target还是设为 who，因为 “规则：特殊疑问句的target不为ent”，所以target还是用来代表最终要问的那个东西
@@ -779,7 +792,14 @@ public class BuildQueryGraph
 			return modifiedWord;
 		}
 		
-		//干脆认为 ent+noun 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake?
+		//[ent1] by [ent2], 则ent2是ent1的修饰词，且通常不需要出现在sparql中。 | eg: Which museum exhibits The Scream by Munch?
+		if(modifier.position-3 >=0 && modifier.mayEnt && s.words[modifier.position-2].baseForm.equals("by") && s.words[modifier.position-3].mayEnt)
+		{
+			modifiedWord = s.words[modifier.position-3];
+			return modifiedWord;
+		}
+		
+		//干脆认为 ent+noun(非type|ent) 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission]
 		if(modifier.position<s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)
 		{
 			s.words[modifier.position].omitNode = true;

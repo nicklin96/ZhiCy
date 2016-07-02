@@ -469,31 +469,71 @@ public class ExtractRelation {
 	 * 例如：Which books by Kerouac were published by Viking Press? 中的“books”。
 	 * （2）认为该word为常量。这只在它被用来修饰其他word时，即谓词是<type1>时。
 	 * 例如：Are tree frogs a type of amphibian? 中的“amphibian”。How many [countries] are there in [exT:Europe]。
+	 * 
+	 * [2016-6-17] 开始检测 <带triple的变量> | 主要为”xx国人/xx国的“在不同的条件下不同的识别
+	 * 
 	 * */
-	public void constantVariableRecognition(HashMap<Integer, SemanticRelation> semanticRelations, QueryLogger qlog) 
+	public void constantVariableRecognition(HashMap<Integer, SemanticRelation> semanticRelations, QueryLogger qlog, TypeRecognition tr) 
 	{
 		Word[] words = qlog.s.words;
+		//目前是只识别 “被semantic relaiton覆盖的节点“。即一些 modifier节点没有做以下”常/变量检测“以及”embedded信息扩充“
 		for (Integer it : semanticRelations.keySet()) 
 		{
 			SemanticRelation sr = semanticRelations.get(it);
 			int arg1WordPos = sr.arg1Word.position - 1;
 			int arg2WordPos = sr.arg2Word.position - 1;
 			
-			// 如果包含首字母大写(非句首单词)，或是命名实体，则视作常量
-			if (sr.arg1Word.isNER() != null && !sr.arg1Word.isNER().equals("PERSON")
-				|| containsUpperCharacter(sr.arg1Word.getFullEntityName(), sr.arg1Word.getNnHead().position)) 
+//			// [2016-6-17]有时用户会大写变量，如： all [Canadians] that... 决定不依赖于大写，只依赖于node recognition阶段的mapping结果。
+//			// [2016-6-17]因为即使这里根据大写设为常量，在后面top-k join的时候没有对应mapping，也会被抛弃
+//			// 如果包含首字母大写(非句首单词)，或是命名实体，则视作常量
+//			if (sr.arg1Word.isNER() != null && !sr.arg1Word.isNER().equals("PERSON")
+//				|| containsUpperCharacter(sr.arg1Word.getFullEntityName(), sr.arg1Word.getNnHead().position)) 
+//			{
+//				sr.isArg1Constant = true;
+//				
+//				//[2015-12-12]首字母大写不太可能是type，这里mayType修正为false  | [2015-12-13]反例 How many countries are there in [exType|Europe]，改为针对word sequence
+//				//[2016-6-17] 反例In which U.S. state is Mount McKinley located -> US_state[type:<yago:StatesOfTheUnitedStates>].去掉此修正
+//				if(sr.arg1Word.baseForm.contains("_"))
+//					sr.arg1Word.mayType = false;
+//			}
+
+/*
+ * extend variable识别
+ * */
+			tr.recognizeExtendVariable(sr.arg1Word);
+			tr.recognizeExtendVariable(sr.arg2Word);
+			
+/*
+ * 常变量识别，默认的 isArgConstant = false
+ * */			
+			// extendVariable优先级最高，先判断可能是它的情况
+			if(sr.arg1Word.mayExtendVariable)
 			{
-				sr.isArg1Constant = true;
-				
-				//[2015-12-12]首字母大写不太可能是type，这里mayType修正为false  | [2015-12-13]反例 How many countries are there in [exType|Europe]，改为针对word sequence
-				if(sr.arg1Word.baseForm.contains("_"))
+				//eg: 既是extendVariable：?canadian <birthPlace> <Canada> 又存在<type: canadian>；这时我们放弃type
+				if(sr.arg1Word.mayType)
 					sr.arg1Word.mayType = false;
+				
+				//可能是ent，需要进行规则判断
+				if(sr.arg1Word.mayEnt)
+				{
+					//rule: [extendVaraible&&ent]+noun,则认为是ent || Canadian movies -> ent:Canada
+					if(arg1WordPos+1 < words.length && words[arg1WordPos+1].posTag.startsWith("N"))
+					{
+						sr.arg1Word.mayExtendVariable = false;
+						sr.isArg1Constant = true;
+					}
+					//否则认为是变量，放弃mayEnt
+					else
+					{
+						sr.arg1Word.mayEnt = false;
+					}
+				}
 			}
-			// type优先级较高，先判断type
-			if(sr.arg1Word.mayType)
+			// type优先级较高，判断type
+			else if(sr.arg1Word.mayType)
 			{
 				//rule：in/of [type]，则认为是作常量  ||How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
-				if(arg1WordPos >= 1 && words[arg1WordPos-1].baseForm.equals("in") || words[arg1WordPos-1].baseForm.equals("of"))
+				if(arg1WordPos >= 2 && (words[arg1WordPos-1].baseForm.equals("in") || words[arg1WordPos-1].baseForm.equals("of"))  && !words[arg1WordPos-2].posTag.startsWith("V"))
 				{
 					sr.isArg1Constant = true;
 					//选择作为”常量type“，则preferred relation = <type1>
@@ -506,26 +546,53 @@ public class ExtractRelation {
 					//作为常量的type应该放在后面
 					sr.preferredSubj = sr.arg2Word;
 				}
+				//又是type又是ent的情况，还是以type为主，但这里先不修改mayEnt
 			}
+			//只判断出ent，那就是常量了
 			else if(sr.arg1Word.mayEnt)
 			{
 				sr.isArg1Constant = true;
 			}
 			
-			// 如果包含首字母大写(非句首单词)，或是命名实体，则视作常量
-			if (sr.arg2Word.isNER() != null && !sr.arg2Word.isNER().equals("PERSON")
-				|| containsUpperCharacter(sr.arg2Word.getFullEntityName(), sr.arg2Word.getNnHead().position)) 
+//			// 如果包含首字母大写(非句首单词)，或是命名实体，则视作常量
+//			if (sr.arg2Word.isNER() != null && !sr.arg2Word.isNER().equals("PERSON")
+//				|| containsUpperCharacter(sr.arg2Word.getFullEntityName(), sr.arg2Word.getNnHead().position)) 
+//			{
+//				sr.isArg2Constant = true;
+//				
+//				//[2015-12-12]首字母大写不太可能是type，这里mayType修正为false  | [2015-12-13]反例 How many countries are there in [exType|Europe]，改为针对word sequence
+//				if(sr.arg2Word.baseForm.contains("_"))
+//					sr.arg2Word.mayType = false;
+//			}
+			
+			// extendVariable优先级最高，先判断可能是它的情况
+			if(sr.arg2Word.mayExtendVariable)
 			{
-				sr.isArg2Constant = true;
-				
-				//[2015-12-12]首字母大写不太可能是type，这里mayType修正为false  | [2015-12-13]反例 How many countries are there in [exType|Europe]，改为针对word sequence
-				if(sr.arg2Word.baseForm.contains("_"))
+				//eg: 既是extendVariable：?canadian <birthPlace> <Canada> 又存在<type: canadian>；这时我们放弃type
+				if(sr.arg2Word.mayType)
 					sr.arg2Word.mayType = false;
+				
+				//可能是ent，需要进行规则判断
+				if(sr.arg2Word.mayEnt)
+				{
+					//rule: [extendVaraible&&ent]+noun,则认为是ent || Canadian movies -> ent:Canada
+					if(arg2WordPos+1 < words.length && words[arg2WordPos+1].posTag.startsWith("N"))
+					{
+						sr.arg2Word.mayExtendVariable = false;
+						sr.isArg2Constant = true;
+					}
+					//否则认为是变量，放弃mayEnt
+					else
+					{
+						sr.arg2Word.mayEnt = false;
+					}
+				}
 			}
-			if(sr.arg2Word.mayType)
+			// type优先级较高，判断type
+			else if(sr.arg2Word.mayType)
 			{
-				//rule：in/of [type]，则认为是作常量  ||How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
-				if(arg2WordPos >= 1 && words[arg2WordPos-1].baseForm.equals("in") || words[arg2WordPos-1].baseForm.equals("of"))
+				//rule：非动词+in/of [type]，则认为是作常量  ||How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
+				if(arg2WordPos >= 2 && (words[arg2WordPos-1].baseForm.equals("in") || words[arg2WordPos-1].baseForm.equals("of")) && !words[arg2WordPos-2].posTag.startsWith("V") )
 				{
 					sr.isArg2Constant = true;
 					//选择作为”常量type“，则preferred relation = <type1>
