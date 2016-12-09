@@ -26,7 +26,13 @@ public class Answer implements Comparable<Answer>{
 				else {
 					p1 = line.indexOf('\"');
 					p2 = line.lastIndexOf('\"');
-					value = line.substring(p1+1, p2);
+					if(p1 != -1 && p2 != -1)
+						value = line.substring(p1+1, p2);
+					else
+					{
+						p1 = line.indexOf(':');
+						value = line.substring(p1+1);
+					}
 				}
 				questionFocusValue = value;
 			}
@@ -44,7 +50,13 @@ public class Answer implements Comparable<Answer>{
 				else {
 					p1 = line.indexOf('\"');
 					p2 = line.lastIndexOf('\"');
-					value = line.substring(p1+1, p2);
+					if(p1 != -1 && p2 != -1)
+						value = line.substring(p1+1, p2);
+					else
+					{
+						p1 = line.indexOf(':');
+						value = line.substring(p1+1);
+					}
 				}
 				
 				otherInformationKey.add(key);
@@ -66,7 +78,13 @@ public class Answer implements Comparable<Answer>{
 			else {
 				p1 = line.indexOf('\"');
 				p2 = line.lastIndexOf('\"');
-				value = line.substring(p1+1, p2);
+				if(p1 != -1 && p2 != -1)
+					value = line.substring(p1+1, p2);
+				else
+				{
+					p1 = line.indexOf(':');
+					value = line.substring(p1+1);
+				}
 			}
 			questionFocusValue = value;			
 			otherInformationKey.clear();

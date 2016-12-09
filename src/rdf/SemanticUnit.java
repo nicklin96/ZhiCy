@@ -1,4 +1,4 @@
-package test;
+package rdf;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,10 +17,21 @@ public class SemanticUnit
 	public boolean isSubj = true;
 	public Integer prefferdType = null;
 	
-	public SemanticUnit(Word center, boolean isSubj)
+	public SemanticUnit(Word center, boolean isSubJ)
 	{
 		centerWord = center;
-		isSubj = isSubj;
+		isSubj = isSubJ;
+	}
+	
+	@Override
+	public String toString() 
+	{
+		String ret = "<" + centerWord + ", {";
+		for(SemanticUnit su: neighborUnitList)
+			ret += su.centerWord + ", ";
+		ret += "}>";
+		
+		return ret;
 	}
 	
 }

@@ -3,6 +3,7 @@ package nlp.ds;
 import java.util.ArrayList;
 
 import rdf.EntityMapping;
+import rdf.Triple;
 import rdf.TypeMapping;
 
 public class Word implements Comparable<Word> {
@@ -11,8 +12,10 @@ public class Word implements Comparable<Word> {
 	public boolean mayLiteral = false;
 	public boolean mayEnt = false;
 	public boolean mayType = false;
+	public boolean mayExtendVariable = false;
 	public ArrayList<EntityMapping> emList = null;
 	public ArrayList<TypeMapping> tmList = null;
+	public Triple embbededTriple = null;
 	
 	public String baseForm = null;
 	public String originalForm = null;

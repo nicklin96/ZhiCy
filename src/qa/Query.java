@@ -4,8 +4,14 @@ import java.util.ArrayList;
 
 import nlp.ds.Sentence;
 import qa.extract.EntityRecognition;
-import test.MergedWord;
+import rdf.MergedWord;
 
+/**
+ * Query类主要功能：
+ * 1、对question进行预处理
+ * 2、对question进行Node Recognition
+ * @author husen
+ */
 public class Query 
 {
 	public String NLQuestion = null;
@@ -22,10 +28,8 @@ public class Query
 	public Query(String _question)
 	{
 		NLQuestion = _question;
-		
 		NLQuestion = removeQueryId(NLQuestion);
-		//将KB中的entity & type & literal识别出并用下划线替代同一实体间的空格
-		
+				
 		/*
 		 * 把等价替换放在后面，以防有某个实体名包含”as well as“等被替换词
 		 * 算了还是放在前面吧，as well as会被识别成net：as_well.....
@@ -33,6 +37,8 @@ public class Query
 		 * 其实","也会影响，但句子中出现的,有分割作用，不能随便删除
 		*/
 		TransferedQuestion = getTransferedQuestion(NLQuestion);	
+		
+		// step1： NODE Recognition
 		MergedQuestionList = getMergedQuestionList(TransferedQuestion);
 		
 		// build Sentence
@@ -58,7 +64,13 @@ public class Query
 		return false;
 	}
 	
-	//将stanfordParser经常解析错误的短语用等价形式替代
+	/**
+	 * 将question中部分words用等价形式替代，包括：
+	 * 1、stanfordParser经常解析错误的短语和符号
+	 * 2、同义词统一，movie->film
+	 * @param question
+	 * @return 替换后的question
+	 */
 	public String getTransferedQuestion(String question)
 	{
 		//rule1: 去掉word中的"."，因为.和_连起来，会被parser拆开; 
@@ -80,14 +92,22 @@ public class Query
 		//rule2: as well as -> and
 		ret = ret.replace("as well as", "and");
 		
+		//rule3: movie -> film
+		ret = ret.replace(" movie", " film");
+		ret = ret.replace(" movies", " films");
+		
 		return ret;
 	}
 	
+	/**
+	 * 将KB中的entity & type & literal识别出并用下划线替代同一实体间的空格
+	 * @param question
+	 * @return merged question list，即多种node recognition后的question
+	 */
 	public ArrayList<String> getMergedQuestionList(String question)
 	{
 		ArrayList<String> mergedQuestionList = null;
 		//entity & type recognize
-		//TODO: 这里保存多个实体划分方案
 		EntityRecognition er = new EntityRecognition(); 
 		mergedQuestionList = er.process(question);
 		preLog = er.preLog;

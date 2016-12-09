@@ -55,7 +55,7 @@ public class SemanticItemMapping {
 		predicateSrList.clear();
 		currentPredicateMappings.clear();
 		
-		// 注意【常量版type】也是常量的一种，但是不参与top-k，直接取分数最高的type husen
+		// 注意【常量版type】也是常量的一种，但是不参与top-k，直接取分数最高的type - husen
 		// 1. collect names of constant(entities), and map them to the entities
 		t = System.currentTimeMillis();
 		
@@ -272,6 +272,8 @@ public class SemanticItemMapping {
 	 * 例如：为?who <height> ?how 补充  ?who <type1> <Person> 或者 ?book <author> <Tom> 补充 ?book <type1> <Book>
 	 * 注意：在这里加入constant type信息：
 	 * 例如：ask: <YaoMing> <type1> <BasketballPlayer> 
+	 * 注意：在这里加入embedded triple信息：
+	 * 例如：为 ?Canadians <residence> <Unitied_State> 补充 ?Canadians <birthPlace> <Canada>
 	 * */
 	public void scoringAndRanking() 
 	{			
@@ -287,7 +289,7 @@ public class SemanticItemMapping {
 			double score = 1;
 			boolean isSubjObjOrderSameWithSemRltn=true; //实际没有用到这个变量
 			
-			// argument1 | 如果(sr.arg1Word.mayEnt || sr.arg1Word.mayType)=true但是sr.isArg1Constant=false，意味着 这是一个 变量版“type”；例如“the book of ..”中的book
+// argument1 | 如果(sr.arg1Word.mayEnt || sr.arg1Word.mayType)=true但是sr.isArg1Constant=false，意味着 这是一个 变量版“type”；例如“the book of ..”中的book
 			if(sr.isArg1Constant && (sr.arg1Word.mayEnt || sr.arg1Word.mayType) ) 
 			{
 				//2016.5.2：对于subj，还是ent优先
@@ -312,10 +314,12 @@ public class SemanticItemMapping {
 				sub = "?" + sr.arg1Word.originalForm;
 			}
 			// argument1自身蕴含的type信息，例如 ?book <type> <Book>
+			// 注意，mayType和mayExtendVariable不能共存（在constantVariableRecognition中的处理保证了这一点）
 			Triple subt = null;
 			//例如“Is Yao Ming a basketball player?”，basketball player被识别常量“type”，则不需要多一条三元组（basketball player <type> basketball player）
-			//而对于应该出现的 <Yao Ming> <type> <basketball player>，之后再做考虑
-			if (sr.arg1Word.tmList != null && sr.arg1Word.tmList.size() > 0 && !typeSetFlag.contains(sub) && !sr.isArg1Constant) 
+			//而对于应该出现的 <Yao Ming> <type> <basketball player>，在“识别常量/变量/extend“时，就已经把”type“作为preferred relation加入对应sr的predicate mappings。
+			//这里限制sr.arg1Word.mayType=true,那么?who,?where等的type信息就不会加入到sparql
+			if (!sr.isArg1Constant && sr.arg1Word.mayType && sr.arg1Word.tmList != null && sr.arg1Word.tmList.size() > 0 && !typeSetFlag.contains(sub)) 
 			{
 				StringBuilder type = new StringBuilder("");
 				for (TypeMapping tm: sr.arg1Word.tmList) 
@@ -331,11 +335,11 @@ public class SemanticItemMapping {
 				subt = new Triple(subjId, sub, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, ttt, null, 10);
 				subt.typeSubjectWord = sr.arg1Word;
 				
+				//即享受type待遇，但不应该出现在sparql中
 				if(sr.arg1Word.tmList.get(0).prefferdRelation == -1)
 					subt = null;
 			}
-			
-			// predicate
+// predicate
 			SemanticRelation dep = sr.dependOnSemanticRelation;
 			PredicateMapping pm = null; 
 			if (dep == null) 
@@ -350,7 +354,7 @@ public class SemanticItemMapping {
 			}
 			score *= pm.score;
 				
-			// argument2
+// argument2
 			if(sr.isArg2Constant && (sr.arg2Word.mayEnt || sr.arg2Word.mayType) )
 			{
 				if(!sr.arg2Word.mayType)
@@ -401,7 +405,7 @@ public class SemanticItemMapping {
 			{
 				// 如果有实体，则实体必在前面				
 				if (sub.startsWith("?") && obj.startsWith("?")) {
-					// 在type后面加literal？
+					// 现在两个都是变量，即都可能是在obj位置做literal，所以在type后面都加literal
 					if (subt != null) {
 						subt.object += ("|" + "literal_HRZ");
 					}
@@ -410,7 +414,7 @@ public class SemanticItemMapping {
 					}
 					
 					if (subt==null && objt!=null) {						
-						//若obj有type，sub无type则更有可能交换sub和obj的位置
+						//若obj有type，sub无type则更有可能交换sub和obj的位置，因为literal一般没有type【但是可能会有yago：type】
 						String temp = sub;
 						int tmpId = subjId;
 						sub = obj;
@@ -466,6 +470,16 @@ public class SemanticItemMapping {
 				objt.score += t.score*0.2;
 				sparql.addTriple(objt);
 				typeSetFlag.add(objt.subject);
+			}
+			
+			// 加入argument自身蕴含的triple信息，例如  ?canadian	<birthPlace>	<Canada>
+			if(!sr.isArg1Constant && sr.arg1Word.mayExtendVariable && sr.arg1Word.embbededTriple != null)
+			{
+				sparql.addTriple(sr.arg1Word.embbededTriple);
+			}
+			if(!sr.isArg2Constant && sr.arg2Word.mayExtendVariable && sr.arg2Word.embbededTriple != null)
+			{
+				sparql.addTriple(sr.arg2Word.embbededTriple);
 			}
 		}
 		
@@ -535,24 +549,46 @@ public class SemanticItemMapping {
 				Word subjWord = t.getSubjectWord(), objWord = t.getObjectWord();
 				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
 				
-				//按现在的顺序试一下
-				boolean ok = true;
-				if((subjTf != null && !subjTf.outEdges.contains(t.predicateID)) || (objTf != null && !objTf.inEdges.contains(t.predicateID)))
+				//根据两个变量type fragment的出入边是否包含predicate，计算是否需要调换顺序以及该triple是否能够成立
+				
+				int nowOrderCnt = 0, reverseOrderCnt = 0;
+				if(subjTf == null || subjTf.outEdges.contains(t.predicateID))
+					nowOrderCnt ++;
+				if(objTf == null || objTf.inEdges.contains(t.predicateID))
+					nowOrderCnt ++;
+				if(subjTf == null || subjTf.inEdges.contains(t.predicateID))
+					reverseOrderCnt ++;
+				if(objTf == null || objTf.outEdges.contains(t.predicateID))
+					reverseOrderCnt ++;
+				
+				if(nowOrderCnt<2 && reverseOrderCnt<2)
+					return false;
+				
+				//literal不能做subject
+				
+				else if(nowOrderCnt > reverseOrderCnt)
 				{
-					ok = false;
+					//return true;
 				}
-				//交换顺序试一下
-				if(!ok)
+				else if(reverseOrderCnt > nowOrderCnt)
 				{
-					if((subjTf == null || subjTf.inEdges.contains(t.predicateID)) && (objTf == null || objTf.outEdges.contains(t.predicateID)))
-					{	
-						ok = true;
+					//TODO:是否需要一个变量表示以后不应该再改变这条t的顺序?
+					t.swapSubjObjOrder();
+					//return true;
+				}
+				else	//now order和reverse order都通过了type fragment检测，需要选择一个
+				{
+					//rule1: ?inventor <occupation> ?occupation || ... <name> ?name， 即字符串越像的放在后边
+					String p = Globals.pd.getPredicateById(t.predicateID);
+					int ed1 = EntityFragment.calEditDistance(subjWord.baseForm, p);
+					int ed2 = EntityFragment.calEditDistance(objWord.baseForm, p);
+					if(ed1 < ed2)
+					{
 						t.swapSubjObjOrder();
-						//TODO:是否需要一个变量表示以后不应该再改变这条t的顺序?
+				
 					}
 				}
-				
-				return ok;
+				return true;
 			}
 //			//TODO:变量，实体 || 这种情况只依据ent一般就可以，先看一下效果  || ?city	<type1>	<City> 、<Chile_Route_68>	<country>	?city ；像这种，<country>对city不合法，可以在这里过滤，不过要看一下是否会出现”误伤“
 //			else if(t.subject.startsWith("?") || t.object.startsWith("?"))

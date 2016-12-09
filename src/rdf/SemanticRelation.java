@@ -2,7 +2,7 @@ package rdf;
 
 import java.util.ArrayList;
 
-import qa.extract.SimpleRelation;
+import rdf.SimpleRelation;
 
 import nlp.ds.Word;
 

@@ -10,23 +10,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 
-
-
-
-
-
-
-
-
 import javax.servlet.http.HttpServletRequest;
 
+import qa.Globals;
 import qa.Matches;
 import qa.Query;
 import rdf.EntityMapping;
 import rdf.SemanticRelation;
 import rdf.Sparql;
-import test.MergedWord;
-import test.SemanticUnit;
+import rdf.MergedWord;
+import rdf.SemanticUnit;
 import qa.Answer;
 import nlp.ds.Sentence;
 import nlp.ds.Word;
@@ -61,11 +54,12 @@ public class QueryLogger {
 	public ArrayList<MergedWord> mWordList = null;
 	public ArrayList<SemanticUnit> semanticUnitList = null;
 	
-	File outputFile = new File("./test/test_out.txt");
-	public OutputStreamWriter fw;
+	File outputFile = new File(Globals.localPath + "data/test/test_out.txt");
+	public OutputStreamWriter fw = null;
 	
+	public String NRlog = "";
+	public String SQGlog = "";
 	public String moreThanStr = null;
-	public String mostStr = null;
 	
 	public QueryLogger (Query query, Sentence sentence) 
 	{
@@ -80,11 +74,16 @@ public class QueryLogger {
 		MODE_fragment = true;
 		mWordList = query.mWordList;
 		
-		try {
-			fw = new OutputStreamWriter(new FileOutputStream(outputFile,true),"utf-8");
-		} catch (UnsupportedEncodingException | FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		if(Globals.isRunAsWebServer == false)
+		{
+			try 
+			{
+				fw = new OutputStreamWriter(new FileOutputStream(outputFile,true),"utf-8");
+			} 
+			catch (UnsupportedEncodingException | FileNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 		
@@ -110,6 +109,7 @@ public class QueryLogger {
 	
 	public void reviseAnswers()
 	{	
+		System.out.println("Revise Answers:");
 		answers = new ArrayList<Answer>();
 		if (match == null || sparql == null || match.answers == null || sparql.questionFocus == null)
 			return;
@@ -122,9 +122,8 @@ public class QueryLogger {
 		{
 			Answer ans = new Answer(questionFocus, match.answers[i]);
 			if (!sparqlString.contains(ans.questionFocusValue))
-				answerSet.add(ans);			
+				answerSet.add(ans);
 		}
-		
 		
 		for (Answer ans : answerSet)
 			answers.add(ans);	

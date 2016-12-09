@@ -7,14 +7,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import nlp.ds.Sentence;
+import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
 
 public class Sparql implements Comparable<Sparql> 
 {
 	public ArrayList<Triple> tripleList = new ArrayList<Triple>();
 	public boolean countTarget = false;
+	public String mostStr = null;
 	public double score = 0;
-	int isSubjObjOrderPreferedCount = 0;
+	int isSubjObjOrderPreferedCount = 0; //目前没有用到
 	
 	public String questionFocus = null;
 	
@@ -36,17 +38,27 @@ public class Sparql implements Comparable<Sparql>
 		return ret;
 	}
 	
+	//Use to display (not execute)
 	public String toStringForGStore() {
 		String ret = "";
-		for (Triple t : tripleList) {
-			if (!t.object.equals("literal_HRZ")) {	// 显式说明的literal类型不用输出
-				ret += t.toStringForGStore();
-				ret += '\n';
-			}
+		for (Triple t : tripleList) 
+		{
+			// 显式说明的literal类型不用输出
+			if(t.object.equals("literal_HRZ"))
+				continue;
+			
+			// 抛弃一些没意义且总出错的type
+			if(t.predicateID==Globals.pd.typePredicateID && Globals.pd.bannedTypes.contains(t.object))
+				continue;
+			
+			ret += t.toStringForGStore();
+			ret += '\n';
+			
 		}
 		return ret;
 	}
 	
+	//Use to execute (select all variables)
 	public String toStringForGStore2()
 	{
 		String ret = "";
@@ -62,7 +74,8 @@ public class Sparql implements Comparable<Sparql>
 		for (String v : variables)
 			ret += v + " ";
 		ret += "where\n{\n";
-		for (Triple t : tripleList) {
+		for (Triple t : tripleList) 
+		{
 			if (!t.object.equals("literal_HRZ")) {	// 显式说明的literal类型不用输出
 				ret += t.toStringForGStore();
 				ret += " .\n";
@@ -73,6 +86,65 @@ public class Sparql implements Comparable<Sparql>
 		return ret;
 	}
 	
+	//Use to execute (select all variables; format 'aggregation' and 'ask')
+	public String toStringForVirtuoso(SentenceType sentenceType, String moreThanStr, HashSet<String> variables)
+	{
+		String ret = "";
+		if(variables == null)
+			variables = new HashSet<String>();
+		
+		// prefix
+		if (sentenceType==SentenceType.GeneralQuestion)
+			ret += "select * where";
+		else if(countTarget)
+			ret += ("select COUNT(DISTINCT " + questionFocus + ") where");
+		else
+		{
+			// AGG: select question focus
+			if(moreThanStr != null || mostStr != null)
+				ret += ("select DISTINCT " + questionFocus + " where");
+			// BGP: select all variables
+			else
+			{
+				for (Triple t: tripleList)
+				{
+					if (!t.isSubjConstant()) variables.add(t.subject.replaceAll(" ", "_"));
+					if (!t.isObjConstant()) variables.add(t.object.replaceAll(" ", "_"));		
+				}
+				
+				ret += "select ";
+				for (String v : variables)
+					ret += v + " ";
+				ret += "where";
+			}
+		}					
+		ret += "\n{\n";
+		if(variables.size() == 0)
+			variables.add(questionFocus);
+		
+		// triples
+		for (Triple t : tripleList) 
+		{
+			if (!t.object.equals("literal_HRZ")) {	// 显式说明的literal类型不用输出
+				ret += t.toStringForGStore();
+				ret += " .\n";
+			}
+		}
+		ret += "}\n";
+		
+		// suffix
+		if(moreThanStr != null)
+		{
+			ret += moreThanStr+"\n";
+		}
+		if(mostStr != null)
+		{
+			ret += mostStr+"\n";
+		}
+	
+		return ret;
+	}
+		
 	public int getVariableNumber()
 	{
 		int res = 0;

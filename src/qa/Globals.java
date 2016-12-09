@@ -19,7 +19,7 @@ import nlp.tool.CoreNLP;
 import nlp.tool.MaltParser;
 import nlp.tool.StanfordParser;
 import nlp.tool.StopWordsList;
-import test.PosTagPattern;
+import addition.PosTagPattern;
 
 public class Globals {
 	// nlp tools
@@ -35,11 +35,20 @@ public class Globals {
 	// postag pattern
 //	public static PosTagPattern pp;
 	
-	public static String localPath="D:/husen/gAnswer/";
-	//public static String localPath="/media/wip/hanshuo/gAnswer/";
+	public static boolean isRunAsWebServer = false;	// 在本机运行为 false，作为服务端运行为 true
 	
-	public static void init () {
-		System.out.println("====== gAnswer over DBpedia ======");
+	public static String localPath="/media/wip/husen/NBgAnswer/";
+	public static String QueryEngineIP = "127.0.0.1";	//端口还需要在对应函数中修改
+	
+	public static void init () 
+	{
+		System.out.println("====== gAnswer2.0 over DBpedia ======");
+		
+		if(isRunAsWebServer == false)
+		{
+			localPath="D:/husen/gAnswer/";
+			QueryEngineIP = "172.31.222.72";
+		}
 
 		long t1, t2, t3, t4, t5, t6, t7, t8, t9;
 		

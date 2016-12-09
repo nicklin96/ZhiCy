@@ -1,4 +1,4 @@
-package test;
+package rdf;
 
 import fgmt.TypeFragment;
 import qa.Globals;
@@ -6,18 +6,18 @@ import lcn.EntityFragmentFields;
 
 public class ImplicitRelation {
 
-	String subj = null;
-	String obj = null;
+	public String subj = null;
+	public String obj = null;
 	
-	int pId = -1;
-	double score = 0;
+	public int pId = -1;
+	public double score = 0;
 	
 	//Role :  1|ent , 2|type_ , 3|var
 	public enum roleEnum {ENTITY, TYPE_CONSTANT, TYPE_VARIABLE, VARIABLE}; 
-	int subjRole = -1;
-	int objRole = -1;
-	int subjId = -1;
-	int objId = -1;
+	public int subjRole = -1;
+	public int objRole = -1;
+	public int subjId = -1;
+	public int objId = -1;
 	
 	public ImplicitRelation(String s, String o, int pid, double sc)
 	{

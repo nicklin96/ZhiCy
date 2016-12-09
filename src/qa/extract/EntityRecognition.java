@@ -16,27 +16,22 @@ import java.util.HashMap;
 import java.util.List;
 
 import fgmt.EntityFragment;
-import nlp.ds.Sentence;
 import nlp.ds.Word;
-import nlp.ds.Sentence.SentenceType;
-import log.QueryLogger;
-import qa.GAnswer;
 import qa.Globals;
-import qa.Query;
 import rdf.EntityMapping;
 import rdf.NodeSelectedWithScore;
-import rdf.PredicateMapping;
-import rdf.SemanticRelation;
-import rdf.Sparql;
-import rdf.Triple;
 import rdf.TypeMapping;
-import test.MergedWord;
-import qa.mapping.SemanticItemMapping;
+import rdf.MergedWord;
 
+/**
+ * 主要为Node Recognition相关功能
+ * @author husen
+ */
 public class EntityRecognition {
 	public String preLog = "";
+	public String stopEntFile = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
 	
-	double EntAcceptedScore = 26;	//the_mayor_of_Berlin: Governing Mayor of Berlin score:25.8919727593077
+	double EntAcceptedScore = 26;
 	double TypeAcceptedScore = 0.5;
 	double AcceptedDiffScore = 1;
 	
@@ -45,38 +40,13 @@ public class EntityRecognition {
 	public ArrayList<String> badTagListForEntAndType = null;
 	ArrayList<ArrayList<Integer>> selectedList = null;
 	
-	public void init()
+	public EntityRecognition() 
 	{
+		// 清空日志
 		preLog = "";
-		stopEntList = new ArrayList<String>();
-		stopEntList.add("people");
-		stopEntList.add("list");
-		stopEntList.add("car");
-		stopEntList.add("flow");
-		stopEntList.add("i");
-		stopEntList.add("state");
-		stopEntList.add("instrument");
-		stopEntList.add("inhabitant");
-		stopEntList.add("employee");
-		stopEntList.add("entrance");
-		stopEntList.add("war");
-		stopEntList.add("city");
-		stopEntList.add("capital");
-		stopEntList.add("host");
-		stopEntList.add("munch");
-		stopEntList.add("show");
-		stopEntList.add("show_I");
-		stopEntList.add("president_of_the_unite_state");
-		stopEntList.add("span");
-		stopEntList.add("budget");
-		stopEntList.add("population");
-		stopEntList.add("density");
-		stopEntList.add("population_density");
-		stopEntList.add("company");
-		stopEntList.add("indian_company");
-		stopEntList.add("score");
-		stopEntList.add("series");
+		loadStopEntityDict();
 		
+		// Bad posTag for entity
 		badTagListForEntAndType = new ArrayList<String>();
 		badTagListForEntAndType.add("RBS");
 		badTagListForEntAndType.add("JJS");
@@ -87,12 +57,37 @@ public class EntityRecognition {
 		badTagListForEntAndType.add("VBZ");
 		badTagListForEntAndType.add("VBP");
 		badTagListForEntAndType.add("POS");
+		
+		System.out.println("EntityRecognizer Initial : ok!");
+	}
+	
+	public void loadStopEntityDict()
+	{
+		stopEntList = new ArrayList<String>();
+		
+		try 
+		{
+			File file = new File(stopEntFile);
+			InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
+			BufferedReader br = new BufferedReader(in);
+
+			String line = null;
+			
+			while ((line = br.readLine())!= null) 
+			{
+				if(line.startsWith("#"))
+					continue;
+				stopEntList.add(line);
+			}	
+			br.close();
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public ArrayList<String> process(String question)
 	{
-		init();
-		
 		TypeRecognition tr = new TypeRecognition();
 		ArrayList<String> fixedQuestionList = new ArrayList<String>();
 		ArrayList<Integer> literalList = new ArrayList<Integer>();
@@ -103,13 +98,13 @@ public class EntityRecognition {
 		HashMap<Integer, Double> mappingScores = new HashMap<Integer, Double>();
 		ArrayList<Integer> mustSelectedList = new ArrayList<Integer>();
 		
-		System.out.println("--------- pre entity/type recognition start ---------");
+		System.out.println("--------- entity/type recognition start ---------");
 		
 		Word[] words = Globals.coreNLP.getTaggedWords(question);
 		mWordList = new ArrayList<MergedWord>();
 		
 		long t1 = System.currentTimeMillis();
-		//这里的hit是指通过lucene或者dbpedia lookup找到了结果，但不保证结果正确（事实上有很多时候是错误结果，例如 than 都有对应的 实体，显然是不对的）
+		//这里的hit是指通过lucene或者dbpedia lookup找到了结果，但不保证结果正确（事实上有很多时候是错误结果，例如 than 都有对应的 实体，显然是不对的） 
 		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0, hitLuceneEntCnt = 0;
 		boolean needRemoveCommas = false;
 		
@@ -143,11 +138,11 @@ public class EntityRecognition {
 					}
 				}
 				allCnt++;
+				
 /*
  * 加一些规则减少find次数，但是这些规则可能牺牲某些entity 
  * 一系列经过不断增加和修正的手写规则
-*/
-				
+*/				
 				boolean entOmit = false, typeOmit = false;
 				int prep_cnt=0;
 				
@@ -236,19 +231,12 @@ public class EntityRecognition {
 						//对首词的判断
 						if(i==st)
 						{
-							if(words[i].posTag.startsWith("I")){
+							if(words[i].posTag.startsWith("I") || words[i].posTag.startsWith("EX") || words[i].posTag.startsWith("TO"))
+							{
 								entOmit = true;
 								typeOmit = true;
 							}
 							if(words[i].posTag.startsWith("D") && len==2){
-								entOmit = true;
-								typeOmit = true;
-							}
-							if(words[i].posTag.startsWith("EX")){
-								entOmit = true;
-								typeOmit = true;
-							}
-							if(words[i].posTag.startsWith("TO")){
 								entOmit = true;
 								typeOmit = true;
 							}
@@ -266,15 +254,7 @@ public class EntityRecognition {
 						//对尾词的判断
 						if(i==ed-1)
 						{
-							if(words[i].posTag.startsWith("I")){
-								entOmit = true;
-								typeOmit = true;
-							}
-							if(words[i].posTag.startsWith("D")){
-								entOmit = true;
-								typeOmit = true;
-							}
-							if(words[i].posTag.startsWith("TO"))
+							if(words[i].posTag.startsWith("I") || words[i].posTag.startsWith("D") || words[i].posTag.startsWith("TO"))
 							{
 								entOmit = true;
 								typeOmit = true;
@@ -288,7 +268,7 @@ public class EntityRecognition {
 						//词序列只有一个词
 						if(len==1)
 						{
-							//TODO:只允许 名词 进行check，但是常有 应该做变量的“通用名词”被检测为ent
+							//TODO: 只允许 名词 进行check，但是常有 应该做变量的“通用名词”被检测为ent，如father等
 							if(!words[i].posTag.startsWith("N"))
 							{
 								entOmit = true;
@@ -303,14 +283,13 @@ public class EntityRecognition {
 						typeOmit = true;
 					}
 				}
-		
 /*
  * 过滤规则完毕
- * TODO：将这段手写规则用 ”POS tag pattern过滤“替代，做实验分析 “准确率” 和  ”时间效率“ 的变化  2016-2-22
 */
 				
 /*
- * 实验：pos tag pattern 检测代替手写rules 
+ * 实验：pos tag pattern 检测
+ * 用pos tag pattern 检测代替上述手写rules，分析 “准确率” 和  ”时间效率“ 的变化  2016-2-22 
  * */
 				// use trie search
 //				if(!Globals.pp.entTrie.search(posTagArr))
@@ -325,6 +304,18 @@ public class EntityRecognition {
 //					typeOmit = true;
 /*
  * pos tag pattern 检测完毕
+ * */
+			
+/*
+ * 实验：entity extraction
+ * 分析不同的策略对entity extraction结果的影响
+ * */
+				// do not use any rules & stopEntList
+//				typeOmit = false;
+//				entOmit = false;
+//				stopEntList.clear();
+/*
+ * 实验：entity extraction 完毕
  * */
 				
 				//search type
@@ -424,39 +415,7 @@ public class EntityRecognition {
 					if(emList.get(0).score < EntAcceptedScore)
 						entOmit = true;
 					
-//					//如果前两项得分很相近，可能是有歧义，在这里不处理  || 这个规则会将一些正确的ent抹去，例如 Kent -> Kent(100.0),KENT(100.0)，虽然有两个得分相同但是它应该是一个ent
-//					if(emList.size()>1 && emList.get(0).score-emList.get(1).score<AcceptedDiffScore)
-//						entOmit = true;
-					
-// 2015-12-1， qald5train-advanced-beta2版本去掉这一条规则					
-//					for(int key: typeMappings.keySet())
-//					{
-//						int te=key%(words.length+1),ts=key/(words.length+1);
-//						//说明当前此序列的前缀是“type”词序列，那么认为当前词序列不应该是ent
-//						if(st==ts && ed>=te)
-//						{
-//							if(te<words.length && !words[te].posTag.startsWith("IN"))
-//								entOmit = true;
-//						}
-//					}
-//					//针对形如 American city | German city形式的，防止 "German city"被识别为一个ent | 这条规则会把 viking press 错判，先去掉看一下情况
-//					if(len == 2)
-//					{
-//						for(int key: entityMappings.keySet())
-//						{
-//							int te=key%(words.length+1),ts=key/(words.length+1);
-//							//此序列的第一个word是“ent”
-//							if(st == ts && ts < ed)
-//							{
-//								//第一个词是JJ
-//								if(words[st].posTag.startsWith("JJ"))
-//								{
-//									entOmit = true;
-//								}
-//							}
-//						}
-//					}
-					//针对形如 the German Shepherd dog形式，防止the German Shepherd dog“被识别为一个ent || The Pillars of the Earth或者The_Storm on the Sea_of_Galilee应该是一个ent，与此rule冲突
+					//针对形如 the German Shepherd dog形式，防止the German Shepherd dog“被识别为一个ent
 					else if(len > 2)
 					{
 						for(int key: entityMappings.keySet())
@@ -465,7 +424,7 @@ public class EntityRecognition {
 							//此序列的第一个word是“ent”
 							if(ts == st+1 && ts <= ed)
 							{
-								//第一个词是DT
+								//第一个词是DT，且是小写 || The Pillars of the Earth或者The_Storm on the Sea_of_Galilee应该是一个ent，the首字母大写
 								if(words[st].posTag.startsWith("DT") && !(words[st].originalForm.charAt(0)>='A'&&words[st].originalForm.charAt(0)<='Z'))
 								{
 									entOmit = true;
@@ -480,12 +439,11 @@ public class EntityRecognition {
 						mWord.mayEnt = true;
 						mWord.emList = emList;
 					
-						
 						//用于之后的remove duplicate and select
 						int key = st*(words.length+1) + ed;
 						entityMappings.put(key, emList.get(0).entityID);
 						
-						//这里对ent的评分进行一些修正
+						//这里对ent的评分进行一些修正 | 属于conflict resolution
 						double score = emList.get(0).score;
 						String likelyEnt = emList.get(0).entityName.toLowerCase().replace(" ", "_");
 						String lowerOriginalWord = originalWord.toLowerCase();
@@ -638,12 +596,6 @@ public class EntityRecognition {
 				if(!beCovered)
 					selected.add(key);
         	}
-        	//将type和entity的位置信息合并以便统一处理; 2015-11-29 因为type已经被事先放入，所以这里就先注释
-//        	if(!entityMappings.containsKey(key))
-//        	{
-//        		entityMappings.put(key, typeMappings.get(key));
-//        		keys.add(key);
-//        	}
         }
 //        for(Integer key: literalList)
 //        {
@@ -652,10 +604,20 @@ public class EntityRecognition {
 //        	selected.add(key);
 //        }
         
+ /*
+  * 实验：conflict resolution
+  * 不同冲突处理策略对最终node Recognition结果的影响
+  * */
+        //1,longest entity principle 2,shortest entity principle
+//        selected.addAll(keys);
+/*
+ * 实验：conflict resolution
+ * */       
+        
         //由于之前的策略问题，必选区段有可能冲突，这里按最长原则消除冲突
         ArrayList<Integer> noConflictSelected = new ArrayList<Integer>();
     	
-		  //select longer one when conflict  || 2015-11-28 ”最长原则“ 被  ”允许多种策略“ 替换  || 2015-12-13 在多种策略基础上进行最长原则
+		//select longer one when conflict  || 2015-11-28 ”最长原则“ 被  ”允许多种策略“ 替换  || 2015-12-13 在多种策略基础上进行最长原则
 		boolean[] flag = new boolean[words.length];
 		ByLenComparator blc = new ByLenComparator(words.length+1);
 		Collections.sort(selected,blc);
@@ -678,7 +640,8 @@ public class EntityRecognition {
 		  		flag[i]=true;
 		  	noConflictSelected.add(key);
 		}
-        
+		
+//scoring and ranking --> top-k decision
         dfs(keys,0,noConflictSelected,words.length+1);
         // get score and sort
         ArrayList<NodeSelectedWithScore> nodeSelectedWithScoreList = new ArrayList<NodeSelectedWithScore>();
@@ -696,7 +659,6 @@ public class EntityRecognition {
         	nodeSelectedWithScoreList.add(tmp);
         }
         Collections.sort(nodeSelectedWithScoreList);
-        
         
         
         //replace
@@ -761,11 +723,10 @@ public class EntityRecognition {
         long t2 = System.currentTimeMillis();
         preLog += "Total hit/check/all ent num: "+hitEntCnt+" / "+checkEntCnt+" / "+allCnt+"\n";
         preLog += "Total hit/check/all type num: "+hitTypeCnt+" / "+checkTypeCnt+" / "+allCnt+"\n";
-        preLog += "Total check time: "+ (t2-t1) + "ms\n";
+        preLog += "Total Node Recognition time: "+ (t2-t1) + "ms\n";
 		System.out.println("Total check time: "+ (t2-t1) + "ms");
 		System.out.println("--------- pre entity/type recognition end ---------");
 		
-		//fixedQuestionList.add(question);
 		return fixedQuestionList;
 	}
 	
@@ -809,9 +770,8 @@ public class EntityRecognition {
 		ret.addAll(EntityFragment.getEntityMappingList(n));
 		
 		//在一些情况下，也使用DBpediaLookup进行补充
-		if (useDblk) //&& (ret.size()==0 || len==1)) 
+		if (useDblk) 
 		{ 
-			//做NER实验时，限定条件为依据dictionary，所以暂时禁掉dblk
 			ret.addAll(Globals.dblk.getEntityMappings(n, null));
 		}
 		
@@ -928,16 +888,10 @@ public class EntityRecognition {
 	public static void main (String[] args) 
 	{
 		Globals.init();
-		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		EntityRecognition er = new EntityRecognition();
 		try 
 		{
-			File inputFile = new File("E:\\Husen\\Code\\workspace\\ZhiCy\\test\\test_in.txt");
-			File outputFile = new File("E:\\Husen\\Code\\workspace\\ZhiCy\\test\\test_out.txt");
-			BufferedReader fr = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile),"utf-8"));
-			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(outputFile,true),"utf-8");
-			
-			EntityRecognition er = new EntityRecognition();
-			
+			BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 			while (true) 
 			{	
 				System.out.print("Please input the question: ");
@@ -946,6 +900,11 @@ public class EntityRecognition {
 				er.process(question);
 			}
 			
+//			File inputFile = new File("D:\\husen\\gAnswer\\data\\test\\test_in.txt");
+//			File outputFile = new File("D:\\husen\\gAnswer\\data\\test\\test_out.txt");
+//			BufferedReader fr = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile),"utf-8"));
+//			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(outputFile,true),"utf-8");
+//
 //			String input;
 //			while((input=fr.readLine())!=null)
 //			{

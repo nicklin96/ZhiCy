@@ -1,4 +1,4 @@
-package test;
+package addition;
 
 public class Trie 
 {

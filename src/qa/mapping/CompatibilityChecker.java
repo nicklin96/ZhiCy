@@ -323,6 +323,8 @@ public class CompatibilityChecker {
 		while (it_int.hasNext()) {
 			Integer i = it_int.next();
 			ArrayList<RelationFragment> flist = RelationFragment.relFragments.get(i);
+			if(flist == null || flist.size()==0)
+				return 0;
 			Iterator<RelationFragment> it_rln = flist.iterator();
 			while (it_rln.hasNext()) {
 				RelationFragment rf = it_rln.next();
