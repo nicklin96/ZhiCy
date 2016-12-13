@@ -24,8 +24,8 @@ import rdf.TypeMapping;
 public class SemanticItemMapping {
 	
 	public HashMap<Word, ArrayList<EntityMapping>> entityDictionary = new HashMap<Word, ArrayList<EntityMapping>>();
-	public static int k = 10;
-	public static int t = 10;
+	public static int k = 10;	// 目前没用到
+	public static int t = 10;	// 单个node和relation枚举深度；例如2个triple共2条边3个点，最大复杂度为t^5，实际会更小因为只枚举实体节点
 	ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
 	
 	public ArrayList<ArrayList<EntityMapping>> entityPhrasesList = new ArrayList<ArrayList<EntityMapping>>();
@@ -41,12 +41,13 @@ public class SemanticItemMapping {
 	
 	public EntityFragmentDict efd = new EntityFragmentDict();
 	
-	public boolean isAnswerFound = false;	// TODO 这是干嘛的？
+	public boolean isAnswerFound = false;	// 在不进行check时找到第一个SPARQL即标记为true，直接返回
 	
 	public void process(QueryLogger qlog, HashMap<Integer, SemanticRelation> semRltn) {
 		semanticRelations = semRltn;
 		this.qlog = qlog;
-		long t = 0;
+		long t1 = 0;
+		t = 10;	// 注意static的变量，这里每次手动初始化为10，不然一旦被带环图修改为5后就一直是5了
 
 		entityPhrasesList.clear();
 		entityWordList.clear();
@@ -57,7 +58,7 @@ public class SemanticItemMapping {
 		
 		// 注意【常量版type】也是常量的一种，但是不参与top-k，直接取分数最高的type - husen
 		// 1. collect names of constant(entities), and map them to the entities
-		t = System.currentTimeMillis();
+		t1 = System.currentTimeMillis();
 		
 		Iterator<Map.Entry<Integer, SemanticRelation>> it = semanticRelations.entrySet().iterator(); 
         while(it.hasNext())
@@ -105,7 +106,7 @@ public class SemanticItemMapping {
 		if (!qlog.timeTable.containsKey("CollectEntityNames")) {
 			qlog.timeTable.put("CollectEntityNames", 0);
 		}
-		qlog.timeTable.put("CollectEntityNames", qlog.timeTable.get("CollectEntityNames")+(int)(System.currentTimeMillis()-t));
+		qlog.timeTable.put("CollectEntityNames", qlog.timeTable.get("CollectEntityNames")+(int)(System.currentTimeMillis()-t1));
 		
 		//debug...
 		/*
@@ -115,12 +116,16 @@ public class SemanticItemMapping {
 		*/
 		
 		// 2. join
-		t = System.currentTimeMillis();
+		t1 = System.currentTimeMillis();
 		for (Integer key : semanticRelations.keySet()) 
 		{
 			SemanticRelation sr = semanticRelations.get(key);
 			predicatePhraseList.add(sr.predicateMappings);
 			predicateSrList.add(sr);
+			
+			// 若需枚举结构，则枚举item的深度应该减小，不然正确结构也会由于得分排名过后
+			if(Globals.evaluationMethod > 1 && !sr.isSteadyEdge)
+				t = 5;
 		}
 		if(semanticRelations.size()>0)
 		{
@@ -130,7 +135,7 @@ public class SemanticItemMapping {
 		{
 			System.out.println("No Valid SemanticRelations.");
 		}
-		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t));
+		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t1));
 
 		// 3. sort and rank
 		Collections.sort(rankedSparqls);		
@@ -262,6 +267,15 @@ public class SemanticItemMapping {
 				currentPredicateMappings.remove(sr.hashCode());
 				tcount++;
 			}
+			
+			// 若需枚举结构，则枚举predicate和node的深度应该减小，不然正确结构也会由于得分排名过后
+			if(Globals.evaluationMethod > 1 && sr.isSteadyEdge == false)
+			{
+				currentPredicateMappings.put(sr.hashCode(), null);
+				dfs_predicate(level_i+1);
+				currentPredicateMappings.remove(sr.hashCode());
+				tcount++;
+			}
 		}
 	}
 
@@ -279,6 +293,48 @@ public class SemanticItemMapping {
 	{			
 		Sparql sparql = new Sparql(semanticRelations);
 
+		// 检验查询图是否连通，为方便，这里认为存在一条边的两个node都只出现一次(只有一条边时例外)即为不连通；只在node数小于6时正确（充分不必要）
+		// 点数减少了也不行
+		HashMap<Integer, Integer> count = new HashMap<Integer, Integer>();
+		int edgeCnt = 0;
+		for (Integer key : semanticRelations.keySet()) 
+		{
+			SemanticRelation sr = semanticRelations.get(key);
+			if(currentPredicateMappings.get(sr.hashCode()) == null)
+				continue;
+			
+			edgeCnt++;
+			int v1 = sr.arg1Word.hashCode(), v2 = sr.arg2Word.hashCode();
+			if(!count.containsKey(v1))
+				count.put(v1, 1);
+			else
+			{
+				count.put(v1, count.get(v1)+1);
+			}
+			if(!count.containsKey(v2))
+				count.put(v2, 1);
+			else
+			{
+				count.put(v2, count.get(v2)+1);
+			}
+		}
+		if(count.size() < qlog.semanticUnitList.size())
+			return;
+		if(edgeCnt == 0)
+			return;
+		if(edgeCnt > 1)
+		{
+			for (Integer key : semanticRelations.keySet()) 
+			{
+				SemanticRelation sr = semanticRelations.get(key);
+				if(currentPredicateMappings.get(sr.hashCode()) == null)
+					continue;
+				int v1 = sr.arg1Word.hashCode(), v2 = sr.arg2Word.hashCode();
+				if(count.get(v1) == 1 && count.get(v2) == 1)
+					return;
+			}
+		}
+		
 		HashSet<String> typeSetFlag = new HashSet<String>();	// 保证每个变量的type1只在sparql中出现一次 |这个没用到啊
 		for (Integer key : semanticRelations.keySet()) 
 		{
@@ -345,13 +401,17 @@ public class SemanticItemMapping {
 			if (dep == null) 
 			{
 				pm = currentPredicateMappings.get(sr.hashCode());
-				pid = pm.pid;
 			}
 			else 
 			{
 				pm = currentPredicateMappings.get(dep.hashCode());
-				pid = pm.pid;
 			}
+			// 当前边的mapping为null，则放弃该条semantic relation
+			if(pm == null)
+			{
+				continue;
+			}
+			pid = pm.pid;
 			score *= pm.score;
 				
 // argument2

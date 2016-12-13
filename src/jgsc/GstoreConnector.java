@@ -315,9 +315,10 @@ public class GstoreConnector
 				+ "}";
 				
 	    //boolean flag = gc.load("db_dbpedia_ganswer");
-	    boolean flag = gc.load("DBpediaYago");
-		System.out.println(flag);
-	    String answer = gc.query(sparql);	    
+//	    boolean flag = gc.load("DBpediaYago");
+//		System.out.println(flag);
+	    
+		String answer = gc.query(sparql);	    
 		System.out.println(answer);
 		
 //	    answer = gc.query(sparql);	    

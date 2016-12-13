@@ -69,6 +69,12 @@ public class BuildQueryGraph
 			stopNodeList.add("province");
 	}
 
+	/*
+	 * evaluationMethod:
+	 * 1. baseline稳定版，从question focus出发生成确定的query graph结构，“先到先得”策略，不允许有环；足以应付绝大多数case，实际推荐使用本方法
+	 * 2. hyper query graph + top-down方法，即生成的hyper query graph包含所有可能边，允许有环；执行时总体和1一致，只是需要先枚举结构；
+	 * 3. hyper query graph + bottom-up方法，与2不同之处在于不生成SPARQL，直接在hyper query graph基础上进行graph exploration，只供实验，实际非常不推荐
+	 * */
 	public ArrayList<SemanticUnit> process(QueryLogger qlog)
 	{
 		try 
@@ -161,8 +167,14 @@ public class BuildQueryGraph
 					continue;
 				}					
 				
-				// 在这里clear，意味生成的是 hyper query graph，即“所有可能边”，允许带环; 否则是“先到先得“，即”无环“
-				visited.clear();
+				/* 2016-12-10
+				注意： 在这里clear，意味生成的是 hyper query graph，即“所有可能边”，允许带环; 
+					否则，则是“先到先得“，即”无环“，两个UNIT之间只是单向边，方向就是探索扩展的方向。
+				 */
+				if(Globals.evaluationMethod > 1)
+				{
+					visited.clear();
+				}
 				
 				SemanticUnit curSU = new SemanticUnit(curCenterNode.word,true);
 				expandNodeList = new ArrayList<DependencyTreeNode>();
@@ -195,17 +207,17 @@ public class BuildQueryGraph
 					//expandNode作为一个新的SemanticUnit
 					SemanticUnit expandSU = new SemanticUnit(expandNode.word,false);
 					
-					//作为邻居互相认识
+					//expandUnit加入当前unit的邻居列表
 					curSU.neighborUnitList.add(expandSU);
-					expandSU.neighborUnitList.add(curSU);	//这个其实没有用，因为expandSU没有加入到semanticUnitList，所以现在这种写法两个UNIT之间只是单向边，方向就是探索扩展的方向
 				}
 			}
 			qlog.timeTable.put("BQG_structure", (int)(System.currentTimeMillis()-t));
 			
-			//step3: 注意这时认为已经处理了 "指代消解"。确定各unit之间的relation, 这里认为只要两个unit不直接相连都可以通过ganswer的relation extract解决。   
+			//step3: 找出各node之间可能的relation，转化成 semantic relations (注意这时认为已经处理了 "指代消解")
 			t = System.currentTimeMillis();
-			extractRelation(semanticUnitList, qlog);
-			matchRelation(semanticUnitList, qlog);
+			qlog.semanticUnitList = new ArrayList<SemanticUnit>();
+			extractRelation(semanticUnitList, qlog); // 对相连的两node，尝试识别relation，转化成semantic relations
+			matchRelation(semanticUnitList, qlog);	// 抛弃两端变量找不到对应匹配node的semantic relation；抛弃无法转换成semantic relation的node（从semanticUnitList中剔除）
 			qlog.timeTable.put("BQG_relation", (int)(System.currentTimeMillis()-t));
 			
 //			//TODO：step4: [这步没有实际作用]找每个unit的描述词，处理describe，包括聚集函数、形容词，转化成semantic relation形式加入matchedSR进行item mapping.
@@ -237,8 +249,7 @@ public class BuildQueryGraph
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		qlog.semanticUnitList = semanticUnitList;
+	
 		return semanticUnitList;
 	}
 	
@@ -250,9 +261,9 @@ public class BuildQueryGraph
 		{
 			for(SemanticUnit expandSU: curSU.neighborUnitList)
 			{
-//				//去重 | 现在是单向边不需要去重了  
-//				if(curSU.centerWord.position > expandSU.centerWord.position)
-//					continue;
+				//去重 | 方法1只产生单向边则不需要去重  
+				if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
+					continue;
 				
 				ArrayList<SimpleRelation> tmpRelations = null;
 				//get simple relations
@@ -288,8 +299,21 @@ public class BuildQueryGraph
 				}
 			}
 		}
+		
 		//get semantic relations
 		HashMap<Integer, SemanticRelation> semanticRelations = er.groupSimpleRelationsByArgsAndMapPredicate(simpleRelations);
+		
+		//若生成的是hyper query graph，即可能包含环，需要枚举结构，则在predicate mapping中加入null，当top-k时该边枚举到null时即认为抛弃该边
+		if(Globals.evaluationMethod > 1)
+		{
+			//TODO: 这里应该只对 possible edge（去掉后图依然联通） 进行标记，此时先偷懒，有环的则都标上
+			if(semanticRelations.size() >= semanticUnitList.size())
+				for(SemanticRelation sr: semanticRelations.values())
+				{
+					sr.isSteadyEdge = false;
+				}
+		}
+		
 		qlog.semanticRelations = semanticRelations;
 	}
 	
@@ -306,11 +330,19 @@ public class BuildQueryGraph
 			{
 				for(SemanticUnit expandSU: curSU.neighborUnitList)
 				{
+					//去重 | 方法1只产生单向边则不需要去重  
+					if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
+						continue;
+					
 					int key = curSU.centerWord.getNnHead().hashCode() ^ expandSU.centerWord.getNnHead().hashCode();
 					if(relKey == key)
 					{
 						matched = true;
 						matchedSemanticRelations.put(relKey, sr);
+						if(!qlog.semanticUnitList.contains(curSU))
+							qlog.semanticUnitList.add(curSU);
+						if(!qlog.semanticUnitList.contains(expandSU))
+							qlog.semanticUnitList.add(expandSU);
 						
 						curSU.RelationList.put(expandSU.centerWord, sr);
 						expandSU.RelationList.put(curSU.centerWord, sr);
@@ -342,9 +374,13 @@ public class BuildQueryGraph
 				}
 			}
 		}
+		if(qlog.semanticUnitList.size() == 0)
+			qlog.semanticUnitList = semanticUnitList;
 		
 		//step2: 将没有确定relation的边按照ganswer relation extract的方式抽一遍信息，如果没抽到，则再根据规则尝试一下。之后转化成 semantic relation形式，方便后面进行item mapping。
-		//to do
+		//现在认为 只允许 modified word（不作为node看待） 初始抽取不到 relation，将在 item mapping生成sparql之后补全 modified word 相关relation
+		//对于其他node，若不能抽取到 relation（无法转换成semantic relation），则抛弃（从semanticUnitList中剔除）
+
 	}
 
 	public void printTriples_SUList(ArrayList<SemanticUnit> SUList, QueryLogger qlog)
@@ -366,8 +402,9 @@ public class BuildQueryGraph
 				for(int j=0;j<curSU.neighborUnitList.size();j++)
 				{
 					neighborSU = curSU.neighborUnitList.get(j);
-// 若单向边，则不需要去重
-					if(curSU.centerWord.position > neighborSU.centerWord.position)
+					
+					//去重 | 方法1只产生单向边则不需要去重  
+					if(Globals.evaluationMethod > 1 && curSU.centerWord.position > neighborSU.centerWord.position)
 						continue;
 	
 					obj = neighborSU.centerWord.getFullEntityName();

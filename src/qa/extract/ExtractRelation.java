@@ -451,7 +451,12 @@ public class ExtractRelation {
 			HashMap<Integer, StringAndDouble> pasMap = key2pasMap.get(key);
 			semr.predicateMappings = new ArrayList<PredicateMapping>();
 			//System.out.print("<"+semr.arg1Word.getFullEntityName() + "," + semr.arg2Word.getFullEntityName() + ">:");
-			for (Integer pid : pasMap.keySet()) {
+			for (Integer pid : pasMap.keySet()) 
+			{
+				// 抛弃得分过低的候选predicate，尽量只保留t(top-k时的枚举深度)以内的候选；经测试此剪枝会抛弃很多正确谓词（体现出paraphrase dictionary质量较低）
+//				if(pasMap.get(pid).score < 100)
+//					continue;
+				
 				semr.predicateMappings.add(new PredicateMapping(pid, pasMap.get(pid).score, pasMap.get(pid).str));
 				//System.out.print("[" + Globals.pd.getPredicateById(pid) + "," + pasMap.get(pid).str + "," + pasMap.get(pid).score + "]");
 			}

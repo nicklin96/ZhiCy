@@ -269,6 +269,10 @@ public class GAnswer {
 		System.out.println("rawLines.length=" + rawLines.length);
 		for (int i=2;i<rawLines.length;i++)
 		{
+			// 因为rawAnswer里一个答案可能包含\n，就会出现4个答案但rawLines.lengh为6的情况；在gserver修正输出格式前，先简单的截断尾部避免异常
+			if(i-2 >= ansNum)
+				break;
+			
 			String[] ansLineContents = rawLines[i].split("\t");
 			for (int j=0;j<varNum;j++)
 			{
@@ -532,12 +536,12 @@ public class GAnswer {
 				int idx_sparql = 0;
 				
 				long ed_time = System.currentTimeMillis();
-//				if(qlog.fw != null)
-//				{
-//					for(String key: qlog.timeTable.keySet())
-//						qlog.fw.write(key + ": " + qlog.timeTable.get(key) + "ms\n");
-//					qlog.fw.write("Qustion Understanding time: "+ (int)(ed_time - st_time)+"ms\n");
-//				}
+				if(qlog.fw != null)
+				{
+				//	for(String key: qlog.timeTable.keySet())
+				//		qlog.fw.write(key + ": " + qlog.timeTable.get(key) + "ms\n");
+					qlog.fw.write("Qustion Understanding time: "+ (int)(ed_time - st_time)+"ms\n");
+				}
 				
 				System.out.println("[RESULT]");
 				ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
@@ -566,8 +570,8 @@ public class GAnswer {
 						// execute by Virtuoso or GStore
 //						Matches m = null;
 //						if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
-//							m = ga.getAnswerFromGStore2(curSpq);
-//							//m = ga.getAnswerFromVirtuoso(qlog, curSpq);
+//							//m = ga.getAnswerFromGStore2(curSpq);
+//							m = ga.getAnswerFromVirtuoso(qlog, curSpq);
 //							
 //						if (m != null && m.answers != null) 
 //                        {
@@ -577,8 +581,8 @@ public class GAnswer {
 //                            
 //                            qlog.reviseAnswers();
 //                            
-//                            ResultJspFile jspFile = new ResultJspFile();
-//                            jspFile.saveToFile(qlog,"","","");
+//                            // ResultJspFile jspFile = new ResultJspFile();
+//                            // jspFile.saveToFile(qlog,"","","");
 //                        }
 					
 					}
