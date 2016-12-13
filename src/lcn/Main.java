@@ -36,7 +36,8 @@ public class Main {
 //			}
 
 //search Ent Fragment
-			EntityFragment ef = efd.getEntityFragmentByName(literal);
+			int eId = EntityFragmentFields.entityName2Id.get(literal);
+			EntityFragment ef = EntityFragment.getEntityFragmentByEntityId(eId);
 			System.out.println(ef);
 
 //search Ent Name

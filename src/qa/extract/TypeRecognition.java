@@ -6,53 +6,82 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 
+import nlp.ds.Word;
 import nlp.tool.StopWordsList;
 import fgmt.RelationFragment;
 import fgmt.TypeFragment;
 import lcn.SearchInTypeShortName;
+import log.QueryLogger;
 import qa.Globals;
 import rdf.SemanticRelation;
+import rdf.Triple;
 import rdf.TypeMapping;
 
+/*
+ * 2016-6-17
+ * 1、识别type，包括yago type；
+ * 2、手动添加一些type对应，如“USState"-"yago:StatesOfTheUnitedStates"；
+ * 3、开始加入一些extend variable，即【自带type的变量】的general版本，【自带triple的变量】；目前主要为形如  ?canadian <birthPlace> <Canada>
+ * */
 public class TypeRecognition {
-	// dbpedia
-	/*
-	public static final int[] type_Person = {9,10,11};
-	public static final int[] type_Place = {16, 17};
-	public static final int[] type_Organisation = {33,57};
-	*/	
 	// dbpedia3.9
-	// public static final int[] type_Person = {19,20,21};
-	// public static final int[] type_Place = {43,45};
-	// public static final int[] type_Organisation = {2,12};	
+//	public static final int[] type_Person = {19,20,21};
+//	public static final int[] type_Place = {43,45};
+//	public static final int[] type_Organisation = {2,12};	
 	
 	// dbpedia 2014
 	public static final int[] type_Person = {180,279};
 	public static final int[] type_Place = {49,228};
 	public static final int[] type_Organisation = {419,53};
-
-	public HashMap<String,String> extendTypeMap = null; 
+	
+	public HashMap<String, String> extendTypeMap = null; 
+	public HashMap<String, Triple> extendVariableMap = null;
 	
 	SearchInTypeShortName st = new SearchInTypeShortName();
 	
 	public TypeRecognition()
 	{
 		extendTypeMap = new HashMap<String, String>();
-		// 都在yago type中，所以注释掉
-//		extendTypeList.add("queen");
-//		extendTypeList.add("prince");
-//		extendTypeList.add("surfer");
-//		extendTypeList.add("bandleader");
-//		extendTypeList.add("state_of_germany");
+		extendVariableMap = new HashMap<String, Triple>();
+		Triple triple = null;
 		
 		//一些形式上变换的type
 		extendTypeMap.put("NonprofitOrganizations", "dbo:Non-ProfitOrganisation");
 		extendTypeMap.put("GivenNames", "dbo:GivenName");
 		extendTypeMap.put("JamesBondMovies","yago:JamesBondFilms");
 		extendTypeMap.put("TVShows", "dbo:TelevisionShow");
-		extendTypeMap.put("US", "yago:StatesOfTheUnitedStates");
+		extendTypeMap.put("USState", "yago:StatesOfTheUnitedStates");
+		extendTypeMap.put("USStates", "yago:StatesOfTheUnitedStates");
 		extendTypeMap.put("Europe", "yago:EuropeanCountries");
 		extendTypeMap.put("Africa", "yago:AfricanCountries");
+		
+		//！！！以下pid，eid基于dbpedia2014，如更换数据集或更新id mapping，需要更新下面ID
+		//一些extend variable，即“自带triples的变量”，如：[?E|surfers]-?uri dbo:occupation res:Surfing；canadians：<?canadian>	<birthPlace>	<Canada>
+		//1) <?canadians>	<birthPlace>	<Canada> | <xx国人> <birthPlace|1639> <xx国>
+		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 1639, 2112902, "Canada", null, 100);
+		extendVariableMap.put("canadian", triple);
+		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 1639, 883747, "Germany", null, 100);
+		extendVariableMap.put("german", triple);
+		//2) ?bandleader	<occupation |　6690>	<Bandleader>
+		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 6690, 5436853, "Bandleader", null, 100);
+		extendVariableMap.put("bandleader", triple);
+		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 6690, 5436854, "Surfing>", null, 100);
+		extendVariableMap.put("surfer", triple);
+	}
+	
+	public void recognizeExtendVariable(Word w)
+	{
+		String key = w.baseForm;
+		if(extendVariableMap.containsKey(key))
+		{
+			w.mayExtendVariable = true;
+			Triple triple = extendVariableMap.get(key).copy();
+			if(triple.subjId == Triple.VAR_ROLE_ID && triple.subject.equals(Triple.VAR_NAME))
+				triple.subject = "?" + w.originalForm;
+			if(triple.objId == Triple.VAR_ROLE_ID && triple.object.equals(Triple.VAR_NAME))
+				triple.object = "?" + w.originalForm;
+			w.embbededTriple = triple;
+		}
 	}
 	
 	public ArrayList<TypeMapping> getExtendTypeByStr(String allUpperFormWord)
@@ -129,14 +158,14 @@ public class TypeRecognition {
 	 * 例如：Which books by Kerouac were published by Viking Press? 中的“books”。
 	 * （2）认为该word为常量。它被用来修饰其他word。
 	 * 例如：Are tree frogs a type of amphibian? 中的“amphibian”。
-	 * 这两种情况的分别处理在ExtractRelation -> constantVariableRecognition
+	 * 这两种情况的分别处理在ExtractRelation -> constantVariableRecognition；本函数现只用来添加疑问词的type信息
 	 * */
-	public void recognize (HashMap<Integer, SemanticRelation> semanticRelations) {
+	public void AddTypesOfWhwords (HashMap<Integer, SemanticRelation> semanticRelations) {
 		ArrayList<TypeMapping> ret = null;
 		for (Integer it : semanticRelations.keySet()) 
 		{
 			SemanticRelation sr = semanticRelations.get(it);
-			//这时候还没有对sr中变量的isArgConstant进行过修改
+			//对非type节点识别疑问词的type信息
 			if(!sr.arg1Word.mayType) 
 			{
 				ret = recognizeSpecial(sr.arg1Word.baseForm);

@@ -273,8 +273,8 @@ public class CompatibilityChecker {
 	public int check1_E1PE2(Triple t) {
 		ArrayList<Integer> pidList = new ArrayList<Integer>();
 		pidList.add(t.predicateID);
-		EntityFragment E1 = efd.getEntityFragmentByName(t.subject);
-		EntityFragment E2 = efd.getEntityFragmentByName(t.object);
+		EntityFragment E1 = efd.getEntityFragmentByEid(t.subjId);
+		EntityFragment E2 = efd.getEntityFragmentByEid(t.objId);
 		
 		// P ∈ E1.outEdges
 		if (Collections.disjoint(pidList, E1.outEdges)) {
@@ -307,7 +307,7 @@ public class CompatibilityChecker {
 	public int check2_EPV(Triple t) {
 		ArrayList<Integer> pidList = new ArrayList<Integer>();
 		pidList.add(t.predicateID);
-		EntityFragment E = efd.getEntityFragmentByName(t.subject);
+		EntityFragment E = efd.getEntityFragmentByEid(t.subjId);
 		VariableFragment V = variable_fragment.get(t.object);
 		
 		// P ∈ E.outEdges
@@ -323,6 +323,8 @@ public class CompatibilityChecker {
 		while (it_int.hasNext()) {
 			Integer i = it_int.next();
 			ArrayList<RelationFragment> flist = RelationFragment.relFragments.get(i);
+			if(flist == null || flist.size()==0)
+				return 0;
 			Iterator<RelationFragment> it_rln = flist.iterator();
 			while (it_rln.hasNext()) {
 				RelationFragment rf = it_rln.next();
@@ -355,7 +357,7 @@ public class CompatibilityChecker {
 	
 	public int check3_Etype1T(Triple t) {
 		String[] T = t.object.split("\\|");	// 注意"|"需要转义
-		EntityFragment E = efd.getEntityFragmentByName(t.subject);
+		EntityFragment E = efd.getEntityFragmentByEid(t.subjId);
 
 		String newTypeString = "";
 		boolean contained = false;
@@ -386,7 +388,7 @@ public class CompatibilityChecker {
 		ArrayList<Integer> pidList = new ArrayList<Integer>();
 		pidList.add(t.predicateID);
 		VariableFragment V = variable_fragment.get(t.subject);
-		EntityFragment E = efd.getEntityFragmentByName(t.object);
+		EntityFragment E = efd.getEntityFragmentByEid(t.objId);
 		
 		// P ∈ E.inEdges 
 		if (Collections.disjoint(pidList, E.inEdges)) {

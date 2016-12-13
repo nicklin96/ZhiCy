@@ -5,60 +5,10 @@ public class LogWriter {
 	
 	public LogWriter() {
 		db = new MySQLBPO();
-		//db.init("huangruizhe");
-		//db.init("ganswerlog");
+		//db.init("test");
 		db.init("GAnswerLog");
 	}
 	
-	/*
-	public boolean insertLog(String NLQuestion,
-			String dependencies,
-			String sparql,
-			int userFeedback,
-			int errorNum,
-			String user_ip) {
-		//
-		  	insert into huangruizhe.ganswerlog (NL_question, sparql, user_feedback, error_num, user_ip, time) 
-			values ('Who is the daughter of Bill Clinton married to?',
-        	'?daughter <child> Bill_Clinton',
-        	5,
-        	0,
-        	123,
-        	now());
-		 //
-		StringBuilder query = new StringBuilder("insert into huangruizhe.ganswerlog (NL_question, dependencies, sparql, user_feedback, error_num, user_ip, time) values (");
-		query.append('\'');
-		query.append(NLQuestion);
-		query.append("\',");
-		
-		query.append('\'');
-		query.append(dependencies);
-		query.append("\',");		
-
-		query.append('\'');
-		query.append(sparql);
-		query.append("\',");
-
-		query.append('\'');
-		query.append(userFeedback);
-		query.append("\',");
-
-		query.append('\'');
-		query.append(errorNum);
-		query.append("\',");
-
-		//query.append("INET_ATON(\'");
-		//query.append(user_ip);
-		//query.append("\'),");
-		query.append('\'');
-		query.append(user_ip);
-		query.append("\',");
-		
-		query.append("now());");
-
-		return db.execute(query.toString());		
-	}
-	*/
 	public boolean insertLog(String user_ip,
 			String question,			
 			String sparql,
@@ -85,8 +35,6 @@ public class LogWriter {
 		query.append(question);
 		query.append("\',");
 		
-	
-
 		query.append('\'');
 		query.append(sparql);
 		query.append("\',");
@@ -103,12 +51,9 @@ public class LogWriter {
 		query.append(userFeedback);
 		query.append("\',");
 
-
-
 		//query.append("INET_ATON(\'");
 		//query.append(user_ip);
 		//query.append("\'),");
-
 		
 		query.append("now());");
 

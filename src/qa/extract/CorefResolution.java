@@ -10,6 +10,7 @@ import log.QueryLogger;
 import nlp.ds.DependencyTree;
 import nlp.ds.DependencyTreeNode;
 import nlp.ds.Word;
+import rdf.SimpleRelation;
 
 public class CorefResolution {
 	/**

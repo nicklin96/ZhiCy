@@ -1,4 +1,4 @@
-package test;
+package qa.parsing;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,19 +9,16 @@ import java.util.Queue;
 
 import fgmt.TypeFragment;
 import log.QueryLogger;
+import nlp.ds.*;
+import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
-import qa.extract.CorefResolution;
-import qa.extract.SimpleRelation;
-import qa.extract.TypeRecognition;
+import qa.extract.*;
 import qa.mapping.SemanticItemMapping;
 import rdf.PredicateMapping;
 import rdf.Triple;
-import nlp.ds.DependencyTree;
-import nlp.ds.DependencyTreeNode;
-import nlp.ds.Sentence;
-import nlp.ds.Sentence.SentenceType;
-import nlp.ds.Word;
 import rdf.SemanticRelation;
+import rdf.SimpleRelation;
+import rdf.SemanticUnit;
 import paradict.ParaphraseDictionary;
 
 /*
@@ -55,6 +52,7 @@ public class BuildQueryGraph
 		stopNodeList.add("show");
 		stopNodeList.add("star");
 		stopNodeList.add("theme");
+		stopNodeList.add("world");
 	}
 	
 	public void fixStopWord(QueryLogger qlog)
@@ -71,6 +69,12 @@ public class BuildQueryGraph
 			stopNodeList.add("province");
 	}
 
+	/*
+	 * evaluationMethod:
+	 * 1. baseline稳定版，从question focus出发生成确定的query graph结构，“先到先得”策略，不允许有环；足以应付绝大多数case，实际推荐使用本方法
+	 * 2. hyper query graph + top-down方法，即生成的hyper query graph包含所有可能边，允许有环；执行时总体和1一致，只是需要先枚举结构；
+	 * 3. hyper query graph + bottom-up方法，与2不同之处在于不生成SPARQL，直接在hyper query graph基础上进行graph exploration，只供实验，实际非常不推荐
+	 * */
 	public ArrayList<SemanticUnit> process(QueryLogger qlog)
 	{
 		try 
@@ -80,8 +84,10 @@ public class BuildQueryGraph
 			DependencyTree ds = qlog.s.dependencyTreeStanford;
 			if(qlog.isMaltParserUsed)
 				ds = qlog.s.dependencyTreeMalt;
+			
+			long t = System.currentTimeMillis();
 		
-/*在build query graph前的一些准备，包括： 
+/*在build query graph前的一些准备，包括：  
  * 0)根据词组特性选择加入一些可能的stop node
  * 1)确定从哪个点入手建图；（因为从不同的点开始会对图结构有影响）
  * 2)共指消解； 
@@ -89,14 +95,18 @@ public class BuildQueryGraph
  * */		
 			fixStopWord(qlog);
 			
-			//step1:识别query target，部分共指消解 |  现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的target。   
-			DependencyTreeNode target = detectTarget(ds,qlog);
-			qlog.fw.write("++++ Target detect: "+target+"\n");
+			//step1:识别query target，部分共指消解 | 现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的question focus。     
+			DependencyTreeNode target = detectTarget(ds,qlog); 
+			qlog.SQGlog += "++++ Target detect: "+target+"\n";
+			
+			if(qlog.fw != null)
+				qlog.fw.write("++++ Target detect: "+target+"\n"); 
+			
 			if(target == null)
 				return null;
 			
 			qlog.target = target.word;
-			//认为target不能是ent，一般疑问句除外
+			//认为target不能是ent，一般疑问句除外 
 			if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
 			{
 				target.word.mayEnt = false;
@@ -104,7 +114,7 @@ public class BuildQueryGraph
 			}
 			
 			//共指消解，cr中有一系列规则；因为共指分为好几种情况需要不同的处理方式，不能简单的删掉其中一个，所以要确定图结构后再处理
-			//ganswer以关系为核心，确定每一组”关系加两端变量“后做指代消解，用其中一个替换掉所有共指的变量就可以 
+			//ganswer以关系为核心，确定每一组”关系加两端变量“后做指代消解，用其中一个替换掉所有共指的变量就可以  
 			CorefResolution cr = new CorefResolution();
 			
 			//这里随手加一个指代消解，之后应该在结构清晰的地方统一进行指代消解。
@@ -112,46 +122,77 @@ public class BuildQueryGraph
 			//为简便，直接将要消除的词加入stopNodeList。因为represent有时需要复制被指代词的信息，也可能影响结构，还没搞清楚
 			if(qlog.s.words[0].baseForm.equals("be") && isNode(ds.getNodeByIndex(2)) && ds.getNodeByIndex(3).dep_father2child.equals("det") && isNode(ds.getNodeByIndex(4)))
 				stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);	
+			//which在句中的时候，通常不作为node
+			for(int i=2;i<qlog.s.words.length;i++)
+				if(qlog.s.words[i].baseForm.equals("which"))
+					stopNodeList.add(qlog.s.words[i].baseForm);
 			
-			//修饰词识别，依据sentence而不是dependency tree  
-			for(Word word: qlog.s.words)
+			//修饰词识别，依据sentence而不是dependency tree
+			//同时会做一些修正，如 ent+noun(noType&&noEnt)形式的noun被设为omitNode
+			for(Word word: qlog.s.words) 
 			{
 				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, word);
 				if(modifiedWord != word)
 				{
 					modifierList.add(word);
 					word.modifiedWord = modifiedWord;
-					qlog.fw.write("++++ Modify detect: "+word+" --> "+modifiedWord+"\n");
+					qlog.SQGlog += "++++ Modify detect: "+word+" --> "+modifiedWord+"\n";
+					if(qlog.fw != null)
+					{
+						qlog.fw.write("++++ Modify detect: "+word+" --> "+modifiedWord+"\n");
+					}
 				}
 			}
-		
+			
+			qlog.timeTable.put("BQG_prepare", (int)(System.currentTimeMillis()-t));
 /*准备完毕*/		
 			
+			t = System.currentTimeMillis();
 			DependencyTreeNode curCenterNode = target;
 			ArrayList<DependencyTreeNode> expandNodeList;
 			Queue<DependencyTreeNode> queue = new LinkedList<DependencyTreeNode>();
+			HashSet<DependencyTreeNode> expandedNodes = new HashSet<DependencyTreeNode>();
 			queue.add(target);
+			expandedNodes.add(target);
 			visited.clear();
 			
-			//step2:核心，一步步扩展查询图  
+			//step2:核心，一步步扩展查询图     
 			while((curCenterNode=queue.poll())!=null)
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null)
 				{
 					//被扩展SU被其他SU代表，则直接略过此次扩展; TODO: 共指消解应该在结构确定后做，直接抛弃可能会丢失部分边信息
 					//[2015-12-13]这样相当于丢失了这个方向，沿该SU继续走本来能找到其他点，但直接continue就断绝了找到这些点的希望; 之所以一直没有发现问题是因为绝大多数情况被代表的SU都在query graph的边缘，即不会中断探索
-					//[2015-12-13]干脆先剥夺他们在dfs中被探索到的权利，即在isNode中拒绝represent，注意先只针对 represent; 
+					//[2015-12-13]干脆先剥夺他们在dfs中被探索到的权利，即在isNode中拒绝represent，注意先只针对 represent;  
 					continue;
 				}					
 				
+				/* 2016-12-10
+				注意： 在这里clear，意味生成的是 hyper query graph，即“所有可能边”，允许带环; 
+					否则，则是“先到先得“，即”无环“，两个UNIT之间只是单向边，方向就是探索扩展的方向。
+				 */
+				if(Globals.evaluationMethod > 1)
+				{
+					visited.clear();
+				}
+				
 				SemanticUnit curSU = new SemanticUnit(curCenterNode.word,true);
 				expandNodeList = new ArrayList<DependencyTreeNode>();
-				dfs(curCenterNode, curCenterNode, expandNodeList);	
-				queue.addAll(expandNodeList);
+				dfs(curCenterNode, curCenterNode, expandNodeList);	// dfs找当前node的邻居nodes
+				// 加入待扩展的node，保证所有 node 只加入一次队列
+				for(DependencyTreeNode expandNode: expandNodeList)
+				{
+					if(!expandedNodes.contains(expandNode))
+					{
+						queue.add(expandNode);
+						expandedNodes.add(expandNode);
+					}
+				}
+				
 				
 				semanticUnitList.add(curSU);
 				for(DependencyTreeNode expandNode: expandNodeList)
-				{
+				{	
 					String subj = curCenterNode.word.getBaseFormEntityName();
 					String obj = expandNode.word.getBaseFormEntityName();
 					
@@ -166,65 +207,52 @@ public class BuildQueryGraph
 					//expandNode作为一个新的SemanticUnit
 					SemanticUnit expandSU = new SemanticUnit(expandNode.word,false);
 					
-					//作为邻居互相认识
+					//expandUnit加入当前unit的邻居列表
 					curSU.neighborUnitList.add(expandSU);
-					expandSU.neighborUnitList.add(curSU);	//这个其实没有用，因为expandSU没有加入到semanticUnitList，所以现在这种写法两个UNIT之间只是单向边，方向就是探索扩展的方向
 				}
 			}
+			qlog.timeTable.put("BQG_structure", (int)(System.currentTimeMillis()-t));
 			
-			//step3: 注意这时认为已经处理了 "指代消解"。确定各unit之间的relation, 这里认为只要两个unit不直接相连都可以通过ganswer的relation extract解决。 
-			extractRelation(semanticUnitList, qlog);
-			matchRelation(semanticUnitList, qlog);
+			//step3: 找出各node之间可能的relation，转化成 semantic relations (注意这时认为已经处理了 "指代消解")
+			t = System.currentTimeMillis();
+			qlog.semanticUnitList = new ArrayList<SemanticUnit>();
+			extractRelation(semanticUnitList, qlog); // 对相连的两node，尝试识别relation，转化成semantic relations
+			matchRelation(semanticUnitList, qlog);	// 抛弃两端变量找不到对应匹配node的semantic relation；抛弃无法转换成semantic relation的node（从semanticUnitList中剔除）
+			qlog.timeTable.put("BQG_relation", (int)(System.currentTimeMillis()-t));
 			
-//			//step4: [这步没有实际作用]找每个unit的描述词，处理describe，包括聚集函数、形容词，转化成semantic relation形式加入matchedSR进行item mapping.
-//			findDescribe(semanticUnitList, qlog);
+//			//TODO：step4: [这步没有实际作用]找每个unit的描述词，处理describe，包括聚集函数、形容词，转化成semantic relation形式加入matchedSR进行item mapping.
 			
-			//item mapping前的准备，即识别 “常量” 和 “变量”
-			//TODO 这个函数要改进，将step0得到的信息考虑进来；常量、变量信息是否应该存储在WORD中而不是SR中？
+			//item mapping前的准备，识别 “常量” 和 “变量” 
+			TypeRecognition tr = new TypeRecognition();	
+			//这一步是加入 who、where的type信息【其实没什么用，还经常因为多出type而找不到答案】
+			tr.AddTypesOfWhwords(qlog.semanticRelations); 
+			//TODO 这个函数要改进，将step0得到的信息考虑进来，并考虑extend variable；常量、变量信息是否应该存储在WORD中而不是SR中？
 			ExtractRelation er = new ExtractRelation();
-			er.constantVariableRecognition(qlog.semanticRelations,qlog);
+			er.constantVariableRecognition(qlog.semanticRelations,qlog,tr);
 		
 			//step5: item mappping & top-k join
-			TypeRecognition tr = new TypeRecognition();	
-			tr.recognize(qlog.semanticRelations);	//这一步可能是无用功
-			
+			t = System.currentTimeMillis();
 			SemanticItemMapping step5 = new SemanticItemMapping();
-			step5.process(qlog, qlog.semanticRelations);
-		
+			step5.process(qlog, qlog.semanticRelations);	//top-k join，disambiguation
+			qlog.timeTable.put("BQG_topkjoin", (int)(System.currentTimeMillis()-t));
 			
-			// 输出查询图的结构，这是不进行fragment check的原始图，用于观察图结构
+			//step6: implicit relation [modify word]
+			t = System.currentTimeMillis();
+			ExtractImplicitRelation step6 = new ExtractImplicitRelation();
+			step6.supplementTriplesByModifyWord(qlog);
+			qlog.timeTable.put("BQG_implicit", (int)(System.currentTimeMillis()-t));
+			
+			// 输出查询图的结构，这是不进行fragment check的原始图，用于观察图结构 
 			printTriples_SUList(semanticUnitList, qlog);
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		qlog.semanticUnitList = semanticUnitList;
+	
 		return semanticUnitList;
 	}
 	
-	private void findDescribe(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
-	{
-		DependencyTree ds = qlog.s.dependencyTreeStanford;
-		if(qlog.isMaltParserUsed)
-			ds = qlog.s.dependencyTreeMalt;
-		
-		for(SemanticUnit curSU: semanticUnitList)
-		{
-			DependencyTreeNode curNode = ds.getNodeByIndex(curSU.centerWord.position);
-			for(DependencyTreeNode child: curNode.childrenList)
-			{
-				if(child.dep_father2child.contains("mod"))
-				{
-					curSU.describeNodeList.add(child);
-				}
-			}
-		}
-		
-		//TO DO
-	}
-
 	public void extractRelation(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
 	{
 		ExtractRelation er = new ExtractRelation();
@@ -233,9 +261,9 @@ public class BuildQueryGraph
 		{
 			for(SemanticUnit expandSU: curSU.neighborUnitList)
 			{
-//				//去重 | 现在是单向边不需要去重了  
-//				if(curSU.centerWord.position > expandSU.centerWord.position)
-//					continue;
+				//去重 | 方法1只产生单向边则不需要去重  
+				if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
+					continue;
 				
 				ArrayList<SimpleRelation> tmpRelations = null;
 				//get simple relations
@@ -271,8 +299,21 @@ public class BuildQueryGraph
 				}
 			}
 		}
+		
 		//get semantic relations
 		HashMap<Integer, SemanticRelation> semanticRelations = er.groupSimpleRelationsByArgsAndMapPredicate(simpleRelations);
+		
+		//若生成的是hyper query graph，即可能包含环，需要枚举结构，则在predicate mapping中加入null，当top-k时该边枚举到null时即认为抛弃该边
+		if(Globals.evaluationMethod > 1)
+		{
+			//TODO: 这里应该只对 possible edge（去掉后图依然联通） 进行标记，此时先偷懒，有环的则都标上
+			if(semanticRelations.size() >= semanticUnitList.size())
+				for(SemanticRelation sr: semanticRelations.values())
+				{
+					sr.isSteadyEdge = false;
+				}
+		}
+		
 		qlog.semanticRelations = semanticRelations;
 	}
 	
@@ -289,11 +330,19 @@ public class BuildQueryGraph
 			{
 				for(SemanticUnit expandSU: curSU.neighborUnitList)
 				{
+					//去重 | 方法1只产生单向边则不需要去重  
+					if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
+						continue;
+					
 					int key = curSU.centerWord.getNnHead().hashCode() ^ expandSU.centerWord.getNnHead().hashCode();
 					if(relKey == key)
 					{
 						matched = true;
 						matchedSemanticRelations.put(relKey, sr);
+						if(!qlog.semanticUnitList.contains(curSU))
+							qlog.semanticUnitList.add(curSU);
+						if(!qlog.semanticUnitList.contains(expandSU))
+							qlog.semanticUnitList.add(expandSU);
 						
 						curSU.RelationList.put(expandSU.centerWord, sr);
 						expandSU.RelationList.put(curSU.centerWord, sr);
@@ -313,17 +362,25 @@ public class BuildQueryGraph
 			}
 			if(!matched)
 			{
-				try {
-					qlog.fw.write("sr not found: "+sr+"\n");
-				} catch (IOException e) {
+				try 
+				{
+					qlog.SQGlog += "sr not found: "+sr+"\n";
+					if(qlog.fw != null)
+						qlog.fw.write("sr not found: "+sr+"\n");
+				} 
+				catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
 		}
+		if(qlog.semanticUnitList.size() == 0)
+			qlog.semanticUnitList = semanticUnitList;
 		
 		//step2: 将没有确定relation的边按照ganswer relation extract的方式抽一遍信息，如果没抽到，则再根据规则尝试一下。之后转化成 semantic relation形式，方便后面进行item mapping。
-		//to do
+		//现在认为 只允许 modified word（不作为node看待） 初始抽取不到 relation，将在 item mapping生成sparql之后补全 modified word 相关relation
+		//对于其他node，若不能抽取到 relation（无法转换成semantic relation），则抛弃（从semanticUnitList中剔除）
+
 	}
 
 	public void printTriples_SUList(ArrayList<SemanticUnit> SUList, QueryLogger qlog)
@@ -345,9 +402,10 @@ public class BuildQueryGraph
 				for(int j=0;j<curSU.neighborUnitList.size();j++)
 				{
 					neighborSU = curSU.neighborUnitList.get(j);
-// 现在是单向边，不需要去重
-//					if(curSU.centerWord.position > neighborSU.centerWord.position)
-//						continue;
+					
+					//去重 | 方法1只产生单向边则不需要去重  
+					if(Globals.evaluationMethod > 1 && curSU.centerWord.position > neighborSU.centerWord.position)
+						continue;
 	
 					obj = neighborSU.centerWord.getFullEntityName();
 					sr = curSU.RelationList.get(neighborSU.centerWord);
@@ -380,8 +438,10 @@ public class BuildQueryGraph
 
 					}
 						
-					Triple next = new Triple(subj,rel,obj,null,0);
-					qlog.fw.write("++++ Triple detect: "+next+"\n");
+					Triple next = new Triple(-1, subj,rel, -1, obj,null,0);
+					if(qlog.fw != null)
+						qlog.fw.write("++++ Triple detect: "+next+"\n");
+					qlog.SQGlog += "++++ Triple detect: "+next+"\n";
 				}
 				// 当前unit是否拥有type
 				if(curSU.prefferdType != null)
@@ -392,13 +452,15 @@ public class BuildQueryGraph
 //						type.append('|');
 //					}
 					String type = TypeFragment.typeId2ShortName.get(curSU.prefferdType);
-					Triple next = new Triple(curSU.centerWord.getFullEntityName(),Globals.pd.typePredicateID,type,null,0);
-					qlog.fw.write("++++ Triple detect: "+next+"\n");
+					Triple next = new Triple(-1, curSU.centerWord.getFullEntityName(),Globals.pd.typePredicateID,Triple.TYPE_ROLE_ID, type,null,0);
+					if(qlog.fw != null)
+						qlog.fw.write("++++ Triple detect: "+next+"\n");
 				}
 				// 当前unit是否拥有describe
 				for(DependencyTreeNode describeNode: curSU.describeNodeList)
 				{
-					qlog.fw.write("++++ Describe detect: "+describeNode.dep_father2child+"\t"+describeNode.word+"\t"+curSU.centerWord+"\n");
+					if(qlog.fw != null)
+						qlog.fw.write("++++ Describe detect: "+describeNode.dep_father2child+"\t"+describeNode.word+"\t"+curSU.centerWord+"\n");
 				}
 			}
 			//qlog.fw.write("\n");
@@ -489,7 +551,7 @@ public class BuildQueryGraph
 		
 		for(DependencyTreeNode cur : ds.nodesList)
 		{
-			if(isWh(cur.word))
+			if(isWh(cur.word)) 
 			{
 				target = cur;
 				break;
@@ -507,6 +569,10 @@ public class BuildQueryGraph
 					break;
 				}
 			}
+			
+			//还是没找到，直接指派第一个word
+			if(target == null)
+				target = ds.nodesList.get(0);
 			
 			/* Are [E|tree_frogs] a type of [E|amphibian] , 与type共指
 			*/
@@ -630,19 +696,29 @@ public class BuildQueryGraph
 					
 				}
 			}
-			
+			//再用sentence检测，因为dependenchy tree有时会生成错误
+			if(target.word.baseForm.equals("what"))
+			{
+				int curPos = target.word.position - 1;
+				// what be the [node] ...
+				if(words.length > 4 && words[curPos+1].baseForm.equals("be") && words[curPos+2].baseForm.equals("the") && isNodeCandidate(words[curPos+3]))
+				{
+					target.word.represent = words[curPos+3];
+					target = ds.getNodeByIndex(words[curPos+3].position);
+				}
+			}
 			
 		}
 		//who
 		else if(target.word.baseForm.equals("who"))
 		{
-			//检测：who is [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? 
+			//检测：who is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
 			//其他诸如 who is sth? who do sth? 的target都为who
 			//形如 Who is the daughter of Robert_Kennedy married to的query在stanford tree中，who和is不是父子关系而是并列，所以who还是target
 			if(target.father != null && ds.nodesList.size()>=5)
 			{	//who
 				DependencyTreeNode tmp1 = target.father;
-				if(tmp1.word.baseForm.equals("be"))
+				if(tmp1.word.baseForm.equals("be") || tmp1.word.baseForm.equals("do"))
 				{	//is
 					for(DependencyTreeNode child: tmp1.childrenList)
 					{
@@ -680,17 +756,19 @@ public class BuildQueryGraph
 				}
 				else
 				{
-					//Who produced films starring Natalie_Portman，target设为film图才正确，否则就是who和Natalie相连
+					//2016.6.18, 下例问题预计由“多入口框架”解决
+					//2016.5.2, target还是用来表示最终问的东西，所以注释掉这条规则
+					//Who produced films starring Natalie_Portman，target设为film图才正确，否则就是who和Natalie相连 
 					//注意目前 Who produced Goofy? 这种，target还是设为 who，因为 “规则：特殊疑问句的target不为ent”，所以target还是用来代表最终要问的那个东西
 					//TODO:是否另起一个标记“start”，之后在考虑，现在用长度判断来区分开以上两例情况
-					if(curPos+2<words.length && words[curPos+1].posTag.startsWith("V"))
-					{
-						Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
-						if(isNodeCandidate(modifiedWord) && words.length>=5)
-						{
-							target = ds.getNodeByIndex(modifiedWord.position);
-						}
-					}
+//					if(curPos+2<words.length && words[curPos+1].posTag.startsWith("V"))
+//					{
+//						Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
+//						if(isNodeCandidate(modifiedWord) && words.length>=5)
+//						{
+//							target = ds.getNodeByIndex(modifiedWord.position);
+//						}
+//					}
 				}
 			}
 		}
@@ -786,8 +864,15 @@ public class BuildQueryGraph
 			modifiedWord = s.words[modifier.position+1];
 			return modifiedWord;
 		}
-
-		//干脆认为 ent+noun 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake?
+		
+		//[ent1] by [ent2], 则ent2是ent1的修饰词，且通常不需要出现在sparql中。 | eg: Which museum exhibits The Scream by Munch?
+		if(modifier.position-3 >=0 && modifier.mayEnt && s.words[modifier.position-2].baseForm.equals("by") && s.words[modifier.position-3].mayEnt)
+		{
+			modifiedWord = s.words[modifier.position-3];
+			return modifiedWord;
+		}
+		
+		//干脆认为 ent+noun(非type|ent) 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission]
 		if(modifier.position<s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)
 		{
 			s.words[modifier.position].omitNode = true;

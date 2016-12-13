@@ -1,4 +1,4 @@
-package test;
+package addition;
 
 import java.util.ArrayList;
 
@@ -20,12 +20,13 @@ public class AddtionalFix
 {
 	public void process(QueryLogger qlog)
 	{
-		askOneTriple(qlog);
+		askOneTriple(qlog); //
 		oneNode(qlog);
 		
 		//aggregation
 		AggregationRecognition ar = new AggregationRecognition();
 		ar.recognize(qlog);
+	
 	}
 	
 	// recognize one-Node query
@@ -41,7 +42,7 @@ public class AddtionalFix
 		{
 			String subName = "?"+target.originalForm;
 			String typeName = target.tmList.get(0).typeName;
-			Triple triple =	new Triple(subName, Globals.pd.typePredicateID, typeName, null, 100);
+			Triple triple =	new Triple(Triple.VAR_ROLE_ID, subName, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeName, null, 100);
 			Sparql sparql = new Sparql();
 			sparql.addTriple(triple);
 			qlog.rankedSparqls.add(sparql);
@@ -77,9 +78,10 @@ public class AddtionalFix
 			emList!=null && !emList.isEmpty())
 		{
 			String typeName = TypeFragment.typeId2ShortName.get(typeList.get(0));
+			int eid = emList.get(0).entityID;
 			String subName = emList.get(0).entityName;
 			//System.out.println("typeName="+typeName+" subName="+subName);
-			Triple triple =	new Triple(subName, Globals.pd.typePredicateID, typeName, null, 100);
+			Triple triple =	new Triple(eid, subName, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeName, null, 100);
 			Sparql sparql = new Sparql();
 			sparql.addTriple(triple);
 			qlog.rankedSparqls.add(sparql);

@@ -5,8 +5,9 @@ public class TestMyJDBC {
 	
 	public void testBPO() {
 		MySQLBPO db = new MySQLBPO();
-		//db.init("huangruizhe");
-		db.init("ganswerlog");
+		
+		//db.init("test");
+		db.init("GAnswerLog");
 		String query = "show tables";
 		System.out.println(db.getResult(query));
 	}

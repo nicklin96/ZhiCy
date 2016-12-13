@@ -7,12 +7,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 
-/**
- * MySQL access
- * @author Yi Feng
- *
- */
-
 public class MySQLBPO {
 	Connection conn;
 	PreparedStatement ps = null;
@@ -21,12 +15,16 @@ public class MySQLBPO {
 	void init(String database) {
 		try{
 			Class.forName("com.mysql.jdbc.Driver").newInstance();
-			String useName = "root";
+			String useName = "husen";
 			String password = "icstwip";
 			//String url = "jdbc:mysql://172.31.222.76:3307/" + database;
 			//String url = "jdbc:mysql://172.31.222.77:3306/" + database;
 			String url = "jdbc:mysql://localhost:3306/" + database;
 			conn = DriverManager.getConnection(url, useName, password);
+			// &useUnicode=true&characterEncoding=UTF8
+			
+			if(conn == null)
+				System.out.println("Connect mysql error or no database named: "+database);
 		}
 		catch(Exception e) {
 			e.printStackTrace();
@@ -62,10 +60,11 @@ public class MySQLBPO {
 			return ps.execute();
 		} catch (SQLException e) {
 				// TODO Auto-generated catch block
+			System.out.println("Access denied or Error query:");
 			System.out.println(query);
 			e.printStackTrace();
+			return false;
 		}
-		return false;
 	}
 	ResultSet getResult(String query) {
 		try {

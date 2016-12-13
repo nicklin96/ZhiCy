@@ -49,7 +49,8 @@ public class TypeFragment extends Fragment {
 		stopYagoTypeList.add("Care");
 		stopYagoTypeList.add("Peace");
 		stopYagoTypeList.add("Vice");
-		
+		stopYagoTypeList.add("Dodo");
+		stopYagoTypeList.add("CzechFilms");
 	}
 	
 	public TypeFragment(String fgmt, int fid) 
@@ -107,6 +108,7 @@ public class TypeFragment extends Fragment {
 
 		typeFragments = new HashMap<Integer, TypeFragment>();
 		
+		System.out.println("Loading type IDs and Fragments ...");
 		String line;
 		while((line = br.readLine()) != null) {			
 			String[] lines = line.split("\t");
@@ -116,35 +118,16 @@ public class TypeFragment extends Fragment {
 				
 				typeFragments.put(tid, tfgmt);
 			}
-		}
-
-/*
-以下补丁针对DBpedia 3.9 data，现更新为DBpedia2014，故注释。
-		//修正一些奇怪的数据 |out edge有太多错误了！例如person的outedge几乎包括了所有inedge，大多数都是错误的！
-		typeFragments.get(57).outEdges.remove(1126); //delete type:Country <nationality> ?x
-		typeFragments.get(19).outEdges.remove(670); //delete type:Person <producer> ?x，一下修正一系列person的出边错误
-		typeFragments.get(19).outEdges.remove(0);	//president
-		typeFragments.get(19).outEdges.remove(133); //creator
-		typeFragments.get(19).outEdges.remove(431); //editor
-		typeFragments.get(19).outEdges.remove(58); //developer
-		typeFragments.get(19).outEdges.remove(933); //author
-		typeFragments.get(19).outEdges.remove(672); //foundedBy
-//		typeFragments.get(19).outEdges.remove(670);
-//		typeFragments.get(19).outEdges.remove(670);
-//		typeFragments.get(19).outEdges.remove(670);
-		
-		
-		//in edge error
-		typeFragments.get(19).inEdges.remove(991); //team
-		typeFragments.get(19).inEdges.remove(1388); //product
-		typeFragments.get(19).inEdges.remove(317); //birthDate
-		typeFragments.get(19).inEdges.remove(1388); //product
-*/		
+		}	
 		
 		br.close();
+		
+		// fix some data
+		
 	
-		// load Type_BianHao
+		// load Type Id
 		loadId();
+		System.out.println("Load "+typeId2ShortName.size()+" basic types and "+yagoTypeList.size()+" yago types.");
 	}
 	
 	public static void loadId() throws IOException {
@@ -166,7 +149,6 @@ public class TypeFragment extends Fragment {
 			String[] lines = line.split("\t");
 			
 //String typeShortName = lines[0].substring(lines[0].lastIndexOf('/')+1, lines[0].length()-1);
-			
 //String typeShortName = lines[0].substring(1, lines[0].length()-1);
 			
 			String typeShortName = lines[0];

@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 
+import lcn.EntityFragmentFields;
 import log.QueryLogger;
 
 import org.apache.commons.httpclient.HttpClient;
@@ -18,12 +19,13 @@ public class DBpediaLookup {
 	//There are two websites of the DBpediaLookup online service.
 	//public static final String baseURL = "http://en.wikipedia.org/w/api.php?action=opensearch&format=xml&limit=10&search=";
 	//public static final String baseURL = "http://lookup.dbpedia.org/api/search.asmx/KeywordSearch?MaxHits=5&QueryString=";
-	public static final String baseURL = "http://172.31.222.72:1111/api/search/KeywordSearch?MaxHits=5&QueryString=";
+	public static final String baseURL = "http://172.31.222.72:1234/api/search/KeywordSearch?MaxHits=5&QueryString=";
 	
 	public HttpClient ctripHttpClient = null;
 	
 	//public static final String begin = "<Text xml:space=\"preserve\">";
-	public static final String begin = "<Result>\n        <Label>";
+	//public static final String begin = "<Result>\n        <Label>";
+	public static final String begin = "<Result>\n      <Label>";
 	public static final int begin_length = begin.length();
 	//public static final String end = "</Text>";
 	public static final String end = "</Label>";
@@ -42,6 +44,7 @@ public class DBpediaLookup {
 		
 		ArrayList<EntityMapping> emlist = new ArrayList<EntityMapping>();
 		
+		//这时搜索的string是用下划线分割词的，即orginal
 		String[] sa = searchString.split("_");
 		int UpperCnt = 0;
 		for(String str: sa)
@@ -58,9 +61,19 @@ public class DBpediaLookup {
 			//不是全大写，则认为不是某种缩写，那么要判断 edit distance，如果差距过大则踢掉（因为dbpedia lookup有很多噪音）
 			if(UpperCnt < sa.length && EntityFragment.calEditDistance(s, searchString.replace("_", ""))>searchString.length()/2)
 				continue;
-				
-			emlist.add(new EntityMapping(s, s, count));
-			count -=2 ;
+			
+			int eid = -1;
+			s = s.replace(" ", "_");
+			if(EntityFragmentFields.entityName2Id.containsKey(s))
+			{
+				eid = EntityFragmentFields.entityName2Id.get(s);
+				emlist.add(new EntityMapping(eid, s, count));
+				count -=2 ;
+			}
+			else
+			{
+				System.out.print("Drop "+s+" because it not in Entity Dictionary. ");
+			}
 		}
 		System.out.println("DBpediaLookup select: " + emlist);
 		

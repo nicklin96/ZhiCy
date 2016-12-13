@@ -31,8 +31,8 @@ import qa.Globals;
 public class BuildIndexForEntityFragments{
 	public void indexforentity() throws Exception
 	{
-		if(Globals.entityId2Name == null)
-			Globals.entity_load();
+		if(EntityFragmentFields.entityId2Name == null)
+			EntityFragmentFields.load();
 		
 		long startTime = new Date().getTime();
 		
@@ -84,27 +84,28 @@ public class BuildIndexForEntityFragments{
 			else
 			{
 				int entity_id = Integer.parseInt(temp[0]);
-				if(!Globals.entityId2Name.containsKey(entity_id))
+				if(!EntityFragmentFields.entityId2Name.containsKey(entity_id))
 					continue;
 				
-				String entity_name = Globals.entityId2Name.get(entity_id);
+				String entity_name = EntityFragmentFields.entityId2Name.get(entity_id);
 				String entity_fragment = temp[1];
 				entity_name = entity_name.replace("____", " ");
 				entity_name = entity_name.replace("__", " ");
 				entity_name = entity_name.replace("_", " ");
 			
-				if(entity_id == 2191499)
-					System.out.println(entity_name);
 					
 				Document document = new Document(); 
 				
 				Field EntityName = new Field("EntityName", entity_name, Field.Store.YES,
 						Field.Index.TOKENIZED,
 						Field.TermVector.WITH_POSITIONS_OFFSETS);	
+				Field EntityId = new Field("EntityId", String.valueOf(entity_id),
+						Field.Store.YES, Field.Index.NO);
 				Field EntityFragment = new Field("EntityFragment", entity_fragment,
 						Field.Store.YES, Field.Index.NO);
 				
 				document.add(EntityName);
+				document.add(EntityId);
 				document.add(EntityFragment);
 				indexWriter_en.addDocument(document);
 			}			

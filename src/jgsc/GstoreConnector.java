@@ -282,20 +282,43 @@ public class GstoreConnector
 	public static void main(String[] args)
 	{
 		// initialize the GStore server's IP address and port.
-		GstoreConnector gc = new GstoreConnector("172.31.19.15", 3305);
+		//GstoreConnector gc = new GstoreConnector("172.31.19.15", 3305);
+		GstoreConnector gc = new GstoreConnector("172.31.222.72", 3304);
 		
 	    // build a new database by a RDF file.
 	    // note that the relative path is related to gserver.
-		//gc.build("db_LUBM10", "example/rdf_triple/LUBM_10_GStore.n3");
-
-		String sparql = "select ?x where {"
-				+ "?x	<rdf:type>	<cdblp.cn/class/Paper>. "
-				+ "?x	<cdblp.cn/schema/property/has_author>	<cdblp.cn/author/ÍõÉº>. "
-				+ "}";	
+		// gc.build("db_LUBM10", "example/rdf_triple/LUBM_10_GStore.n3");
+						
+//		String sparql = "select ?x where {"
+//				+ "?x	<doctoralStudent>	<Albert_Einstein>. "
+//				+ "}";	
 		
-	    boolean flag = gc.load("db_cdblp");
-	    System.out.println(flag);
-	    String answer = gc.query(sparql);	    
+//		sparql = "select ?South_American_countries where {"
+//				+ "?South_American_countries	<type>	<yago:SouthAmericanCountries>. "
+//				+ "}";
+		
+		
+		//For virtuoso
+		//String sparql = "select DISTINCT ?birthdays where { ?actors rdf:type dbo:Actor. ?birthdays dbp:actor ?actors. dbr:Charmed dbo:starring ?actors. }";
+		 
+		
+//		String sparql = "select DISTINCT ?x where {<Charles_I_of_England>	<alias>	?x.  }";
+		
+		//empty result
+//		String sparql = "select ?x where {"
+//				+ "?x	<type>	<http://schema.org/Movie>. "
+//				+ "}";
+		
+		String sparql = "select ?x where {"
+				+ "?x	<country>	<Czech_Republic>."
+				+ "?x	<type>	<Film>. "
+				+ "}";
+				
+	    //boolean flag = gc.load("db_dbpedia_ganswer");
+//	    boolean flag = gc.load("DBpediaYago");
+//		System.out.println(flag);
+	    
+		String answer = gc.query(sparql);	    
 		System.out.println(answer);
 		
 //	    answer = gc.query(sparql);	    

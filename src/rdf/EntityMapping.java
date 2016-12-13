@@ -3,13 +3,13 @@ package rdf;
 import fgmt.EntityFragment;
 
 public class EntityMapping implements Comparable<EntityMapping> {
-	public String entityID = null;
+	public int entityID = -1;
 	public String entityName = null;
 	public double score = 0;
 	
 	public EntityFragment entityFragment = null;
 	
-	public EntityMapping(String eid, String en, double sco) {
+	public EntityMapping(int eid, String en, double sco) {
 		entityID = eid;
 		entityName = en;
 		score = sco;
@@ -29,7 +29,7 @@ public class EntityMapping implements Comparable<EntityMapping> {
 	
 	public int hashCode()
 	{
-		return entityID.hashCode();
+		return new Integer(entityID).hashCode();
 	}
 	
 	public String toString() 

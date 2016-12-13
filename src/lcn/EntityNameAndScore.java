@@ -1,17 +1,19 @@
 package lcn;
 
 public class EntityNameAndScore implements Comparable<EntityNameAndScore> {
+	public int entityID;
 	public String entityName;
 	public double score;
 	
-	public EntityNameAndScore(String n, double s) {
+	public EntityNameAndScore(int id, String n, double s) {
+		entityID = id;
 		entityName = n;
 		score = s;		
 	}
 	
 	@Override
 	public String toString() {
-		return "<" + entityName + ">\t" + score;
+		return entityID + ":<" + entityName + ">\t" + score;
 	}
 
 	public int compareTo(EntityNameAndScore o) {

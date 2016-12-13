@@ -6,7 +6,17 @@ import qa.Globals;
 public class Triple implements Comparable<Triple>{
 	public String subject = null;	// 经过变量分配、映射后的、能够最终输出的subject/object
 	public String object = null;
+	
+	static public int TYPE_ROLE_ID = -5;
+	static public int VAR_ROLE_ID = -2;
+	static public String VAR_NAME = "?xxx";
+	
+	//注意，这里的subjId和objId实际值存储entity id，如果subject为type或var，对应id为TYPE_ROLE_ID或VAR_ROLE_ID
+	public int subjId = -1;
+	public int objId = -1;
 	public int predicateID = -1;
+	public Word subjWord = null;
+	public Word objWord = null;
 	
 	public SemanticRelation semRltn = null;
 	public double score = 0;
@@ -18,6 +28,8 @@ public class Triple implements Comparable<Triple>{
 	public Triple (Triple t) {
 		subject = t.subject;
 		object = t.object;
+		subjId = t.subjId;
+		objId = t.objId;
 		predicateID = t.predicateID;
 		
 		semRltn = t.semRltn;
@@ -26,8 +38,9 @@ public class Triple implements Comparable<Triple>{
 		isSubjObjOrderPrefered = t.isSubjObjOrderPrefered;
 	}
 	
-	public Triple (String s, int p, String o,
-			SemanticRelation sr, double sco) {
+	public Triple (int sId, String s, int p, int oId, String o, SemanticRelation sr, double sco) {
+		subjId = sId;
+		objId = oId;
 		subject = s;
 		predicateID = p;
 		object = o;
@@ -36,8 +49,10 @@ public class Triple implements Comparable<Triple>{
 
 	}
 
-	public Triple (String s, int p, String o,
+	public Triple (int sId, String s, int p, int oId, String o,
 			SemanticRelation sr, double sco,boolean isSwap) {
+		subjId = sId;
+		objId = oId;
 		subject = s;
 		predicateID = p;
 		object = o;
@@ -46,6 +61,20 @@ public class Triple implements Comparable<Triple>{
 		isSubjObjOrderSameWithSemRltn = isSwap;
 	}
 	
+	public Triple(int sId, String s, int p, int oId, String o,
+			SemanticRelation sr, double sco, Word subj, Word obj) 
+	{
+		subjId = sId;
+		objId = oId;
+		subject = s;
+		predicateID = p;
+		object = o;
+		semRltn = sr;
+		score = sco;
+		subjWord = subj;
+		objWord = obj;
+	}
+
 	public Triple copy() {
 		Triple t = new Triple(this);
 		return t;
@@ -54,7 +83,12 @@ public class Triple implements Comparable<Triple>{
 	public Triple copySwap() {
 		Triple t = new Triple(this);
 		String temp;
+		int tmpId;
 
+		tmpId = t.subjId;
+		t.subjId = t.objId;
+		t.objId = tmpId;
+		
 		temp = t.subject;
 		t.subject = t.object;
 		t.object = temp;
@@ -75,7 +109,7 @@ public class Triple implements Comparable<Triple>{
 		
 	@Override
 	public String toString() {
-		return "<" + subject + "> <" + Globals.pd.getPredicateById(predicateID) + "> <" + object + ">" + " : " + score;
+		return subjId+":<" + subject + "> <" + Globals.pd.getPredicateById(predicateID) + "> "+objId+":<" + object + ">" + " : " + score;
 	}
 
 	public String toStringForGStore() {
@@ -106,6 +140,10 @@ public class Triple implements Comparable<Triple>{
 		if (predicateID == Globals.pd.typePredicateID) {
 			return typeSubjectWord;
 		}
+		else if(semRltn == null)
+		{
+			return subjWord;
+		}
 		else {
 			if (isSubjObjOrderSameWithSemRltn) return semRltn.arg1Word;
 			else return semRltn.arg2Word;			
@@ -116,6 +154,10 @@ public class Triple implements Comparable<Triple>{
 	public Word getObjectWord () {
 		if (predicateID == Globals.pd.typePredicateID) {
 			return typeSubjectWord;
+		}
+		else if(semRltn == null)
+		{
+			return objWord;
 		}
 		else {
 			if (isSubjObjOrderSameWithSemRltn) return semRltn.arg2Word;
@@ -128,8 +170,20 @@ public class Triple implements Comparable<Triple>{
 			return !subject.startsWith("?");
 		}
 		else {
-			if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg1Constant;
-			else return semRltn.isArg2Constant;
+			// 这是正统抽取得到的triple，从semantic relation得来
+			if(semRltn != null)
+			{
+				if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg1Constant;
+				else return semRltn.isArg2Constant;
+			}
+			// 这是implicit relation得来，没有semantic relation；由implicit relation出来就已经是最终版triple，即已经定好顺序
+			else
+			{
+				if(subjId != Triple.VAR_ROLE_ID && subjId != Triple.TYPE_ROLE_ID)
+					return true;
+				else
+					return false;
+			}
 		}
 	}
 	
@@ -138,8 +192,20 @@ public class Triple implements Comparable<Triple>{
 			return !object.startsWith("?");
 		}
 		else {
-			if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg2Constant;
-			else return semRltn.isArg1Constant;
+			// 这是正统抽取得到的triple，从semantic relation得来
+			if(semRltn != null)
+			{
+				if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg2Constant;
+				else return semRltn.isArg1Constant;
+			}
+			// 这是implicit relation得来，没有semantic relation；由implicit relation出来就已经是最终版triple，即已经定好顺序
+			else
+			{
+				if(objId != Triple.VAR_ROLE_ID && objId != Triple.TYPE_ROLE_ID)
+					return true;
+				else
+					return false;
+			}
 		}
 	}
 	
@@ -150,8 +216,11 @@ public class Triple implements Comparable<Triple>{
 	
 	public void swapSubjObjOrder() {		
 		String temp = subject;
+		int tmpId = subjId;
 		subject = object;
+		subjId = objId;
 		object = temp;
+		objId = tmpId;
 		isSubjObjOrderSameWithSemRltn = !isSubjObjOrderSameWithSemRltn;
 	}
 };
