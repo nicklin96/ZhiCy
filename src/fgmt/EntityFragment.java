@@ -18,7 +18,7 @@ public class EntityFragment extends Fragment {
 	public HashSet<Integer> outEdges = new HashSet<Integer>();
 	public HashSet<Integer> types = new HashSet<Integer>();	
 	
-	// inEnt以及inEnt经过哪些edge来到这里。例如 <eId><director><tom> <eId><star><tom>, 那么inEntMap就有一项是 <tom,<director,star>>
+	// inEnt以及inEnt经过哪些edge来到这里。例如 <eId><director><tom> <eId><star><tom>, 那么outEntMap就有一项是 <tom,<director,star>>
 	// 这里用ArrayList是因为输入文件也是去重的，所以不会s,p,o三者都一样。现在s,o固定，那么p肯定是没有重复的。
 	public HashMap<Integer, ArrayList<Integer>> inEntMap = new HashMap<Integer, ArrayList<Integer>>();
 	public HashMap<Integer, ArrayList<Integer>> outEntMap = new HashMap<Integer, ArrayList<Integer>>();

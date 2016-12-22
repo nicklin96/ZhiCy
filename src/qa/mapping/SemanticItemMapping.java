@@ -15,6 +15,7 @@ import fgmt.TypeFragment;
 import log.QueryLogger;
 import qa.Globals;
 import rdf.EntityMapping;
+import rdf.Pair;
 import rdf.PredicateMapping;
 import rdf.SemanticRelation;
 import rdf.Sparql;
@@ -42,8 +43,129 @@ public class SemanticItemMapping {
 	public EntityFragmentDict efd = new EntityFragmentDict();
 	
 	public boolean isAnswerFound = false;	// 在不进行check时找到第一个SPARQL即标记为true，直接返回
+	public int tripleCheckCallCnt = 0;
+	public int sparqlCheckCallCnt = 0;
+	public int sparqlCheckId = 0;
 	
-	public void process(QueryLogger qlog, HashMap<Integer, SemanticRelation> semRltn) {
+//	public HashSet<Pair> falseEntPres = new HashSet<Pair>();
+//	public HashSet<Pair> falsePreEnts = new HashSet<Pair>();
+//	public HashMap<Integer,Integer> srAssocitatedNode = new HashMap<Integer, Integer>();
+	SemanticRelation firstFalseSr = null;
+	long tripleCheckTime = 0;
+	long sparqlCheckTime = 0;
+	
+	/*
+	 * bottomUp method, 枚举所有可能的 query graph，通过 fragment check 后按得分排序
+	 * 1、先不考虑有环
+	 * */
+	public void process_bottomUp(QueryLogger qlog, HashMap<Integer, SemanticRelation> semRltn) 
+	{
+		semanticRelations = semRltn;
+		this.qlog = qlog;
+		long t1 = 0;
+		t = 10;	// 注意static的变量，这里每次手动初始化为10，不然一旦被带环图修改为5后就一直是5了
+
+		entityPhrasesList.clear();
+		entityWordList.clear();
+		currentEntityMappings.clear();
+		predicatePhraseList.clear();
+		predicateSrList.clear();
+		currentPredicateMappings.clear();
+		
+		// 注意【常量版type】也是常量的一种，但是不参与top-k，直接取分数最高的type - husen
+		// 1. collect names of constant(entities), and map them to the entities
+		t1 = System.currentTimeMillis();
+		
+		Iterator<Map.Entry<Integer, SemanticRelation>> it = semanticRelations.entrySet().iterator(); 
+		int srId = 0;
+        while(it.hasNext())
+        {
+            Map.Entry<Integer, SemanticRelation> entry = it.next();
+            SemanticRelation sr = entry.getValue();
+            
+            //ent、type、literal视为常量
+            //识别为常量但是 entity|type mapping为空，则抛弃这条triple
+			//换句话说：parser识别出ner但pre阶段识别的mapping没有与之对应的，也可以在这里再次mapping试试，现在为了简便直接抛弃。即只认可pre阶段找到的mapping。
+			if (sr.isArg1Constant && !sr.arg1Word.mayType && !sr.arg1Word.mayEnt) 
+			{
+				it.remove();
+				continue;
+			}
+			if (sr.isArg2Constant && !sr.arg2Word.mayType && !sr.arg2Word.mayEnt) 
+			{
+				it.remove();
+				continue;
+			}
+			
+			//因为type而标记常量的情况在score and ranking中处理，这里只处理ent | 2016.5.2：subject以ent为优先
+			if (sr.isArg1Constant && sr.arg1Word.mayEnt) 
+			{
+				//因为ent而标记常量
+				if (!entityDictionary.containsKey(sr.arg1Word)) 
+				{
+					entityDictionary.put(sr.arg1Word, sr.arg1Word.emList);
+				}
+				entityPhrasesList.add(sr.arg1Word.emList);
+				entityWordList.add(sr.arg1Word);
+//				srAssocitatedNode.put(srId, entityWordList.size()-1);	// 注意目前认为一个sr至多对应一个constant，即不处理 <ent, p, ent>的情况
+			}
+			if (sr.isArg2Constant && !sr.arg2Word.mayType) 
+			{	
+				//因为ent而标记常量
+				if (!entityDictionary.containsKey(sr.arg2Word)) 
+				{
+					entityDictionary.put(sr.arg2Word, sr.arg2Word.emList);
+				}
+				entityPhrasesList.add(sr.arg2Word.emList);
+				entityWordList.add(sr.arg2Word);
+//				srAssocitatedNode.put(srId, entityWordList.size()-1);	// 注意目前认为一个sr至多对应一个constant，即不处理 <ent, p, ent>的情况
+			}
+			
+			srId++;
+        }
+		
+		// 2. join
+		t1 = System.currentTimeMillis();
+		for (Integer key : semanticRelations.keySet()) 
+		{
+			SemanticRelation sr = semanticRelations.get(key);
+			predicatePhraseList.add(sr.predicateMappings);
+			predicateSrList.add(sr);
+			
+			// 若需枚举结构，则枚举item的深度应该减小，不然正确结构也会由于得分排名过后
+			if(Globals.evaluationMethod > 1 && !sr.isSteadyEdge)
+				t = 5;
+		}
+//TODO 模拟bottom up的好处：111由于11而失败，则不会再尝试112、113等。		
+
+		if(semanticRelations.size()>0)
+		{
+			topkJoin(semanticRelations);
+		}
+		else
+		{
+			System.out.println("No Valid SemanticRelations.");
+		}
+		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t1));
+		qlog.timeTable.put("TripleCheck", (int)tripleCheckTime);
+		qlog.timeTable.put("SparqlCheck", (int)sparqlCheckTime);
+
+		// 3. sort and rank
+		Collections.sort(rankedSparqls);		
+		
+		//qlog.rankedSparqls = rankedSparqls;
+		qlog.rankedSparqls.addAll(rankedSparqls);
+		qlog.entityDictionary = entityDictionary;
+		
+		System.out.println("Check query graph count: " + tripleCheckCallCnt + "\nPass: " + sparqlCheckCallCnt);
+		System.out.println("TopkJoin time=" + qlog.timeTable.get("TopkJoin"));
+	}
+	
+	/*
+	 * top-down method, 枚举所有可能的 query graph，通过 fragment check 后按得分排序
+	 * */
+	public void process_topDown(QueryLogger qlog, HashMap<Integer, SemanticRelation> semRltn) 
+	{
 		semanticRelations = semRltn;
 		this.qlog = qlog;
 		long t1 = 0;
@@ -103,18 +225,6 @@ public class SemanticItemMapping {
 			}
         }
 		
-		if (!qlog.timeTable.containsKey("CollectEntityNames")) {
-			qlog.timeTable.put("CollectEntityNames", 0);
-		}
-		qlog.timeTable.put("CollectEntityNames", qlog.timeTable.get("CollectEntityNames")+(int)(System.currentTimeMillis()-t1));
-		
-		//debug...
-		/*
-		System.out.println("entityPhrasesList: ");
-		for (int i=0;i<entityPhrasesList.size();i++)
-			System.out.println(entityPhrasesList.get(i));
-		*/
-		
 		// 2. join
 		t1 = System.currentTimeMillis();
 		for (Integer key : semanticRelations.keySet()) 
@@ -136,6 +246,8 @@ public class SemanticItemMapping {
 			System.out.println("No Valid SemanticRelations.");
 		}
 		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t1));
+		qlog.timeTable.put("TripleCheck", (int)tripleCheckTime);
+		qlog.timeTable.put("SparqlCheck", (int)sparqlCheckTime);
 
 		// 3. sort and rank
 		Collections.sort(rankedSparqls);		
@@ -144,7 +256,7 @@ public class SemanticItemMapping {
 		qlog.rankedSparqls.addAll(rankedSparqls);
 		qlog.entityDictionary = entityDictionary;
 		
-		System.out.println("CollectEntityNames time=" + qlog.timeTable.get("CollectEntityNames"));
+		System.out.println("Check query graph count: " + tripleCheckCallCnt + "\nPass: " + sparqlCheckCallCnt);
 		System.out.println("TopkJoin time=" + qlog.timeTable.get("TopkJoin"));
 	}
 	
@@ -266,10 +378,20 @@ public class SemanticItemMapping {
 				dfs_predicate(level_i+1);
 				currentPredicateMappings.remove(sr.hashCode());
 				tcount++;
+				
+				//之前确定的某对e,p不匹配，这一层p再怎么换也没用
+				if(Globals.evaluationMethod == 3 && firstFalseSr != null)
+				{
+					if(firstFalseSr != sr)
+						return;
+					else
+						firstFalseSr = null;
+				}
+
 			}
 			
 			// 若需枚举结构，则枚举predicate和node的深度应该减小，不然正确结构也会由于得分排名过后
-			if(Globals.evaluationMethod > 1 && sr.isSteadyEdge == false)
+			if(Globals.evaluationMethod == 2 && sr.isSteadyEdge == false)
 			{
 				currentPredicateMappings.put(sr.hashCode(), null);
 				dfs_predicate(level_i+1);
@@ -290,7 +412,8 @@ public class SemanticItemMapping {
 	 * 例如：为 ?Canadians <residence> <Unitied_State> 补充 ?Canadians <birthPlace> <Canada>
 	 * */
 	public void scoringAndRanking() 
-	{			
+	{		
+		firstFalseSr = null;
 		Sparql sparql = new Sparql(semanticRelations);
 
 		// 检验查询图是否连通，为方便，这里认为存在一条边的两个node都只出现一次(只有一条边时例外)即为不连通；只在node数小于6时正确（充分不必要）
@@ -552,13 +675,23 @@ public class SemanticItemMapping {
 			// 方法三：进行complete compatibility check，并且枚举subj/obj顺序 
 			sparql.typesComesFirst();			
 
+			tripleCheckCallCnt++;
+			long t1 = System.currentTimeMillis();
+			//single-triple check
 			//这里isTripleCompatibleCanSwap就是判断triple是否符合碎片，可以交换subj和obj，如果有一条不满足，直接return（注意这里只是第一层检验，通过后还要在enumerateEubjObjOrders函数里进行第二步检验）  
 			for (Triple t : sparql.tripleList)				
 				if(t.predicateID!=Globals.pd.typePredicateID && !isTripleCompatibleCanSwap(t))
+				{
+					firstFalseSr = t.semRltn;
 					return;
+				}
+			tripleCheckTime += (System.currentTimeMillis()-t1);	
 			
+			t1 = System.currentTimeMillis();
+			sparqlCheckCallCnt++;
 			//System.out.println("spq: "+sparql+" n:"+sparql.getVariableNumber());
-			enumerateSubjObjOrders(sparql, new Sparql(sparql.semanticRelations), 0);						
+			enumerateSubjObjOrders(sparql, new Sparql(sparql.semanticRelations), 0);	
+			sparqlCheckTime += (System.currentTimeMillis()-t1);
 		}
 		
 	}
@@ -583,8 +716,7 @@ public class SemanticItemMapping {
 	/*
 	 * （这个函数只作为”初步检测“，在后面enumerateSubjObjOrders中会进一步详细检测，后面运用了”predicate的前后【ent集合的type】信息“）2016.4.6
 	 * 注意，predicate = type的三元组不会进入这个函数
-	 * 这个函数要加入一些操作：
-	 * 1、判断时考虑type信息
+	 * 这个函数只是分别check每条triple，没有结合成整体check
 	 * 
 	 * 2016-4-28：改为以entity id作为key，而不是原来的entity name
 	 * */
@@ -610,7 +742,7 @@ public class SemanticItemMapping {
 				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
 				
 				//根据两个变量type fragment的出入边是否包含predicate，计算是否需要调换顺序以及该triple是否能够成立
-				
+				//计算方法为简单的投票看哪个更好
 				int nowOrderCnt = 0, reverseOrderCnt = 0;
 				if(subjTf == null || subjTf.outEdges.contains(t.predicateID))
 					nowOrderCnt ++;
@@ -624,10 +756,9 @@ public class SemanticItemMapping {
 				if(nowOrderCnt<2 && reverseOrderCnt<2)
 					return false;
 				
-				//literal不能做subject
-				
 				else if(nowOrderCnt > reverseOrderCnt)
 				{
+					// 顺序不变
 					//return true;
 				}
 				else if(reverseOrderCnt > nowOrderCnt)
@@ -645,7 +776,6 @@ public class SemanticItemMapping {
 					if(ed1 < ed2)
 					{
 						t.swapSubjObjOrder();
-				
 					}
 				}
 				return true;
@@ -668,6 +798,9 @@ public class SemanticItemMapping {
 					t.swapSubjObjOrder();
 					return true;
 				}	
+				
+				//记录check失败的原因
+				
 				return false;
 			}
 		
@@ -739,6 +872,7 @@ public class SemanticItemMapping {
 		}
 	}
 */	
+	
 	public boolean isTripleCompatibleNotSwap (Triple t) {
 		if (t.predicateID == Globals.pd.typePredicateID) {
 			return true;
@@ -766,12 +900,20 @@ public class SemanticItemMapping {
 			entityCnt++;
 			if (ef1.outEdges.contains(pid))
 				compatibleCnt++;
+//			else	// <e1,p> 为 false pair
+//			{
+//				falseEntPres.add(new Pair(id1,pid));
+//			}
 		}
 		
 		if (ef2_constant) {
 			entityCnt++;
 			if (ef2.inEdges.contains(pid))
 				compatibleCnt++;
+//			else	// <p,e2> 为false pair
+//			{
+//				falsePreEnts.add(new Pair(pid,id2));
+//			}
 		}
 		
 		//对于select型sparql，要严格保证predicate与subject和object的匹配；而ask型可以放宽
@@ -881,8 +1023,9 @@ public class SemanticItemMapping {
 		return true;
 	}
 	
-	// 枚举subject/object顺序  || 这个函数有必要吗？
-	public boolean enumerateSubjObjOrders (Sparql originalSpq, Sparql currentSpq, int level) {
+	// 枚举subject/object顺序 ，进一步进行 fragment check
+	public boolean enumerateSubjObjOrders (Sparql originalSpq, Sparql currentSpq, int level) 
+	{
 		if (level == originalSpq.tripleList.size()) {
 			if (qlog.s.sentenceType==SentenceType.GeneralQuestion) //ask where类型sparql 不需要做fragment check
 			{
@@ -891,13 +1034,21 @@ public class SemanticItemMapping {
 			}
 			
 			CompatibilityChecker cc = new CompatibilityChecker(efd);
-			try {
-				//System.out.println("spq:"+currentSpq);  
-				if (cc.isSparqlCompatible2(currentSpq)) {
+			try 
+			{
+				sparqlCheckId++;
+				long t1 = System.currentTimeMillis();
+				if (cc.isSparqlCompatible2(currentSpq)) 
+				{
+					qlog.fw.write( "spq-check " + sparqlCheckId + "; [true]; time: "+ (int)(System.currentTimeMillis()-t1) + "\n");
+					//System.out.println("spq-check " + sparqlCheckId + "; [true]; time: "+ (int)(System.currentTimeMillis()-t1));
 					rankedSparqls.add(currentSpq.copy());
 					return true;
-				}					
-			} catch (Exception e) {
+				}
+				qlog.fw.write( "spq-check " + sparqlCheckId + "; [false]; time: "+ (int)(System.currentTimeMillis()-t1) + "\n");
+				//System.out.println("spq-check " + sparqlCheckId + "; [false]; time: "+ (int)(System.currentTimeMillis()-t1));
+			} 
+			catch (Exception e) {
 				System.out.println("[CompatibilityChecker ERROR]"+currentSpq);
 				e.printStackTrace();
 			}
@@ -906,7 +1057,7 @@ public class SemanticItemMapping {
 		
 		Triple cur_t = originalSpq.tripleList.get(level);
 		
-		// 一般初始的顺序是compatible的
+		// 先试一发初始顺序，一般初始的顺序是compatible的
 		// 初始的顺序是preferred的
 		currentSpq.addTriple(cur_t);
 		boolean flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
@@ -932,11 +1083,12 @@ public class SemanticItemMapping {
 		}
 		else
 		{		
-			//只要是 【可以接literal的谓词】or【谓词=type】，就根本进不了这块代码
+			// 注意，只要是 【可以接literal的谓词】or【谓词=type】，就根本进不了这块代码，也就无法 调换subj和obj
 			// swap后，需要检查一遍是否compatible
 			Triple swapped_t = cur_t.copySwap();
 			swapped_t.score = swapped_t.score*0.8;
-			if (isTripleCompatibleNotSwap(swapped_t)) {
+			if (isTripleCompatibleNotSwap(swapped_t)) // 调换subj、obj后，该triple能否通过single triple check
+			{
 				currentSpq.addTriple(swapped_t);
 				flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
 				currentSpq.removeLastTriple();

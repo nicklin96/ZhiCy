@@ -84,7 +84,7 @@ public class GAnswer {
 				BuildQueryGraph step2 = new BuildQueryGraph();
 				step2.process(qlog);
 				qlog.timeTable.put("step2", (int)(System.currentTimeMillis()-t));
-			
+				
 				// step 3: some fix (such as "one-node" or "ask-one-triple") and aggregation
 				t = System.currentTimeMillis();
 				AddtionalFix step3 = new AddtionalFix();
@@ -95,6 +95,7 @@ public class GAnswer {
 				qlog.timeTable.put("step3", (int)(System.currentTimeMillis()-t));
 				
 			}
+
 			
 			//排序，把最后一个qlog作为载体，放入完整的sparql list
 			Collections.sort(rankedSparqls);
@@ -536,13 +537,19 @@ public class GAnswer {
 				int idx_sparql = 0;
 				
 				long ed_time = System.currentTimeMillis();
+				System.out.println("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms\n");
+				System.out.println("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms\n");
+				System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms\n");
+				System.out.println("Ranked Sparqls: " + qlog.rankedSparqls.size());
 				if(qlog.fw != null)
 				{
 				//	for(String key: qlog.timeTable.keySet())
 				//		qlog.fw.write(key + ": " + qlog.timeTable.get(key) + "ms\n");
-					qlog.fw.write("Qustion Understanding time: "+ (int)(ed_time - st_time)+"ms\n");
+					qlog.fw.write("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms\n");
+					qlog.fw.write("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms\n");
+					qlog.fw.write("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms\n");
 				}
-				
+					
 				System.out.println("[RESULT]");
 				ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
 				while (curSpq != null) 

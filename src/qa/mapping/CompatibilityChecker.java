@@ -137,8 +137,9 @@ public class CompatibilityChecker {
 		return true;
 	}
 	
-	// 运行这个函数时，已经通过了第一步碎片检验（即简单的”出入边检验“） —— husen
+	// 运行这个函数时，已经通过了第一步碎片检验（即single triple check，”出入边检验“） —— husen
 	// 在这里面，不会改变spq，也就是说，如果spq的主宾顺序不对，这里面是不管的，返回false交给外面
+	// multi-triple check，此时固定entity和predicate；varible fragment是types集合（而不是entity集合）；
 	public boolean isSparqlCompatible2 (Sparql spq) {
 		boolean[] isFixed = new boolean[spq.tripleList.size()];	// 记录某个triple的compatibility是否已经固定不变，不需要重新检查
 		for (int i = 0; i < spq.tripleList.size(); i ++) {

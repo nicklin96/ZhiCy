@@ -12,6 +12,7 @@ import log.QueryLogger;
 import nlp.ds.*;
 import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
+import qa.evaluation.BottomUp;
 import qa.extract.*;
 import qa.mapping.SemanticItemMapping;
 import rdf.PredicateMapping;
@@ -229,11 +230,31 @@ public class BuildQueryGraph
 			//TODO 这个函数要改进，将step0得到的信息考虑进来，并考虑extend variable；常量、变量信息是否应该存储在WORD中而不是SR中？
 			ExtractRelation er = new ExtractRelation();
 			er.constantVariableRecognition(qlog.semanticRelations,qlog,tr);
-		
+			
+			// 输出查询图的结构，这是不进行fragment check的原始图，用于观察图结构 
+			printTriples_SUList(semanticUnitList, qlog);
+	
+// EXP: hyper query graph + graph explore (evaluationMethod = 3)
+//			if(Globals.evaluationMethod == 3)
+//			{
+//				t = System.currentTimeMillis();
+//				
+//				BottomUp bottomUp = new BottomUp();
+//				bottomUp.evaluation(qlog);
+//				
+//				System.out.println("graphExplore: " + (int)(System.currentTimeMillis()-t) + "ms.");
+//				qlog.timeTable.put("graphExplore", (int)(System.currentTimeMillis()-t));
+//				return null;
+//			}
+			
+			
 			//step5: item mappping & top-k join
 			t = System.currentTimeMillis();
 			SemanticItemMapping step5 = new SemanticItemMapping();
-			step5.process(qlog, qlog.semanticRelations);	//top-k join，disambiguation
+			if(Globals.evaluationMethod == 3)
+				step5.process_bottomUp(qlog, qlog.semanticRelations);
+			else
+				step5.process_topDown(qlog, qlog.semanticRelations);	//top-k join，disambiguation
 			qlog.timeTable.put("BQG_topkjoin", (int)(System.currentTimeMillis()-t));
 			
 			//step6: implicit relation [modify word]
@@ -242,8 +263,6 @@ public class BuildQueryGraph
 			step6.supplementTriplesByModifyWord(qlog);
 			qlog.timeTable.put("BQG_implicit", (int)(System.currentTimeMillis()-t));
 			
-			// 输出查询图的结构，这是不进行fragment check的原始图，用于观察图结构 
-			printTriples_SUList(semanticUnitList, qlog);
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
