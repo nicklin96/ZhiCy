@@ -26,6 +26,12 @@ public class ExtractImplicitRelation {
 	
 	static final int SamplingNumber = 100;	//计算过程中，候选实体过多时，选择的最大数目
 	static final int k = 3;	//可能有多个关系时，选择前top-k个；word可能对应多个ent时，选择前k个
+	public HashMap<String, Integer> implicitEntRel = new HashMap<String, Integer>();
+	
+	public ExtractImplicitRelation()
+	{
+		implicitEntRel.put("american", Globals.pd.predicate_2_id.get("country"));
+	}
 	
 	//eg: "president Obama", "Andy Liu's Hero(film)".
 	public ArrayList<Integer> getPrefferdPidListBetweenTwoConstant(Word w1, Word w2)
@@ -48,8 +54,7 @@ public class ExtractImplicitRelation {
 		//ent1 & ent2
 		if(w1Role == 1 && w2Role == 1)
 		{
-			EntityFragment ef = null;
-			
+			EntityFragment ef = null;	
 		}
 		
 		return res;
@@ -77,6 +82,14 @@ public class ExtractImplicitRelation {
 						int eId = word.emList.get(0).entityID;
 						String eName = word.emList.get(0).entityName;
 						irList = getPrefferdPidListBetween_Entity_TypeVariable(eId, tId);
+						
+						//有些找不到implicit relation，可以依据规则直接判定
+						if(irList != null && irList.size() == 0 && implicitEntRel.containsKey(word.originalForm.toLowerCase()))
+						{
+							int pId = implicitEntRel.get(word.originalForm.toLowerCase());
+							ImplicitRelation ir = new ImplicitRelation(tId, eId, pId, 100);
+							irList.add(ir);
+						}
 						
 						if(irList!=null && irList.size()>0)
 						{
@@ -156,7 +169,8 @@ What [country] is [Sitecore] from               ?type + ent	= [?var p ent + ?var
 		EntityFragment ef2 = EntityFragment.getEntityFragmentByEntityId(entId);
 		if(tf == null || ef2 == null)
 		{
-			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity ：Type or Entity no fragments.");
+			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity ：Type(" + 
+					TypeFragment.typeId2ShortName.get(typeId) + ") or Entity(" + EntityFragmentFields.entityId2Name.get(entId) + ") no fragments.");
 			return null;
 		}
 		

@@ -314,9 +314,11 @@ public class GstoreConnector
 				+ "?x	<type>	<Film>. "
 				+ "}";
 				
+		sparql = "select DISTINCT ?moons where {<Mars>	<satellites>	?moons. }";
+				
 	    //boolean flag = gc.load("db_dbpedia_ganswer");
-//	    boolean flag = gc.load("DBpediaYago");
-//		System.out.println(flag);
+	    boolean flag = gc.load("DBpediaYago");
+		System.out.println(flag);
 	    
 		String answer = gc.query(sparql);	    
 		System.out.println(answer);

@@ -149,7 +149,7 @@ public class EntityRecognition {
 				//如果这一串word都是大写字母开头（符号如果在两个word中间，则也算作大写，eg："Melbourne , Florida"），则必定做mapping，否则进行规则判断是否做mapping 
 				int UpperWordCnt = 0;
 				for(int i=st;i<ed;i++)
-					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') || (words[i].posTag.equals(",") && i>st && i<ed-1))
+					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') || ((words[i].posTag.equals(",") || words[i].originalForm.equals("'")) && i>st && i<ed-1))
 						UpperWordCnt++;
 				
 				//如果符合一些 "基本不可能用作entity"的规则，则不进行ent检测 

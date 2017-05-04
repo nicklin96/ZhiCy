@@ -582,6 +582,9 @@ public class SemanticItemMapping {
 					objt = null;
 			}
 			
+			// 如果obj是type，而rel不是<type>，则跳过该次sparql检验，否则后续碎片检测时会exception
+			if(objId == Triple.TYPE_ROLE_ID && pid != Globals.pd.typePredicateID)
+				return;
 			
 			// 对literal属性的处理 （好像是看如果predicate后面只能接literal）
 			if (RelationFragment.isLiteral(pid) && (subt != null || objt != null)) 
@@ -1038,14 +1041,14 @@ public class SemanticItemMapping {
 			{
 				sparqlCheckId++;
 				long t1 = System.currentTimeMillis();
-				if (cc.isSparqlCompatible2(currentSpq)) 
+				if (cc.isSparqlCompatible3(currentSpq)) 
 				{
-					qlog.fw.write( "spq-check " + sparqlCheckId + "; [true]; time: "+ (int)(System.currentTimeMillis()-t1) + "\n");
+					//qlog.fw.write( "spq-check " + sparqlCheckId + "; [true]; time: "+ (int)(System.currentTimeMillis()-t1) + "\n");
 					//System.out.println("spq-check " + sparqlCheckId + "; [true]; time: "+ (int)(System.currentTimeMillis()-t1));
 					rankedSparqls.add(currentSpq.copy());
 					return true;
 				}
-				qlog.fw.write( "spq-check " + sparqlCheckId + "; [false]; time: "+ (int)(System.currentTimeMillis()-t1) + "\n");
+				//qlog.fw.write( "spq-check " + sparqlCheckId + "; [false]; time: "+ (int)(System.currentTimeMillis()-t1) + "\n");
 				//System.out.println("spq-check " + sparqlCheckId + "; [false]; time: "+ (int)(System.currentTimeMillis()-t1));
 			} 
 			catch (Exception e) {

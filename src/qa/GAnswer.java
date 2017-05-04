@@ -19,6 +19,7 @@ import qa.parsing.BuildQueryGraph;
 import rdf.EntityMapping;
 import rdf.PredicateMapping;
 import rdf.SemanticRelation;
+import rdf.SemanticUnit;
 import rdf.Sparql;
 import rdf.Triple;
 import addition.AddtionalFix;
@@ -516,6 +517,143 @@ public class GAnswer {
 		return sb.toString();
 	}
 	
+	public ArrayList<String> genNRdata(QueryLogger qlog)
+	{
+		ArrayList<String> outputs = new ArrayList<String>();
+		HashSet<Word> nodes = new HashSet<Word>();
+		HashSet<Word> isConstant = new HashSet<Word>();
+		for(SemanticUnit su: qlog.semanticUnitList)
+		{
+			Word word = su.centerWord;
+			nodes.add(word);
+		}
+		for(SemanticRelation sr: qlog.semanticRelations.values())
+		{
+			if(sr.isArg1Constant)
+				isConstant.add(sr.arg1Word);
+			if(sr.isArg2Constant)
+				isConstant.add(sr.arg2Word);
+		}
+		for(Word word: qlog.s.words)
+		{
+			if(nodes.contains(word))
+			{
+				if(word.mayEnt)
+				{
+					String[] ws = word.originalForm.split("_");
+					int cnt = 0;
+					for(String w: ws)
+					{
+						if(cnt == 0)
+							outputs.add(w + " B-E");
+						else
+							outputs.add(w + " I-E");
+						cnt++;
+					}
+				}
+				else if(word.mayType)
+				{
+					if(isConstant.contains(word))
+					{
+						String[] ws = word.originalForm.split("_");
+						int cnt = 0;
+						for(String w: ws)
+						{
+							if(cnt == 0)
+								outputs.add(w + " B-T");
+							else
+								outputs.add(w + " I-T");
+							cnt++;
+						}
+					}
+					else
+					{
+						String[] ws = word.originalForm.split("_");
+						int cnt = 0;
+						for(String w: ws)
+						{
+							if(cnt == 0)
+								outputs.add(w + " B-V");
+							else
+								outputs.add(w + " I-V");
+							cnt++;
+						}
+					}
+				}
+				else
+				{
+					String[] ws = word.originalForm.split("_");
+					int cnt = 0;
+					for(String w: ws)
+					{
+						if(cnt == 0)
+							outputs.add(w + " B-V");
+						else
+							outputs.add(w + " I-V");
+						cnt++;
+					}
+				}
+			}
+			else
+				outputs.add(word.originalForm + " O");
+		}
+		
+		return outputs;
+	}
+	
+	/*
+	 * 1. word, postag, type
+	 * 2. 实体是经过下划线聚集的，例如将 Robert_Kennedy 作为一个word输出，而不拆开来
+	 * */
+	public ArrayList<String> genNRdataWithPosTag(QueryLogger qlog)
+	{
+		ArrayList<String> outputs = new ArrayList<String>();
+		HashSet<Word> nodes = new HashSet<Word>();
+		HashSet<Word> isConstant = new HashSet<Word>();
+		for(SemanticUnit su: qlog.semanticUnitList)
+		{
+			Word word = su.centerWord;
+			nodes.add(word);
+		}
+		for(SemanticRelation sr: qlog.semanticRelations.values())
+		{
+			if(sr.isArg1Constant)
+				isConstant.add(sr.arg1Word);
+			if(sr.isArg2Constant)
+				isConstant.add(sr.arg2Word);
+		}
+		for(Word word: qlog.s.words)
+		{
+			if(nodes.contains(word))
+			{
+				if(word.mayEnt)
+				{
+					outputs.add(word.originalForm + " " + word.posTag + " B-E");
+				}
+				else if(word.mayType)
+				{
+					if(isConstant.contains(word))
+					{
+						outputs.add(word.originalForm + " " + word.posTag + " B-E");
+					}
+					else
+					{
+						outputs.add(word.originalForm + " " + word.posTag + " B-V");
+					}
+				}
+				else
+				{
+					outputs.add(word.originalForm + " " + word.posTag + " B-V");
+				}
+			}
+			else
+				outputs.add(word.originalForm + " " + word.posTag + " O");
+		}
+		
+		return outputs;
+	}
+
+	
 	public static void main (String[] args){
 				
 		Globals.init();
@@ -525,6 +663,7 @@ public class GAnswer {
 			
 			//file in/output
 			BufferedReader fr = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile),"utf-8"));
+//			OutputStreamWriter nrfw = new OutputStreamWriter(new FileOutputStream(new File(Globals.localPath+"data/test/nrQ6T.train"),true),"utf-8");
 			String input;
 			
 			while ((input = fr.readLine()) != null) 
@@ -532,24 +671,36 @@ public class GAnswer {
 				long st_time = System.currentTimeMillis();
 				QueryLogger qlog = ga.getSparqlList(input);
 				
+//				if(qlog != null)
+//				{
+//					ArrayList<String>outputs = ga.genNRdataWithPosTag(qlog);
+//					for(String line: outputs)
+//					{
+//						nrfw.write(line + "\n");
+//					}
+//					nrfw.write("\n");
+//				}
+				
 				Sparql curSpq = ga.getNextSparql(qlog);		
 				Sparql bestSpq = curSpq;
 				int idx_sparql = 0;
 				
 				long ed_time = System.currentTimeMillis();
-				System.out.println("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms\n");
-				System.out.println("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms\n");
-				System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms\n");
+				System.out.println("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms");
+				System.out.println("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms");
+				System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms");
 				System.out.println("Ranked Sparqls: " + qlog.rankedSparqls.size());
 				if(qlog.fw != null)
 				{
 				//	for(String key: qlog.timeTable.keySet())
 				//		qlog.fw.write(key + ": " + qlog.timeTable.get(key) + "ms\n");
-					qlog.fw.write("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms\n");
-					qlog.fw.write("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms\n");
+					qlog.fw.write("Building HQG time: "+ (qlog.timeTable.get("step0")+qlog.timeTable.get("step1")+qlog.timeTable.get("step2")-qlog.timeTable.get("BQG_topkjoin")) + "ms\n");
+					qlog.fw.write("TopKjoin time: "+ qlog.timeTable.get("BQG_topkjoin") + "ms\n");
 					qlog.fw.write("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms\n");
 				}
 					
+				long excute_st_time = System.currentTimeMillis();
+				Matches m = null;
 				System.out.println("[RESULT]");
 				ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
 				while (curSpq != null) 
@@ -575,23 +726,29 @@ public class GAnswer {
 						}
 						
 						// execute by Virtuoso or GStore
-//						Matches m = null;
-//						if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
-//							//m = ga.getAnswerFromGStore2(curSpq);
-//							m = ga.getAnswerFromVirtuoso(qlog, curSpq);
-//							
-//						if (m != null && m.answers != null) 
-//                        {
-//                            // Found results using current SPQ, then we can break and print result.
-//                            qlog.sparql = curSpq;
-//                            qlog.match = m;
-//                            
-//                            qlog.reviseAnswers();
-//                            
-//                            // ResultJspFile jspFile = new ResultJspFile();
-//                            // jspFile.saveToFile(qlog,"","","");
-//                        }
-					
+//						if(m == null || m.answers == null)
+//						{
+//							if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
+//							{
+//								if(ga.isBGP(qlog, curSpq))
+//                                    m = ga.getAnswerFromGStore2(curSpq);
+//                                else
+//                                    m = ga.getAnswerFromVirtuoso(qlog, curSpq);
+//							}
+//								
+//							if (m != null && m.answers != null) 
+//	                        {
+//	                            // Found results using current SPQ, then we can break and print result.
+//	                            qlog.sparql = curSpq;
+//	                            qlog.match = m;
+//	                            
+//	                            qlog.reviseAnswers();
+//	                            
+//	                            qlog.fw.write("Query Executing time: "+ (int)(System.currentTimeMillis() - excute_st_time)+ "ms\n");
+//	                            // ResultJspFile jspFile = new ResultJspFile();
+//	                            // jspFile.saveToFile(qlog,"","","");
+//	                        }
+//						}
 					}
 					curSpq = ga.getNextSparql(qlog);
 				}		
@@ -613,6 +770,7 @@ public class GAnswer {
 				qlog.fw.close();
 			}
 			fr.close();
+//			nrfw.close();
 			
 		} catch (IOException e) {
 			e.printStackTrace();

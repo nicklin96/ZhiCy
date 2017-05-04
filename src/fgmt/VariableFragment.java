@@ -9,10 +9,20 @@ public class VariableFragment extends Fragment {
 	public static final int magic_number = -265;
 
 	public ArrayList<HashSet<Integer>> candTypes = null;
+	public HashSet<Integer> candEntities = null;
+	public boolean mayLiteral = false;
 	
-	public VariableFragment() {
+	public VariableFragment() 
+	{
 		fragmentType = typeEnum.VAR_FRAGMENT;
 		candTypes = new ArrayList<HashSet<Integer>>();
+		candEntities = new HashSet<Integer>();
+	}
+	
+	@Override
+	public String toString() 
+	{
+		return "("+ candEntities.size() +")";
 	}
 	
 	public boolean containsAll(HashSet<Integer> s1) {

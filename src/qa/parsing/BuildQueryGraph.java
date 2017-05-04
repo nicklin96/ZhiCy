@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import fgmt.EntityFragment;
 import fgmt.TypeFragment;
 import log.QueryLogger;
 import nlp.ds.*;
@@ -48,12 +49,16 @@ public class BuildQueryGraph
 		whList.add("how");
 		whList.add("where");
 		
+		//base form
 		stopNodeList.add("list");
 		stopNodeList.add("give");
 		stopNodeList.add("show");
 		stopNodeList.add("star");
 		stopNodeList.add("theme");
 		stopNodeList.add("world");
+		stopNodeList.add("independence");
+		stopNodeList.add("office");
+		stopNodeList.add("year");
 	}
 	
 	public void fixStopWord(QueryLogger qlog)
@@ -160,12 +165,14 @@ public class BuildQueryGraph
 			//step2:核心，一步步扩展查询图     
 			while((curCenterNode=queue.poll())!=null)
 			{	
-				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null)
+				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null )
 				{
+					//[2017-1-7]如果target就被represent，continue就直接退出了，semanticUnitList=null，尝试加入规则放过who；治标不治本，还是有空做根本改动，在确定结构后再共指消解
+					//if(curCenterNode != target)
 					//被扩展SU被其他SU代表，则直接略过此次扩展; TODO: 共指消解应该在结构确定后做，直接抛弃可能会丢失部分边信息
 					//[2015-12-13]这样相当于丢失了这个方向，沿该SU继续走本来能找到其他点，但直接continue就断绝了找到这些点的希望; 之所以一直没有发现问题是因为绝大多数情况被代表的SU都在query graph的边缘，即不会中断探索
 					//[2015-12-13]干脆先剥夺他们在dfs中被探索到的权利，即在isNode中拒绝represent，注意先只针对 represent;  
-					continue;
+						continue;
 				}					
 				
 				/* 2016-12-10
@@ -752,13 +759,12 @@ public class BuildQueryGraph
 									hasPrep = true;
 							}
 							//检测 who is the sht1's sth2? 这种情况在parser中，who和sth2都指向be
-							//简单的认为 ”who和sth2都指向be“ 就行，所以到这里无论有没有prep都认为共指
-//							if(hasPrep)
-//							{
+							if(hasPrep || qlog.s.plainText.contains(child.word.originalForm + " 's"))
+							{
 								target.word.represent = child.word;
 								target = child;
 								break;
-//							}
+							}
 						}
 					}
 				}
@@ -805,6 +811,19 @@ public class BuildQueryGraph
 					target = ds.getNodeByIndex(modifiedWord.position);
 				}
 			}
+			//检测 how big is [det] (ent)'s (var), how = var
+			else if(curPos+6 < words.length && words[curPos+1].baseForm.equals("big"))
+			{
+				if(words[curPos+2].baseForm.equals("be") && words[curPos+3].baseForm.equals("the") && words[curPos+4].mayEnt && words[curPos+5].baseForm.equals("'s"))
+				{
+					Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+6]);
+					if(isNodeCandidate(modifiedWord))
+					{
+						target.word.represent = modifiedWord;
+						target = ds.getNodeByIndex(modifiedWord.position);
+					}
+				}
+			}
 			//检测：how much ... 
 			else if(curPos+2 < words.length && words[curPos+1].baseForm.equals("much"))
 			{
@@ -846,6 +865,25 @@ public class BuildQueryGraph
 	}
 	
 	/*
+	 * ent + type有两种情况：1、Chinese company 2、De_Beer company; 
+	 * 对于1应该是chinese修饰company，对于二应该是De_Beer这个实体是个company,即type修饰ent
+	 * return:
+	 * True : ent修饰type
+	 * False ： type修饰ent
+	 * */
+	public boolean checkModifyBetweenEntType(Word entWord, Word typeWord)
+	{
+		int eId = entWord.emList.get(0).entityID;
+		int tId = typeWord.tmList.get(0).typeID;
+		EntityFragment ef = EntityFragment.getEntityFragmentByEntityId(eId);
+		
+		if(ef == null || !ef.types.contains(tId))
+			return true;
+		
+		return false;
+	}
+	
+	/*
 	 * 修饰的概念：在正确的dependency tree中，一个word(ent/type)指向另一个word，边通常为mod系列，它们之间没有其他点，并且是独立的两个object
 	 * 例如：Chinese teacher --> Chinese修饰teacher；the Chinese teacher Wang Wei --> Chinese和teacher都修饰Wang Wei；
 	 * 注意：the Television Show Charmed，因为属于一个object的word sequence会被提前识别出来并用下划线连接为一个word，所以Television_Show修饰Charmed
@@ -857,25 +895,12 @@ public class BuildQueryGraph
 	 * */
 	public Word getTheModifiedWordBySentence(Sentence s, Word modifier)
 	{
-		//简单的认为：连续出现的node都是修饰最后一个node的
+		//基本假设：连续出现的node都是修饰最后一个node的
 		Word modifiedWord = modifier;
 		
 		//既不是形容词也不是node，就直接返回 
 		if(!isNodeCandidate(modifier) && !modifier.posTag.startsWith("JJ") && !modifier.posTag.startsWith("R"))
 			return modifier;
-		
-//		//判断：... dose the Yenisei_river flow? || did Pulp_Fiction cost? 的形式，因为这样形式最后的verb常被错认为是名词变量
-//		int rightNodeCnt = 0;
-//		for(int i=modifier.position;i<s.words.length;i++)
-//			if(isNodeCandidate(s.words[i]))
-//				rightNodeCnt++;
-//		if(rightNodeCnt == 1)
-//		{
-//			//Does ... 一般疑问句不考虑
-//			for(int i=modifier.position-2;i>0;i--)
-//				if(s.words[i].baseForm.equals("do"))
-//					return modifiedWord;
-//		}
 		
 		//[ent1] 's [ent2], 则ent1是ent2的修饰词，且通常不需要出现在sparql中。| eg：Show me all books in Asimov 's Foundation_series
 		if(modifier.position+1 < s.words.length && modifier.mayEnt && s.words[modifier.position].baseForm.equals("'s") && s.words[modifier.position+1].mayEnt)
@@ -891,11 +916,33 @@ public class BuildQueryGraph
 			return modifiedWord;
 		}
 		
-		//干脆认为 ent+noun(非type|ent) 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission]
-		if(modifier.position<s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)
+		//干脆认为 ent+noun(非type|ent) 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
+		if(modifier.position < s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)
 		{
 			s.words[modifier.position].omitNode = true;
 			return modifier;
+		}
+		
+		//ent + type有两种情况：1、Chinese company 2、De_Beer company; 对于1应该是chinese修饰company，对于2应该是De_Beer这个实体是个company
+		if(modifier.position < s.words.length && modifier.mayEnt && s.words[modifier.position].mayType)
+		{
+			if(checkModifyBetweenEntType(modifier, s.words[modifier.position])) //Chinese -> company
+			{
+				modifiedWord = s.words[modifier.position];
+				return modifiedWord;
+			}
+			else	//De_Beer <- company
+				return modifier;
+		}
+		if(modifier.position-2 >= 0 && modifier.mayType && s.words[modifier.position-2].mayEnt)
+		{
+			if(!checkModifyBetweenEntType(s.words[modifier.position-2], modifier)) //De_Beer <- company
+			{
+				modifiedWord = s.words[modifier.position-2];
+				return modifiedWord;
+			}
+			else	//Chinese -> company
+				return modifier;
 		}
 		
 		//注意这里position是下标从1开始，所以从modifier的后一个词开始扫描不用加1
