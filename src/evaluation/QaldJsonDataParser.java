@@ -90,7 +90,7 @@ public class QaldJsonDataParser
 	}
 	
 	/*
-	 * Call ganswer to run the QALD input, get answers and return with compatible JSON file.
+	 * Call ganswer to run the QALD input (JSON data), get answers and return with QALD format JSON file.
 	 * */
 	public String runQALDdata(String inputData)
 	{
@@ -158,6 +158,71 @@ public class QaldJsonDataParser
 		
 		return res;
 	}
+	
+	/*
+	 * Call ganswer to run the QALD input (a sentence), get answers and return with QALD format JSON file.
+	 * question (id, query, answers)
+	 * */
+	public String runQALDdataBySentence(String inputData)
+	{
+		String res = "";
+		GAnswer ga = new GAnswer();
+		StandardSparqlGeneration ssg = new StandardSparqlGeneration();
+		
+		String question = inputData;
+		QueryLogger qlog = ga.getSparqlList(question);
+		QuestionResult qr = new QuestionResult();
+		qr.qId = 0;	// default
+		qr.question = question;
+		
+		if(qlog.rankedSparqls.size() == 0)
+			return "";
+		
+		int cnt = 0;
+		ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
+		for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
+		{
+			Sparql spq = qlog.rankedSparqls.get(j);
+			String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, spq);
+			if(!lastSpqList.contains(stdSPQwoPrefix))
+			{
+				lastSpqList.add(stdSPQwoPrefix);
+				NonstandardSparql nsq = new NonstandardSparql();
+				for(String str: stdSPQwoPrefix.split("\n"))
+					nsq.triples.add(str);
+				qr.nstdSparqlList.add(nsq);
+				cnt++;
+			}
+			
+			if(cnt >= 3)
+				break;
+		}
+		
+		//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
+		Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1), qlog);
+		if(untypedSparql != null)
+		{
+			String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
+			if(!lastSpqList.contains(stdSPQwoPrefix))
+			{
+				NonstandardSparql nsq = new NonstandardSparql();
+				for(String str: stdSPQwoPrefix.split("\n"))
+					nsq.triples.add(str);
+				qr.nstdSparqlList.add(nsq);
+			}
+		}
+		
+		ssg.qrList.add(qr);
+		
+		ssg.generateStandardSparql();
+		ssg.printSparqls();
+		ssg.evaluate();
+		ssg.printAnswers();
+		res = ssg.printJsonResult();
+		
+		return res;
+	}
+	
 	
 	public static void main(String[] args) {
 		

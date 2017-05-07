@@ -670,6 +670,8 @@ public class GAnswer {
 			{	
 				long st_time = System.currentTimeMillis();
 				QueryLogger qlog = ga.getSparqlList(input);
+				if(qlog == null)
+					continue;
 				
 //				if(qlog != null)
 //				{

@@ -68,7 +68,7 @@ public class ExtractImplicitRelation {
 		//–ﬁ Œ¥ 
 		for(Word word: qlog.s.words)
 		{
-			if(word.modifiedWord != null)
+			if(word.modifiedWord != null && word.modifiedWord != word)
 			{
 				ArrayList<ImplicitRelation> irList = null;
 				// ent -> typeVariable | eg: Chinese actor, Czech movies

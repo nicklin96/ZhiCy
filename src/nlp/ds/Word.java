@@ -33,7 +33,7 @@ public class Word implements Comparable<Word> {
 	
 	public Word represent = null; // 记录该word被哪个word代表，如"which book is ..."中"which"
 	public boolean omitNode = false; // 标记这个word不会成为node
-	public Word modifiedWord = null; //记录该word修饰哪个word
+	public Word modifiedWord = null; //记录该word修饰哪个word，等于word本身时意味着它不是修饰词
 	
 	public Word (String base, String original, String pos, int posi) {
 		baseForm = base;

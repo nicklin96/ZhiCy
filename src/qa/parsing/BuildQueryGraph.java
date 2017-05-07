@@ -135,18 +135,20 @@ public class BuildQueryGraph
 			
 			//修饰词识别，依据sentence而不是dependency tree
 			//同时会做一些修正，如 ent+noun(noType&&noEnt)形式的noun被设为omitNode
+			for(Word word: qlog.s.words)
+				getTheModifiedWordBySentence(qlog.s, word);
+			for(Word word: qlog.s.words)
+				getDiscreteModifiedWordBySentence(qlog.s, word);
+			
+			//print log
 			for(Word word: qlog.s.words) 
 			{
-				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, word);
-				if(modifiedWord != word)
+				if(word.modifiedWord != null && word.modifiedWord != word)
 				{
 					modifierList.add(word);
-					word.modifiedWord = modifiedWord;
-					qlog.SQGlog += "++++ Modify detect: "+word+" --> "+modifiedWord+"\n";
+					qlog.SQGlog += "++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n";
 					if(qlog.fw != null)
-					{
-						qlog.fw.write("++++ Modify detect: "+word+" --> "+modifiedWord+"\n");
-					}
+						qlog.fw.write("++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n");
 				}
 			}
 			
@@ -589,7 +591,7 @@ public class BuildQueryGraph
 			for(Word word: words)
 			{
 				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, word);
-				if(isNodeCandidate(modifiedWord))
+				if(modifiedWord != null && isNodeCandidate(modifiedWord))
 				{
 					target = ds.getNodeByIndex(modifiedWord.position);
 					break;
@@ -884,19 +886,24 @@ public class BuildQueryGraph
 	}
 	
 	/*
+	 * ！老版本非递归：无法处理 [ent1] by (adj) [ent2] 等复杂嵌套的情况
 	 * 修饰的概念：在正确的dependency tree中，一个word(ent/type)指向另一个word，边通常为mod系列，它们之间没有其他点，并且是独立的两个object
 	 * 例如：Chinese teacher --> Chinese修饰teacher；the Chinese teacher Wang Wei --> Chinese和teacher都修饰Wang Wei；
 	 * 注意：the Television Show Charmed，因为属于一个object的word sequence会被提前识别出来并用下划线连接为一个word，所以Television_Show修饰Charmed
 	 * 找到当前word所修饰的那个word（如果它不修饰别人，返回它自己）
 	 * 通过sentence而不是dependency tree (因为后者常生成错误)
+	 * 通常连续出现的node都是修饰最后一个node的；例外情况如test case 3
 	 * test case:
 	 * 1) the highest Chinese mountain
 	 * 2) the Chinese popular director
+	 * 3) the De_Beers company  (注意这里 company[type]修饰 De_Beers[ent])
 	 * */
-	public Word getTheModifiedWordBySentence(Sentence s, Word modifier)
+	public Word getTheModifiedWordBySentenceNoRecursive(Sentence s, Word modifier)
 	{
-		//基本假设：连续出现的node都是修饰最后一个node的
-		Word modifiedWord = modifier;
+		if(modifier.modifiedWord != null)
+			return modifier.modifiedWord;
+		
+		modifier.modifiedWord = modifier;
 		
 		//既不是形容词也不是node，就直接返回 
 		if(!isNodeCandidate(modifier) && !modifier.posTag.startsWith("JJ") && !modifier.posTag.startsWith("R"))
@@ -905,15 +912,15 @@ public class BuildQueryGraph
 		//[ent1] 's [ent2], 则ent1是ent2的修饰词，且通常不需要出现在sparql中。| eg：Show me all books in Asimov 's Foundation_series
 		if(modifier.position+1 < s.words.length && modifier.mayEnt && s.words[modifier.position].baseForm.equals("'s") && s.words[modifier.position+1].mayEnt)
 		{
-			modifiedWord = s.words[modifier.position+1];
-			return modifiedWord;
+			modifier.modifiedWord = s.words[modifier.position+1];
+			return modifier.modifiedWord;
 		}
 		
 		//[ent1] by [ent2], 则ent2是ent1的修饰词，且通常不需要出现在sparql中。 | eg: Which museum exhibits The Scream by Munch?
 		if(modifier.position-3 >=0 && modifier.mayEnt && s.words[modifier.position-2].baseForm.equals("by") && s.words[modifier.position-3].mayEnt)
 		{
-			modifiedWord = s.words[modifier.position-3];
-			return modifiedWord;
+			modifier.modifiedWord = s.words[modifier.position-3];
+			return modifier.modifiedWord;
 		}
 		
 		//干脆认为 ent+noun(非type|ent) 的形式，ent不是修饰词并且后面的noun不是node；eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
@@ -928,8 +935,8 @@ public class BuildQueryGraph
 		{
 			if(checkModifyBetweenEntType(modifier, s.words[modifier.position])) //Chinese -> company
 			{
-				modifiedWord = s.words[modifier.position];
-				return modifiedWord;
+				modifier.modifiedWord = s.words[modifier.position];
+				return modifier.modifiedWord;
 			}
 			else	//De_Beer <- company
 				return modifier;
@@ -938,11 +945,9 @@ public class BuildQueryGraph
 		{
 			if(!checkModifyBetweenEntType(s.words[modifier.position-2], modifier)) //De_Beer <- company
 			{
-				modifiedWord = s.words[modifier.position-2];
-				return modifiedWord;
+				modifier.modifiedWord = s.words[modifier.position-2];
+				return modifier.modifiedWord;
 			}
-			else	//Chinese -> company
-				return modifier;
 		}
 		
 		//注意这里position是下标从1开始，所以从modifier的后一个词开始扫描不用加1
@@ -951,7 +956,7 @@ public class BuildQueryGraph
 			Word word = s.words[i];
 			if(isNodeCandidate(word))
 			{
-				modifiedWord = word;
+				modifier.modifiedWord = word;
 			}
 			//像 "popular","largest"等修饰词，不会成为被修饰词；若出现既不是node又不是形容词，则停止
 			else if(!word.posTag.startsWith("JJ"))
@@ -959,7 +964,88 @@ public class BuildQueryGraph
 				break;
 			}
 		}
-		return modifiedWord;
+		return modifier.modifiedWord;
+	}
+	
+	/*
+	 * 修饰的概念：在正确的dependency tree中，一个word(ent/type)指向另一个word，边通常为mod系列，它们之间没有其他点，并且是独立的两个object
+	 * 例如：Chinese teacher --> Chinese修饰teacher；the Chinese teacher Wang Wei --> Chinese和teacher都修饰Wang Wei；
+	 * 注意：the Television Show Charmed，因为属于一个object的word sequence会被提前识别出来并用下划线连接为一个word，所以Television_Show修饰Charmed
+	 * 找到当前word所修饰的那个word（如果它不修饰别人，返回它自己）
+	 * 通过sentence而不是dependency tree (因为后者常生成错误)
+	 * 通常连续出现的node都是修饰最后一个node的；例外情况如test case 3；采用递归的方式
+	 * test case:
+	 * 1) the highest Chinese mountain
+	 * 2) the Chinese popular director
+	 * 3) the De_Beers company  (注意这里 company[type]修饰 De_Beers[ent])
+	 * */
+	public Word getTheModifiedWordBySentence(Sentence s, Word curWord)
+	{
+		if(curWord == null) 
+			return null;
+		if(curWord.modifiedWord != null)
+			return curWord.modifiedWord;
+		//既不是形容词也不是node，与修饰关系无关，设为null
+		if(!isNodeCandidate(curWord) && !curWord.posTag.startsWith("JJ") && !curWord.posTag.startsWith("R"))
+			return curWord.modifiedWord = null;
+		
+		curWord.modifiedWord = curWord;	//默认修饰自己，修饰自己的word不算做modifier
+		Word preWord = null, nextWord = null;
+		int curPos = curWord.position - 1; //word的position从1开始，所以减一
+		if(curPos-1 >= 0)	preWord = s.words[curPos-1];
+		if(curPos+1 < s.words.length)	nextWord = s.words[curPos+1];
+		Word nextModifiedWord = getTheModifiedWordBySentence(s, nextWord);
+		
+		//External rule: 认为 ent+noun(非type|ent)的形式，ent不是修饰词并且后面的noun不是node；
+		//eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
+		if(curWord.mayEnt && nextWord != null && !nextWord.mayEnt && !nextWord.mayType && !nextWord.mayLiteral)
+		{
+			nextWord.omitNode = true;
+			if(nextModifiedWord == nextWord)
+				return curWord.modifiedWord = curWord;
+		}
+		
+		//修饰左边: ent + type(cur) : De_Beer company
+		if(preWord != null && curWord.mayType && preWord.mayEnt) //ent + type(cur)
+		{
+			if(!checkModifyBetweenEntType(preWord, curWord)) //De_Beer <- company, 注意此时即使type后面还连着node，也不理会了
+				return curWord.modifiedWord = preWord;
+		}
+		
+		//修饰自己: ent(cur) + type : De_Beer company
+		if(nextModifiedWord != null && curWord.mayEnt && nextModifiedWord.mayType)
+		{
+			if(!checkModifyBetweenEntType(curWord, nextModifiedWord))
+				return curWord.modifiedWord = curWord;
+		}
+		
+		//排除特殊情况后，通常情况都是修饰右边
+		if(nextModifiedWord != null)
+			return curWord.modifiedWord = nextModifiedWord;
+		
+		//右边没有node了，只能修饰自己
+		return curWord.modifiedWord;
+	}
+	
+	/*
+	 * 识别不连续词之间的modifier/modified关系，如：
+	 * 1、[ent1] 's [ent2]
+	 * 2、[ent1] by [ent2]
+	 * 注意：需先运行getTheModifiedWordBySentence
+	 * */
+	public Word getDiscreteModifiedWordBySentence(Sentence s, Word curWord)
+	{	
+		int curPos = curWord.position - 1; //word的position从1开始，所以减一
+		
+		//[ent1](cur) 's [ent2], 则ent1是ent2的修饰词，且通常不需要出现在sparql中。| eg：Show me all books in Asimov 's Foundation_series
+		if(curPos+2 < s.words.length && curWord.mayEnt && s.words[curPos+1].baseForm.equals("'s") && s.words[curPos+2].mayEnt)
+			return curWord.modifiedWord = s.words[curPos+2];
+		
+		//[ent1] by [ent2](cur), 则ent2是ent1的修饰词，且通常不需要出现在sparql中。 | eg: Which museum exhibits The Scream by Munch?
+		if(curPos-2 >=0 && curWord.mayEnt && s.words[curPos-1].baseForm.equals("by") && s.words[curPos-2].mayEnt)
+			return curWord.modifiedWord = s.words[curPos-2];
+		
+		return curWord.modifiedWord;
 	}
 	
 	/*
@@ -967,7 +1053,7 @@ public class BuildQueryGraph
 	 * */
 	public boolean isNodeCandidate(Word word)
 	{
-		if(stopNodeList.contains(word.baseForm))
+		if(word == null || stopNodeList.contains(word.baseForm))
 			return false;
 		
 		if(word.posTag.startsWith("N"))
