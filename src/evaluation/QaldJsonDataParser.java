@@ -102,12 +102,15 @@ public class QaldJsonDataParser
 		if(qId_questions.containsKey(-1))
 			ssg.dataset = qId_questions.get(-1);
 		
-		for(int i=0; i<qId_questions.size()-1; i++)	// id start with 0
+		for(int id: qId_questions.keySet())
 		{
-			String question = qId_questions.get(i);
+			if(id < 0)
+				continue;
+			
+			String question = qId_questions.get(id);
 			QueryLogger qlog = ga.getSparqlList(question);
 			QuestionResult qr = new QuestionResult();
-			qr.qId = i;
+			qr.qId = id;
 			qr.question = question;
 			
 			if(qlog.rankedSparqls.size() == 0)
@@ -240,6 +243,7 @@ public class QaldJsonDataParser
 			String jsonInput = sb.toString();
 			String jsonOutput = parser.runQALDdata(jsonInput);
 			System.out.println("Send:\n" + jsonOutput);
+			br.close();
 		} 
 		catch (Exception e) {
 			// TODO: handle exception

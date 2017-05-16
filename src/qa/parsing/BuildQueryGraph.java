@@ -63,7 +63,6 @@ public class BuildQueryGraph
 	
 	public void fixStopWord(QueryLogger qlog)
 	{
-		Sentence qSen = qlog.s;
 		String qStr = qlog.s.plainText;
 		
 		//take [place]
@@ -73,6 +72,10 @@ public class BuildQueryGraph
 		//(When was Alberta admitted) as [province] 
 		if(qStr.contains("as province"))
 			stopNodeList.add("province");
+		
+		//what form of government is found in ...
+		if(qStr.contains("form of government"))
+			stopNodeList.add("government");
 	}
 
 	/*
@@ -99,46 +102,19 @@ public class BuildQueryGraph
  * 2)共指消解； 
  * 3)确定哪些词是中心词(semantic unit的核心，出现在基本的图框架中)，哪些词是修饰词（修饰中心词的ent/type/adj，不出现在基本图架构中，但可能会作为补充信息加入query;修饰词即使是ent，也只会出现在图的边缘）
  * */		
+			//0) Fix stop words
 			fixStopWord(qlog);
 			
-			//step1:识别query target，部分共指消解 | 现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的question focus。     
-			DependencyTreeNode target = detectTarget(ds,qlog); 
-			qlog.SQGlog += "++++ Target detect: "+target+"\n";
-			
-			if(qlog.fw != null)
-				qlog.fw.write("++++ Target detect: "+target+"\n"); 
-			
-			if(target == null)
-				return null;
-			
-			qlog.target = target.word;
-			//认为target不能是ent，一般疑问句除外 
-			if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
-			{
-				target.word.mayEnt = false;
-				target.word.emList.clear();
-			}
-			
-			//共指消解，cr中有一系列规则；因为共指分为好几种情况需要不同的处理方式，不能简单的删掉其中一个，所以要确定图结构后再处理
-			//ganswer以关系为核心，确定每一组”关系加两端变量“后做指代消解，用其中一个替换掉所有共指的变量就可以  
-			CorefResolution cr = new CorefResolution();
-			
-			//这里随手加一个指代消解，之后应该在结构清晰的地方统一进行指代消解。
-			//现在是“只在detect target”时进行了部分指代消解，下面这行是处理形如“Is Michelle Obama the wife of Barack Obama?”
-			//为简便，直接将要消除的词加入stopNodeList。因为represent有时需要复制被指代词的信息，也可能影响结构，还没搞清楚
-			if(qlog.s.words[0].baseForm.equals("be") && isNode(ds.getNodeByIndex(2)) && ds.getNodeByIndex(3).dep_father2child.equals("det") && isNode(ds.getNodeByIndex(4)))
-				stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);	
-			//which在句中的时候，通常不作为node
-			for(int i=2;i<qlog.s.words.length;i++)
-				if(qlog.s.words[i].baseForm.equals("which"))
-					stopNodeList.add(qlog.s.words[i].baseForm);
-			
+			//1) Detect Modifier/Modified
 			//修饰词识别，依据sentence而不是dependency tree
 			//同时会做一些修正，如 ent+noun(noType&&noEnt)形式的noun被设为omitNode
 			for(Word word: qlog.s.words)
-				getTheModifiedWordBySentence(qlog.s, word);
+				getTheModifiedWordBySentence(qlog.s, word);	//递归找连续型modifier
 			for(Word word: qlog.s.words)
-				getDiscreteModifiedWordBySentence(qlog.s, word);
+				getDiscreteModifiedWordBySentence(qlog.s, word); //非递归找离散型modifier
+			for(Word word: qlog.s.words)
+				if(word.modifiedWord == null)	//后续用到此概念时，希望任何word至少修饰它本身，所以这里修正一下 |注意必须在调用上面两个函数识别出所有modifier关系后才能做此修正
+					word.modifiedWord = word;
 			
 			//print log
 			for(Word word: qlog.s.words) 
@@ -151,6 +127,39 @@ public class BuildQueryGraph
 						qlog.fw.write("++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n");
 				}
 			}
+			
+			//step1:识别query target，部分共指消解 | 现在这个target只起bfs入口作用了，在生成sparql后会再确定一遍真正的question focus。     
+			DependencyTreeNode target = detectTarget(ds,qlog); 
+			qlog.SQGlog += "++++ Target detect: "+target+"\n";
+			
+			if(qlog.fw != null)
+				qlog.fw.write("++++ Target detect: "+target+"\n"); 
+			
+			if(target == null)
+				return null;
+			
+			qlog.target = target.word;
+			//认为target不能是ent，一般疑问句除外  | which [city] has most people?
+			if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
+			{
+				//反例：Give me all Seven_Wonders_of_the_Ancient_World | 实际上 不是ent，是category，要输出 ?x subject Seve...
+				target.word.mayEnt = false;
+				target.word.emList.clear();
+			}
+			
+			//共指消解，cr中有一系列规则；因为共指分为好几种情况需要不同的处理方式，不能简单的删掉其中一个，所以要确定图结构后再处理
+			//ganswer以关系为核心，确定每一组”关系加两端变量“后做指代消解，用其中一个替换掉所有共指的变量就可以  
+			CorefResolution cr = new CorefResolution();
+			
+			//这里随手加一个指代消解，之后应该在结构清晰的地方统一进行指代消解。
+			//现在是“只在detect target”时进行了部分指代消解，下面这行是处理形如“Is Michelle Obama the wife of Barack Obama?”
+			//为简便，直接将要消除的词加入stopNodeList。因为represent有时需要复制被指代词的信息，也可能影响结构，还没搞清楚
+			if(qlog.s.words[0].baseForm.equals("be") && isNode(ds.getNodeByIndex(2)) && ds.getNodeByIndex(3).dep_father2child.equals("det") && isNode(ds.getNodeByIndex(4)) && qlog.s.words[4].baseForm.equals("of"))
+				stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);	
+			//which在句中的时候，通常不作为node
+			for(int i=2;i<qlog.s.words.length;i++)
+				if(qlog.s.words[i].baseForm.equals("which"))
+					stopNodeList.add(qlog.s.words[i].baseForm);
 			
 			qlog.timeTable.put("BQG_prepare", (int)(System.currentTimeMillis()-t));
 /*准备完毕*/		
@@ -566,7 +575,7 @@ public class BuildQueryGraph
 		if(whList.contains(cur.word.baseForm))
 			return true;
 		
-		if(cur.word.mayEnt || cur.word.mayType)
+		if(cur.word.mayEnt || cur.word.mayType || cur.word.mayCategory)
 			return true;
 		return false;
 	}
@@ -590,7 +599,7 @@ public class BuildQueryGraph
 		{
 			for(Word word: words)
 			{
-				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, word);
+				Word modifiedWord = word.modifiedWord;
 				if(modifiedWord != null && isNodeCandidate(modifiedWord))
 				{
 					target = ds.getNodeByIndex(modifiedWord.position);
@@ -639,7 +648,7 @@ public class BuildQueryGraph
 			int curPos = target.word.position-1;
 			if(curPos+1 < words.length)
 			{
-				Word word1 = getTheModifiedWordBySentence(qlog.s, words[curPos+1]);
+				Word word1 = words[curPos+1].modifiedWord;
 				if(isNodeCandidate(word1))
 				{
 					// which city ... 先将target设为city
@@ -650,9 +659,9 @@ public class BuildQueryGraph
 					if(ds.root.word.baseForm.equals("be") && word1Pos+3 < words.length && words[word1Pos+1].baseForm.equals("be"))
 					{
 						// which city is [the] headquarters ...
-						Word word2 = getTheModifiedWordBySentence(qlog.s, words[word1Pos+2]);
+						Word word2 = words[word1Pos+2].modifiedWord;
 						if(words[word1Pos+2].posTag.equals("DT"))
-							word2 = getTheModifiedWordBySentence(qlog.s, words[word1Pos+3]);
+							word2 = words[word1Pos+3].modifiedWord;
 						int word2Pos = word2.position - 1;
 						if(word2Pos+1 < words.length && isNodeCandidate(word2) && words[word2Pos+1].posTag.startsWith("IN"))
 						{
@@ -692,8 +701,8 @@ public class BuildQueryGraph
 		else if(target.word.baseForm.equals("what"))
 		{
 			//检测：what is [the] sth1 prep. sth2?
-			//what is sth? 这种句式很少出现，即使出现，一般不会大于5个词。
-			if(target.father != null && ds.nodesList.size()>=4)
+			//what is sth? 这种句式很少出现，即使出现，一般不会大于5个词。 | 2017-5-5 QALD7test中真的出现了 what is sth.
+			if(target.father != null && ds.nodesList.size()>=5)
 			{
 				DependencyTreeNode tmp1 = target.father;
 				if(tmp1.word.baseForm.equals("be"))
@@ -728,8 +737,8 @@ public class BuildQueryGraph
 			if(target.word.baseForm.equals("what"))
 			{
 				int curPos = target.word.position - 1;
-				// what be the [node] ...
-				if(words.length > 4 && words[curPos+1].baseForm.equals("be") && words[curPos+2].baseForm.equals("the") && isNodeCandidate(words[curPos+3]))
+				// what be the [node] ... ? (words的length是算上符号的，和nodeList不同)
+				if(words.length > 5 && words[curPos+1].baseForm.equals("be") && words[curPos+2].baseForm.equals("the") && isNodeCandidate(words[curPos+3]))
 				{
 					target.word.represent = words[curPos+3];
 					target = ds.getNodeByIndex(words[curPos+3].position);
@@ -806,7 +815,7 @@ public class BuildQueryGraph
 			int curPos = target.word.position-1;
 			if(curPos+2 < words.length && words[curPos+1].baseForm.equals("many"))
 			{
-				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
+				Word modifiedWord = words[curPos+2].modifiedWord;
 				if(isNodeCandidate(modifiedWord))
 				{
 					target.word.represent = modifiedWord;
@@ -818,7 +827,7 @@ public class BuildQueryGraph
 			{
 				if(words[curPos+2].baseForm.equals("be") && words[curPos+3].baseForm.equals("the") && words[curPos+4].mayEnt && words[curPos+5].baseForm.equals("'s"))
 				{
-					Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+6]);
+					Word modifiedWord = words[curPos+6].modifiedWord;
 					if(isNodeCandidate(modifiedWord))
 					{
 						target.word.represent = modifiedWord;
@@ -829,7 +838,7 @@ public class BuildQueryGraph
 			//检测：how much ... 
 			else if(curPos+2 < words.length && words[curPos+1].baseForm.equals("much"))
 			{
-				Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
+				Word modifiedWord = words[curPos+2].modifiedWord;
 				// How much carbs does peanut_butter have 
 				if(isNodeCandidate(modifiedWord))
 				{
@@ -1058,7 +1067,7 @@ public class BuildQueryGraph
 		
 		if(word.posTag.startsWith("N"))
 			return true;
-		if(word.mayEnt || word.mayType || word.mayLiteral)
+		if(word.mayEnt || word.mayType || word.mayLiteral || word.mayCategory)
 			return true;
 		
 		return false;

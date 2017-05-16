@@ -9,10 +9,12 @@ import rdf.TypeMapping;
 public class Word implements Comparable<Word> {
 	
 	//type和ent的匹配信息
+	public boolean mayCategory = false;
 	public boolean mayLiteral = false;
 	public boolean mayEnt = false;
 	public boolean mayType = false;
 	public boolean mayExtendVariable = false;
+	public String category = null;
 	public ArrayList<EntityMapping> emList = null;
 	public ArrayList<TypeMapping> tmList = null;
 	public Triple embbededTriple = null;

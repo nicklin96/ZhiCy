@@ -9,6 +9,7 @@ public class Triple implements Comparable<Triple>{
 	
 	static public int TYPE_ROLE_ID = -5;
 	static public int VAR_ROLE_ID = -2;
+	static public int CAT_ROLE_ID = -8;	//Category
 	static public String VAR_NAME = "?xxx";
 	
 	//注意，这里的subjId和objId实际值存储entity id，如果subject为type或var，对应id为TYPE_ROLE_ID或VAR_ROLE_ID

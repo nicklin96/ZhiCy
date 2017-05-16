@@ -23,11 +23,11 @@ public class StandardSparqlGeneration
 	File dboFile = new File(Globals.localPath + "data/DBpedia2014/parapharse/DBpedia2014_dbo_predicates.txt");
 	
 	File zcyFile = new File(Globals.localPath + "/data/QALD7/testin.txt");
-	File jsonOutputFile = new File(Globals.localPath + "/data/QALD7/ganswer_qald7train_jsonAnswers.json");
+	File jsonOutputFile = new File(Globals.localPath + "/data/QALD7/JsonAnswers.json");
 	//File jsonOutputFile = new File("./data/ganswer_qald7test_jsonAnswers.json");
-	File answersFile = new File(Globals.localPath + "/data/QALD7/ganswer_qald7train_Answers.txt");
+	File answersFile = new File(Globals.localPath + "/data/QALD7/Answers.txt");
 	//File answersFile = new File("./data/ganswer_qald7test_Answers.txt");
-	File sparqlsFile = new File(Globals.localPath + "/data/QALD7/ganswer_qald7train_Sparqls.txt");
+	File sparqlsFile = new File(Globals.localPath + "/data/QALD7/Sparqls.txt");
 	//File sparqlsFile = new File("./data/ganswer_qald7test_Sparqls.txt");
 	File handwriteFile = new File(Globals.localPath + "/data/QALD7/handwriteSpqs");
 	File notResponseFile = new File(Globals.localPath + "/data/QALD7/notResponse");
@@ -224,19 +224,24 @@ OFFSET 0 LIMIT 1
 			String str = nspq.triples.get(i);
 			if(isTriple(str))
 			{	
+				str = str.replace("/", "_/_");
 				String s = str.split("\t")[0], p = str.split("\t")[1], o = str.split("\t")[2];
 				if(s.startsWith("<"))
 				{
 					s = s.substring(1, s.length()-1);
-					if(s.contains("(")&&s.contains(")") || s.contains(","))
+					if(s.contains("(")&&s.contains(")") || s.contains(",") || s.contains("'") || s.contains("/"))
 						s = "<http://dbpedia.org/resource/" + s + ">";
 					else
 						s = "dbr:" + s;
 				}
 
 				p = p.substring(1, p.length()-1);
-				if(p.equals("type1") || p.equals("type"))
+				if(p.equals("subject"))
+					p = "dct:" + p;
+				else if(p.equals("type1") || p.equals("type"))
 					p = "rdf:" + p; //p.substring(0,p.length()-1);
+				else if(p.equals("name"))
+					p = "foaf:" + p;
 				else if(dboPredicates.contains(p))
 				{
 					if(dbp_dboPredicates.contains(p))
@@ -246,19 +251,29 @@ OFFSET 0 LIMIT 1
 				else
 					p = "dbp:" + p;
 				
-				if(p.startsWith("rdf:"))
-				{// o is type and not yago
-					o = o.substring(1, o.length()-1);
-					if(!o.startsWith("yago"))
-						o = "dbo:" + o;
-				}
-				else if(o.startsWith("<"))
+				if(o.startsWith("<"))
 				{
-					o = o.substring(1, o.length()-1);
-					if(o.contains("(")&&o.contains(")") || o.contains(","))
-						o = "<http://dbpedia.org/resource/" + o + ">";
+					if(p.startsWith("dct:"))
+					{
+						o = o.substring(1, o.length()-1);
+						o = "dbc:" + o;
+					}
+					else if(p.startsWith("rdf:"))
+					{
+						o = o.substring(1, o.length()-1);
+						if(!o.startsWith("yago")) // o is type and not yago
+							o = "dbo:" + o;
+						else
+							o = o.replace("yago:", "yago:Wikicat");	// 新版yago许多type的命名方式改变 | 适用于http://dbpedia.org/sparql | 旧版适用于http://live.dbpedia.org/sparql
+					}
 					else
-						o = "dbr:" + o;
+					{
+						o = o.substring(1, o.length()-1);
+						if(o.contains("(")&&o.contains(")") || o.contains(",") || o.contains("'") || s.contains("/"))
+							o = "<http://dbpedia.org/resource/" + o + ">";
+						else
+							o = "dbr:" + o;
+					}
 				}
 				// drop ".(in the end)" to avoid exception when execute
 				while(o.length()>0 && o.charAt(o.length()-1)=='.')
@@ -414,10 +429,12 @@ OFFSET 0 LIMIT 1
 				JSONObject answerJsonObject = new JSONObject(selectedAnswerStr);
 				
 				// QALD7 need drop some properties
-				JSONObject tmpJsonObject = answerJsonObject.getJSONObject("results");
-				tmpJsonObject.remove("ordered");
-				tmpJsonObject.remove("distinct");
-				
+				if(answerJsonObject.has("results"))
+				{
+					JSONObject tmpJsonObject = answerJsonObject.getJSONObject("results");
+					tmpJsonObject.remove("ordered");
+					tmpJsonObject.remove("distinct");
+				}
 				answersJsonArray.put(answerJsonObject);
 			}
 			

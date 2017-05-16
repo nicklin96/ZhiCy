@@ -264,6 +264,7 @@ public class SemanticItemMapping {
 		if (entityDictionary.containsKey(entity)) {
 			return entityDictionary.get(entity);
 		}
+		if(entity == null)	return null;
 		
 		//这里 n实际上就是原始形式，是用 "_" 分割的
 		String n = entity.getFullEntityName();
@@ -1027,16 +1028,26 @@ public class SemanticItemMapping {
 	}
 	
 	// 枚举subject/object顺序 ，进一步进行 fragment check
+	// 修正ask one triple的得分
 	public boolean enumerateSubjObjOrders (Sparql originalSpq, Sparql currentSpq, int level) 
 	{
-		if (level == originalSpq.tripleList.size()) {
+		if (level == originalSpq.tripleList.size()) 
+		{
+			if(currentSpq.tripleList.size() == 0)
+				return false;
+			
+			CompatibilityChecker cc = new CompatibilityChecker(efd);
+			
 			if (qlog.s.sentenceType==SentenceType.GeneralQuestion) //ask where类型sparql 不需要做fragment check
 			{
+				if(cc.isSparqlCompatible3(currentSpq))	//虽然不需要check，但对于结果为true的ask，得分加倍
+				{
+					for(Triple triple: currentSpq.tripleList)
+						triple.addScore(triple.getScore());
+				}
 				rankedSparqls.add(currentSpq.copy());
 				return true;
 			}
-			
-			CompatibilityChecker cc = new CompatibilityChecker(efd);
 			try 
 			{
 				sparqlCheckId++;

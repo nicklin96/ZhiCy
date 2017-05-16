@@ -610,6 +610,20 @@ public class ExtractRelation {
 					//作为常量的type应该放在后面
 					sr.preferredSubj = sr.arg1Word;
 				}
+				//rule: Be ... a type?
+				if(words[0].baseForm.equals("be") && arg2WordPos >=3 && words[arg2WordPos-1].baseForm.equals("a"))
+				{
+					sr.isArg2Constant = true;
+					//选择作为”常量type“，则preferred relation = <type1>
+					double largerScore = 1000;
+					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
+						largerScore = sr.predicateMappings.get(0).score * 2;
+					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
+					sr.predicateMappings.add(0,nPredicate);
+					
+					//作为常量的type应该放在后面
+					sr.preferredSubj = sr.arg1Word;
+				}
 			}
 			else if(sr.arg2Word.mayEnt)
 			{

@@ -96,6 +96,7 @@ public class Query
 		//rule3: movie -> film
 		ret = ret.replace(" movie", " film");
 		ret = ret.replace(" movies", " films");
+		ret = ret.replace("American", "United States");
 		
 		//rule4: last
 		ret = ret.replace("last Winter Paralympics", "2014 Winter Paralympics");

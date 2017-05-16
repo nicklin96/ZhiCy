@@ -88,6 +88,10 @@ public class TypeRecognition {
 	{
 		ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
 		
+		//因为单word的yago type总是很多余，加上后反而查不到结果，例如：Battle, War, Daughter 什么的
+		if(allUpperFormWord.length() > 1 && allUpperFormWord.substring(1).equals(allUpperFormWord.substring(1).toLowerCase()))
+			return null;
+		
 		//search in yago type
 		if(TypeFragment.yagoTypeList.contains(allUpperFormWord))
 		{

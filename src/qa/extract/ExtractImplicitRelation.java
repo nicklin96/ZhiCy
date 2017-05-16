@@ -30,7 +30,9 @@ public class ExtractImplicitRelation {
 	
 	public ExtractImplicitRelation()
 	{
+		//orignal word to lower case
 		implicitEntRel.put("american", Globals.pd.predicate_2_id.get("country"));
+		implicitEntRel.put("united_states", Globals.pd.predicate_2_id.get("country"));
 	}
 	
 	//eg: "president Obama", "Andy Liu's Hero(film)".
@@ -84,11 +86,11 @@ public class ExtractImplicitRelation {
 						irList = getPrefferdPidListBetween_Entity_TypeVariable(eId, tId);
 						
 						//有些找不到implicit relation，可以依据规则直接判定
-						if(irList != null && irList.size() == 0 && implicitEntRel.containsKey(word.originalForm.toLowerCase()))
+						if(irList != null && implicitEntRel.containsKey(word.originalForm.toLowerCase()))
 						{
 							int pId = implicitEntRel.get(word.originalForm.toLowerCase());
-							ImplicitRelation ir = new ImplicitRelation(tId, eId, pId, 100);
-							irList.add(ir);
+							ImplicitRelation ir = new ImplicitRelation(tId, eId, pId, 1000);
+							irList.add(0, ir);
 						}
 						
 						if(irList!=null && irList.size()>0)

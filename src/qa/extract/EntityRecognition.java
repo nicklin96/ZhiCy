@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
+import lcn.EntityFragmentFields;
 import fgmt.EntityFragment;
 import nlp.ds.Word;
 import qa.Globals;
@@ -22,6 +23,7 @@ import rdf.EntityMapping;
 import rdf.NodeSelectedWithScore;
 import rdf.TypeMapping;
 import rdf.MergedWord;
+import addition.*;
 
 /**
  * 主要为Node Recognition相关功能
@@ -35,10 +37,13 @@ public class EntityRecognition {
 	double TypeAcceptedScore = 0.5;
 	double AcceptedDiffScore = 1;
 	
+	public HashMap<String, String> m2e = null;
 	public ArrayList<MergedWord> mWordList = null;
 	public ArrayList<String> stopEntList = null;
 	public ArrayList<String> badTagListForEntAndType = null;
 	ArrayList<ArrayList<Integer>> selectedList = null;
+	
+	AddtionalFix af = null;
 	
 	public EntityRecognition() 
 	{
@@ -57,6 +62,14 @@ public class EntityRecognition {
 		badTagListForEntAndType.add("VBZ");
 		badTagListForEntAndType.add("VBP");
 		badTagListForEntAndType.add("POS");
+		
+		// Handwrite entity linking; (lower case)
+		m2e = new HashMap<String, String>();
+		m2e.put("bipolar_syndrome", "Bipolar_disorder");
+		m2e.put("battle_in_1836_in_san_antonio", "Battle_of_San_Jacinto");
+		
+		// additional fix for CATEGORY
+		af = new AddtionalFix();
 		
 		System.out.println("EntityRecognizer Initial : ok!");
 	}
@@ -317,6 +330,14 @@ public class EntityRecognition {
 /*
  * 实验：entity extraction 完毕
  * */
+				//search category | 优先级最高
+				String category = null;
+				if(af.pattern2category.containsKey(baseWord))
+				{
+					typeOmit = true;
+					entOmit = true;
+					category = af.pattern2category.get(baseWord);
+				}
 				
 				//search type
 				int hitMethod = 0; // 1= dbo(baseWord), 2=dbo(originalWord), 3=yago|extend()
@@ -372,6 +393,15 @@ public class EntityRecognition {
 				}
 				
 				MergedWord mWord = new MergedWord(st,ed,originalWord);
+				
+				//add category
+				if(category != null)
+				{
+					mWord.mayCategory = true;
+					mWord.category = category;
+					int key = st*(words.length+1) + ed;
+					mustSelectedList.add(key);
+				}
 				
 				//add literal
 				if(len==1 && checkLiteralWord(words[st]))
@@ -513,7 +543,7 @@ public class EntityRecognition {
 					}
 				}
 				
-				if(mWord.mayEnt || mWord.mayType || mWord.mayLiteral)
+				if(mWord.mayCategory || mWord.mayEnt || mWord.mayType || mWord.mayLiteral)
 					mWordList.add(mWord);
 			}
 		}
@@ -523,6 +553,11 @@ public class EntityRecognition {
 		for(MergedWord mWord: mWordList)
 		{
 			int key = mWord.st * (words.length+1) + mWord.ed;
+			if(mWord.mayCategory)
+			{
+				System.out.println("Detect category mapping: "+mWord.name+": "+ mWord.category +" score: 100.0");
+	        	preLog += "++++ Category detect: "+mWord.name+": "+mWord.category+" score: 100.0\n";
+			}
 			if(mWord.mayEnt)
 			{
 				System.out.println("Detect entity mapping: "+mWord.name+": "+mWord.emList.get(0).entityName +" score:"+entityScores.get(key));
@@ -765,6 +800,15 @@ public class EntityRecognition {
 	{	
 		String n = entity;
 		ArrayList<EntityMapping> ret= new ArrayList<EntityMapping>();
+		
+		//首先看handwrite 
+		if(m2e.containsKey(entity))
+		{
+			String eName = m2e.get(entity);
+			EntityMapping em = new EntityMapping(EntityFragmentFields.entityName2Id.get(eName), eName, 1000);
+			ret.add(em);
+			return ret; //目前认为handwrite一定对，直接返回
+		}
 		
 		//主要依据Lucene，因为噪音很小。大多数情况可以给出正确结果。
 		ret.addAll(EntityFragment.getEntityMappingList(n));
