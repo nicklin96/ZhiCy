@@ -234,16 +234,19 @@ public class QaldJsonDataParser
 		StringBuilder sb = new StringBuilder();
 		try 
 		{
-			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(Globals.localPath + "/data/QALD7/testin.json")), "utf-8"));
-			String input = "";
-			while((input = br.readLine()) != null)
-			{
-				sb.append(input);
-			}
-			String jsonInput = sb.toString();
-			String jsonOutput = parser.runQALDdata(jsonInput);
+//			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(Globals.localPath + "/data/QALD7/testin.json")), "utf-8"));
+//			String input = "";
+//			while((input = br.readLine()) != null)
+//			{
+//				sb.append(input);
+//			}
+//			String jsonInput = sb.toString();
+//			String jsonOutput = parser.runQALDdata(jsonInput);
+			
+			String jsonOutput = parser.runQALDdataBySentence("What is the longest river in the world?");
 			System.out.println("Send:\n" + jsonOutput);
-			br.close();
+			
+//			br.close();
 		} 
 		catch (Exception e) {
 			// TODO: handle exception

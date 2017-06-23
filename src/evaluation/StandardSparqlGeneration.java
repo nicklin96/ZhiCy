@@ -217,6 +217,7 @@ OFFSET 0 LIMIT 1
 		
 		sparql = nspq.triples.get(0);
 		sparql += " {";
+		boolean hasDboType = false;
 		boolean endMarket = false;
 		boolean needUnionDboDbp = false;
 		for(int i = 1; i<nspq.triples.size(); i++)
@@ -262,7 +263,10 @@ OFFSET 0 LIMIT 1
 					{
 						o = o.substring(1, o.length()-1);
 						if(!o.startsWith("yago")) // o is type and not yago
+						{
 							o = "dbo:" + o;
+							hasDboType = true;
+						}
 						else
 							o = o.replace("yago:", "yago:Wikicat");	// 新版yago许多type的命名方式改变 | 适用于http://dbpedia.org/sparql | 旧版适用于http://live.dbpedia.org/sparql
 					}
@@ -318,6 +322,12 @@ OFFSET 0 LIMIT 1
 		}
 		if(!endMarket)
 			sparql += " }";
+		
+		// (nspq.triples.size == 2) == (one triple) 
+		if(nspq.triples.size() == 2 && hasDboType == true)
+		{
+			sparql += " LIMIT 100";
+		}
 		
 		return sparql;
 	}

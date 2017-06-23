@@ -42,7 +42,7 @@ public class Globals {
 	 * 3. hyper query graph + bottom-up方法，与2不同之处在于不生成SPARQL，直接在hyper query graph基础上进行graph exploration，只供实验，实际非常不推荐
 	 * */
 	public static int evaluationMethod = 2; 
-	public static boolean isRunAsWebServer = false;	// 在本机运行为 false，作为服务端运行为 true
+	public static boolean isRunAsWebServer = true;	// 在本机运行为 false，作为服务端运行为 true
 	
 	public static String localPath="/media/wip/husen/NBgAnswer/";
 	public static String QueryEngineIP = "127.0.0.1";	//端口还需要在对应函数中修改
