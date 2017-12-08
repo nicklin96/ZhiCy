@@ -168,7 +168,7 @@ public class QuestionParsing {
 		return false;
 	}
 	
-	public String detectQuestionFocus(Sparql spq) {
+	public static String detectQuestionFocus(Sparql spq) {
 		String ret = null;
 		int posi = Integer.MAX_VALUE;
 		for (Triple t : spq.tripleList) {

@@ -24,8 +24,8 @@ import rdf.TypeMapping;
 public class SemanticItemMapping {
 	
 	public HashMap<Word, ArrayList<EntityMapping>> entityDictionary = new HashMap<Word, ArrayList<EntityMapping>>();
-	public static int k = 10;
-	public static int t = 10;
+	public static int k = 10;	// 目前没用到
+	public static int t = 10;	// Depth of enumerating candidates of each node/edge. O(t^n).
 	ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
 	
 	public ArrayList<ArrayList<EntityMapping>> entityPhrasesList = new ArrayList<ArrayList<EntityMapping>>();
@@ -41,12 +41,25 @@ public class SemanticItemMapping {
 	
 	public EntityFragmentDict efd = new EntityFragmentDict();
 	
-	public boolean isAnswerFound = false;	// TODO 这是干嘛的？
+	public boolean isAnswerFound = false; 
+	public int tripleCheckCallCnt = 0;
+	public int sparqlCheckCallCnt = 0;
+	public int sparqlCheckId = 0;
 	
-	public void process(QueryLogger qlog, HashMap<Integer, SemanticRelation> semRltn) {
+	SemanticRelation firstFalseSr = null;
+	long tripleCheckTime = 0;
+	long sparqlCheckTime = 0;
+		
+	/*
+	 * A best-first top-down method, enumerate all possible query graph and sort.
+	 * Notice, we use fragment checking to simulate graph matching and generate the TOP-k SPARQL queries, which can be executed via GStore or Virtuoso.
+	 * */
+	public void process(QueryLogger qlog, HashMap<Integer, SemanticRelation> semRltn) 
+	{
 		semanticRelations = semRltn;
 		this.qlog = qlog;
-		long t = 0;
+		long t1;
+		t = 10;	// Notice, t is adjustable. 
 
 		entityPhrasesList.clear();
 		entityWordList.clear();
@@ -55,169 +68,78 @@ public class SemanticItemMapping {
 		predicateSrList.clear();
 		currentPredicateMappings.clear();
 		
-		// 注意【常量版type】也是常量的一种，但是不参与top-k，直接取分数最高的type - husen
-		// 1. collect names of constant(entities), and map them to the entities
-		t = System.currentTimeMillis();
-		
+		// 1. collect info of constant nodes(entities)
 		Iterator<Map.Entry<Integer, SemanticRelation>> it = semanticRelations.entrySet().iterator(); 
         while(it.hasNext())
         {
             Map.Entry<Integer, SemanticRelation> entry = it.next();
             SemanticRelation sr = entry.getValue();
             
-            //ent、type、literal视为常量
-            //识别为常量但是 entity|type mapping为空，则抛弃这条triple
-			//换句话说：parser识别出ner但pre阶段识别的mapping没有与之对应的，也可以在这里再次mapping试试，现在为了简便直接抛弃。即只认可pre阶段找到的mapping。
-			if (sr.isArg1Constant && !sr.arg1Word.mayType && !sr.arg1Word.mayEnt) 
-			{
-				it.remove();
-				continue;
-			}
-			if (sr.isArg2Constant && !sr.arg2Word.mayType && !sr.arg2Word.mayEnt) 
+            //We now only tackle Constant of Entity & Type. TODO: consider Literal.
+			if(sr.isArg1Constant && !sr.arg1Word.mayType && !sr.arg1Word.mayEnt || sr.isArg2Constant && !sr.arg2Word.mayType && !sr.arg2Word.mayEnt) 
 			{
 				it.remove();
 				continue;
 			}
 			
-			//因为type而标记常量的情况在score and ranking中处理，这里只处理ent | 2016.5.2：subject以ent为优先
-			if (sr.isArg1Constant && sr.arg1Word.mayEnt) 
+			//Type constant will be solved in ScoreAndRanking function.
+			if(sr.isArg1Constant && sr.arg1Word.mayEnt) 
 			{
-				//因为ent而标记常量
-				if (!entityDictionary.containsKey(sr.arg1Word)) 
-				{
+				if(!entityDictionary.containsKey(sr.arg1Word)) 
 					entityDictionary.put(sr.arg1Word, sr.arg1Word.emList);
-				}
 				entityPhrasesList.add(sr.arg1Word.emList);
 				entityWordList.add(sr.arg1Word);
 			}
-			if (sr.isArg2Constant && !sr.arg2Word.mayType) 
+			if(sr.isArg2Constant && !sr.arg2Word.mayType) 
 			{	
-				//因为ent而标记常量
 				if (!entityDictionary.containsKey(sr.arg2Word)) 
-				{
 					entityDictionary.put(sr.arg2Word, sr.arg2Word.emList);
-				}
 				entityPhrasesList.add(sr.arg2Word.emList);
 				entityWordList.add(sr.arg2Word);
 			}
         }
 		
-		if (!qlog.timeTable.containsKey("CollectEntityNames")) {
-			qlog.timeTable.put("CollectEntityNames", 0);
-		}
-		qlog.timeTable.put("CollectEntityNames", qlog.timeTable.get("CollectEntityNames")+(int)(System.currentTimeMillis()-t));
-		
-		//debug...
-		/*
-		System.out.println("entityPhrasesList: ");
-		for (int i=0;i<entityPhrasesList.size();i++)
-			System.out.println(entityPhrasesList.get(i));
-		*/
-		
-		// 2. join
-		t = System.currentTimeMillis();
+		// 2. collect info of edges(relations).
 		for (Integer key : semanticRelations.keySet()) 
 		{
 			SemanticRelation sr = semanticRelations.get(key);
 			predicatePhraseList.add(sr.predicateMappings);
 			predicateSrList.add(sr);
+			
+			// Reduce t when structure enumeration needed.
+			if(Globals.evaluationMethod > 1 && !sr.isSteadyEdge)
+				t = 5;
 		}
-		if(semanticRelations.size()>0)
-		{
-			topkJoin(semanticRelations);
-		}
-		else
-		{
-			System.out.println("No Valid SemanticRelations.");
-		}
-		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t));
-
-		// 3. sort and rank
-		Collections.sort(rankedSparqls);		
 		
-		//qlog.rankedSparqls = rankedSparqls;
-		qlog.rankedSparqls.addAll(rankedSparqls);
+		// 3. top-k join
+		t1 = System.currentTimeMillis();
+		if(semanticRelations.size()>0)
+			topkJoin(semanticRelations);
+		else
+			System.out.println("No Valid SemanticRelations.");
+		
+		qlog.timeTable.put("TopkJoin", (int)(System.currentTimeMillis()-t1));
+		qlog.timeTable.put("TripleCheck", (int)tripleCheckTime);
+		qlog.timeTable.put("SparqlCheck", (int)sparqlCheckTime);
+
+		Collections.sort(rankedSparqls);		
+		// Notice, use addAll because we may have more than one node recognition decision.
+		qlog.rankedSparqls.addAll(rankedSparqls); 
 		qlog.entityDictionary = entityDictionary;
 		
-		System.out.println("CollectEntityNames time=" + qlog.timeTable.get("CollectEntityNames"));
+		System.out.println("Check query graph count: " + tripleCheckCallCnt + "\nPass single check: " + sparqlCheckCallCnt + "\nPass final check: " + rankedSparqls.size());
 		System.out.println("TopkJoin time=" + qlog.timeTable.get("TopkJoin"));
 	}
-	
-	public ArrayList<EntityMapping> getEntityIDsAndNames(Word entity, QueryLogger qlog) {
-		if (entityDictionary.containsKey(entity)) {
-			return entityDictionary.get(entity);
-		}
-		
-		//这里 n实际上就是原始形式，是用 "_" 分割的
-		String n = entity.getFullEntityName();
-		System.out.println(n+" " + preferDBpediaLookupOrLucene(n));
-		ArrayList<EntityMapping> ret= new ArrayList<EntityMapping>();
-		
-		if (preferDBpediaLookupOrLucene(n) == 1) { // 判断使用DBpediaLookup优先还是Lucene
-			
-			ret.addAll(Globals.dblk.getEntityMappings(n, qlog));
-			//如果使用Lucene得分较高（匹配度极高），也应该优先用Lucene
-			ret.addAll(EntityFragment.getEntityMappingList(n));
-		}
-		else{//否则采用Lucene获得实体ID
-			ret.addAll(EntityFragment.getEntityMappingList(n));
-			
-			if (ret.size() == 0 || ret.get(0).score<40) {
-				ret.addAll(Globals.dblk.getEntityMappings(n, qlog));
-			}
-		}
-		
-		Collections.sort(ret);
-		
-		System.out.println(n +"("+t+")"+" -->");
-		int cnt = t;
-		for (EntityMapping em : ret) {
-			System.out.println(em.entityID);
-			if ((--cnt) <= 0) break;
-		}
-		
-		if (ret.size() > 0) return ret;
-		else return null;
-	}
-	
-	//added by hanshuo, 2013-09-08
-	//return 1 means using DBpediaLookup would be better, return 0 means Lucene.
-	public int preferDBpediaLookupOrLucene(String entityName)
-	{
-		int cntUpperCase = 0;
-		int cntLowerCase = 0;
-		int cntSpace = 0;
-		int cntPoint = 0;
-		int length = entityName.length();
-		for (int i=0; i<length; i++)
-		{
-			char c = entityName.charAt(i);
-			if (c==' ')
-				cntSpace++;
-			else if (c=='.')
-				cntPoint++;
-			else if (c>='a' && c<='z')
-				cntLowerCase++;
-			else if (c>='A' && c<='Z')
-				cntUpperCase++;
-		}
-		
-		if ((cntUpperCase>0 || cntPoint>0) && cntSpace<3)
-			return 1;
-		if (cntUpperCase == length)
-			return 1;
-		return 0;		
-	}
-	
+
 	public void topkJoin (HashMap<Integer, SemanticRelation> semanticRelations) 
 	{
 		dfs_entityName(0);
 	}
 	
-	//一个 level 对应一个 word+[该word对应的entities]
+	// Each level for a CERTAIN entity
 	public void dfs_entityName (int level_i) 
 	{
-		//此时entities都放好了
+		// All entities ready.
 		if (level_i == entityPhrasesList.size()) 
 		{
 			dfs_predicate(0);
@@ -239,6 +161,7 @@ public class SemanticItemMapping {
 	
 	public void dfs_predicate(int level_i) 
 	{
+		// All entities & predicates ready, start generate SPARQL.
 		if (level_i == predicatePhraseList.size()) 
 		{
 			scoringAndRanking();
@@ -261,6 +184,22 @@ public class SemanticItemMapping {
 				dfs_predicate(level_i+1);
 				currentPredicateMappings.remove(sr.hashCode());
 				tcount++;
+				
+				// Pruning (If we do not change predicate of firstFalseSr, it will still false, so just return) 
+				if(firstFalseSr != null)
+				{
+					if(firstFalseSr != sr) return;
+					else firstFalseSr = null;
+				}
+			}
+			
+			// "null" means we drop this edge, this is how we enumerate structure.
+			if(Globals.evaluationMethod == 2 && sr.isSteadyEdge == false)
+			{
+				currentPredicateMappings.put(sr.hashCode(), null);
+				dfs_predicate(level_i+1);
+				currentPredicateMappings.remove(sr.hashCode());
+				tcount++;
 			}
 		}
 	}
@@ -276,10 +215,50 @@ public class SemanticItemMapping {
 	 * 例如：为 ?Canadians <residence> <Unitied_State> 补充 ?Canadians <birthPlace> <Canada>
 	 * */
 	public void scoringAndRanking() 
-	{			
+	{		
+		firstFalseSr = null;
 		Sparql sparql = new Sparql(semanticRelations);
 
-		HashSet<String> typeSetFlag = new HashSet<String>();	// 保证每个变量的type1只在sparql中出现一次 |这个没用到啊
+		// A simple way to judge connectivity (may incorrect when nodes number >= 6)
+		//TODO: a standard method to judge CONNECTIVITY
+		HashMap<Integer, Integer> count = new HashMap<Integer, Integer>();
+		int edgeCnt = 0;
+		for (Integer key : semanticRelations.keySet()) 
+		{
+			SemanticRelation sr = semanticRelations.get(key);
+			if(currentPredicateMappings.get(sr.hashCode()) == null)
+				continue;
+			
+			edgeCnt++;
+			int v1 = sr.arg1Word.hashCode(), v2 = sr.arg2Word.hashCode();
+			if(!count.containsKey(v1))
+				count.put(v1, 1);
+			else
+				count.put(v1, count.get(v1)+1);
+			if(!count.containsKey(v2))
+				count.put(v2, 1);
+			else
+				count.put(v2, count.get(v2)+1);
+		}
+		if(count.size() < qlog.semanticUnitList.size())
+			return;
+		if(edgeCnt == 0)
+			return;
+		if(edgeCnt > 1)
+		{
+			for (Integer key : semanticRelations.keySet()) 
+			{
+				SemanticRelation sr = semanticRelations.get(key);
+				if(currentPredicateMappings.get(sr.hashCode()) == null)
+					continue;
+				int v1 = sr.arg1Word.hashCode(), v2 = sr.arg2Word.hashCode();
+				if(count.get(v1) == 1 && count.get(v2) == 1)
+					return;
+			}
+		}
+		
+		// Now the graph is connected, start to generate SPARQL.
+		HashSet<String> typeSetFlag = new HashSet<String>();
 		for (Integer key : semanticRelations.keySet()) 
 		{
 			SemanticRelation sr = semanticRelations.get(key);
@@ -287,12 +266,12 @@ public class SemanticItemMapping {
 			int subjId = -1, objId = -1;
 			int pid;
 			double score = 1;
-			boolean isSubjObjOrderSameWithSemRltn=true; //实际没有用到这个变量
+			boolean isSubjObjOrderSameWithSemRltn = true;
 			
-// argument1 | 如果(sr.arg1Word.mayEnt || sr.arg1Word.mayType)=true但是sr.isArg1Constant=false，意味着 这是一个 变量版“type”；例如“the book of ..”中的book
-			if(sr.isArg1Constant && (sr.arg1Word.mayEnt || sr.arg1Word.mayType) ) 
+// argument1
+			if(sr.isArg1Constant && (sr.arg1Word.mayEnt || sr.arg1Word.mayType) )	// Constant 
 			{
-				//2016.5.2：对于subj，还是ent优先
+				// For subject, entity has higher priority.
 				if(sr.arg1Word.mayEnt)
 				{
 					EntityMapping em = currentEntityMappings.get(sr.arg1Word.hashCode());
@@ -305,20 +284,18 @@ public class SemanticItemMapping {
 					TypeMapping tm = sr.arg1Word.tmList.get(0);
 					subjId = Triple.TYPE_ROLE_ID;
 					sub = tm.typeName;
-					score *= (tm.score*100);	//entity评分是满分100(虽然最高只见过50多)，而type评分是满分1，所以这里乘以100
+					score *= (tm.score*100);	// Generalization. type score: [0,1], entity score: [0,100].
 				}
 			}
-			else 
+			else // Variable
 			{
 				subjId = Triple.VAR_ROLE_ID;
 				sub = "?" + sr.arg1Word.originalForm;
 			}
-			// argument1自身蕴含的type信息，例如 ?book <type> <Book>
-			// 注意，mayType和mayExtendVariable不能共存（在constantVariableRecognition中的处理保证了这一点）
+			// Embedded Type info of argument1(variable type) | eg, ?book <type> <Book>
+			// Notice, mayType & mayExtendVariable is mutual-exclusive. (see constantVariableRecognition)
+			// Notice, we do NOT consider types of [?who,?where...] now.
 			Triple subt = null;
-			//例如“Is Yao Ming a basketball player?”，basketball player被识别常量“type”，则不需要多一条三元组（basketball player <type> basketball player）
-			//而对于应该出现的 <Yao Ming> <type> <basketball player>，在“识别常量/变量/extend“时，就已经把”type“作为preferred relation加入对应sr的predicate mappings。
-			//这里限制sr.arg1Word.mayType=true,那么?who,?where等的type信息就不会加入到sparql
 			if (!sr.isArg1Constant && sr.arg1Word.mayType && sr.arg1Word.tmList != null && sr.arg1Word.tmList.size() > 0 && !typeSetFlag.contains(sub)) 
 			{
 				StringBuilder type = new StringBuilder("");
@@ -335,7 +312,6 @@ public class SemanticItemMapping {
 				subt = new Triple(subjId, sub, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, ttt, null, 10);
 				subt.typeSubjectWord = sr.arg1Word;
 				
-				//即享受type待遇，但不应该出现在sparql中
 				if(sr.arg1Word.tmList.get(0).prefferdRelation == -1)
 					subt = null;
 			}
@@ -343,17 +319,14 @@ public class SemanticItemMapping {
 			SemanticRelation dep = sr.dependOnSemanticRelation;
 			PredicateMapping pm = null; 
 			if (dep == null) 
-			{
 				pm = currentPredicateMappings.get(sr.hashCode());
-				pid = pm.pid;
-			}
 			else 
-			{
 				pm = currentPredicateMappings.get(dep.hashCode());
-				pid = pm.pid;
-			}
+			if(pm == null)
+				continue;
+			
+			pid = pm.pid;
 			score *= pm.score;
-				
 // argument2
 			if(sr.isArg2Constant && (sr.arg2Word.mayEnt || sr.arg2Word.mayType) )
 			{
@@ -369,7 +342,7 @@ public class SemanticItemMapping {
 					TypeMapping tm = sr.arg2Word.tmList.get(0);
 					objId = Triple.TYPE_ROLE_ID;
 					obj = tm.typeName;
-					score *= (tm.score*100);	//entity评分是满分100(虽然最高只见过50多)，而type评分是满分1，所以这里乘以100
+					score *= (tm.score*100);
 				}
 			}
 			else 
@@ -377,7 +350,7 @@ public class SemanticItemMapping {
 				objId = Triple.VAR_ROLE_ID;
 				obj = "?" + sr.arg2Word.getFullEntityName();
 			}
-			// argument2的type信息
+			// Type info of argument2
 			Triple objt = null;
 			if (sr.arg2Word.tmList != null && sr.arg2Word.tmList.size() > 0 && !typeSetFlag.contains(obj) && !sr.isArg2Constant) 
 			{
@@ -399,12 +372,15 @@ public class SemanticItemMapping {
 					objt = null;
 			}
 			
+			// Prune.
+			if(objId == Triple.TYPE_ROLE_ID && pid != Globals.pd.typePredicateID)
+				return;
 			
-			// 对literal属性的处理 （好像是看如果predicate后面只能接literal）
+			// Consider orders rely on LITERAL relations | at least one argument has TYPE info 
 			if (RelationFragment.isLiteral(pid) && (subt != null || objt != null)) 
 			{
-				// 如果有实体，则实体必在前面				
-				if (sub.startsWith("?") && obj.startsWith("?")) {
+				if (sub.startsWith("?") && obj.startsWith("?")) // two variables
+				{
 					// 现在两个都是变量，即都可能是在obj位置做literal，所以在type后面都加literal
 					if (subt != null) {
 						subt.object += ("|" + "literal_HRZ");
@@ -413,7 +389,8 @@ public class SemanticItemMapping {
 						objt.object += ("|" + "literal_HRZ");
 					}
 					
-					if (subt==null && objt!=null) {						
+					if (subt==null && objt!=null) 
+					{						
 						//若obj有type，sub无type则更有可能交换sub和obj的位置，因为literal一般没有type【但是可能会有yago：type】
 						String temp = sub;
 						int tmpId = subjId;
@@ -447,11 +424,7 @@ public class SemanticItemMapping {
 					}				
 				}
 			}
-			
-			
-			
-			// 为了处理一般疑问句，这里应该先不对triple做isTripleCompatibleCanSwap的检查，放在后面做 
-			// 等形成sparql之后，再做检查，复杂度不变
+
 			
 			Triple t = new Triple(subjId, sub, pid, objId, obj, sr, score,isSubjObjOrderSameWithSemRltn);		
 			//System.out.println("triple: "+t+" "+isTripleCompatibleCanSwap(t));
@@ -481,24 +454,33 @@ public class SemanticItemMapping {
 			{
 				sparql.addTriple(sr.arg2Word.embbededTriple);
 			}
+			
+			sparql.adjustTriplesOrder();
 		}
 		
 		if (!qlog.MODE_fragment) {
-			// 方法一：不进行complete compatibility check
+			// Method 1: do NOT check compatibility
 			 rankedSparqls.add(sparql);
 			 isAnswerFound = true;
 		}
 		else {
-			// 方法三：进行complete compatibility check，并且枚举subj/obj顺序 
-			sparql.typesComesFirst();			
-
-			//这里isTripleCompatibleCanSwap就是判断triple是否符合碎片，可以交换subj和obj，如果有一条不满足，直接return（注意这里只是第一层检验，通过后还要在enumerateEubjObjOrders函数里进行第二步检验）  
+			// Method 2：check compatibility by FRAGMENT (offline index)
+			//1. single-triple check (a quickly prune), allow to swap subject and object.
+			tripleCheckCallCnt++;
+			long t1 = System.currentTimeMillis();
 			for (Triple t : sparql.tripleList)				
 				if(t.predicateID!=Globals.pd.typePredicateID && !isTripleCompatibleCanSwap(t))
+				{
+					firstFalseSr = t.semRltn;
 					return;
+				}
+			tripleCheckTime += (System.currentTimeMillis()-t1);	
 			
-			//System.out.println("spq: "+sparql+" n:"+sparql.getVariableNumber());
-			enumerateSubjObjOrders(sparql, new Sparql(sparql.semanticRelations), 0);						
+			//2. SPARQL check (consider the interact between all triples), allow to swap subject and object.
+			t1 = System.currentTimeMillis();
+			sparqlCheckCallCnt++;
+			enumerateSubjObjOrders(sparql, new Sparql(sparql.semanticRelations), 0);	
+			sparqlCheckTime += (System.currentTimeMillis()-t1);
 		}
 		
 	}
@@ -507,7 +489,7 @@ public class SemanticItemMapping {
 	 * 注意：
 	 * typeId=-1说明没有相关图碎片，该type不能作为碎片检查时的依据
 	 * */
-	TypeFragment getTypeFragmentByWord(Word word)
+	public static TypeFragment getTypeFragmentByWord(Word word)
 	{
 		TypeFragment tf = null;
 		//extendType 的 id=-1，因为目前KB/fragment中没有extendType的数据，所以id=-1则不提取typeFragment
@@ -521,12 +503,9 @@ public class SemanticItemMapping {
 	}
 	
 	/*
-	 * （这个函数只作为”初步检测“，在后面enumerateSubjObjOrders中会进一步详细检测，后面运用了”predicate的前后【ent集合的type】信息“）2016.4.6
+	 * 这个函数只作为”初步检测“，在后面enumerateSubjObjOrders中会进一步详细检测，后面运用了”predicate的前后【ent集合的type】信息“
 	 * 注意，predicate = type的三元组不会进入这个函数
-	 * 这个函数要加入一些操作：
-	 * 1、判断时考虑type信息
-	 * 
-	 * 2016-4-28：改为以entity id作为key，而不是原来的entity name
+	 * 这个函数只是分别check每条triple，没有结合成整体check
 	 * */
 	public boolean isTripleCompatibleCanSwap (Triple t) {
 		
@@ -550,7 +529,7 @@ public class SemanticItemMapping {
 				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
 				
 				//根据两个变量type fragment的出入边是否包含predicate，计算是否需要调换顺序以及该triple是否能够成立
-				
+				//计算方法为简单的投票看哪个更好
 				int nowOrderCnt = 0, reverseOrderCnt = 0;
 				if(subjTf == null || subjTf.outEdges.contains(t.predicateID))
 					nowOrderCnt ++;
@@ -564,17 +543,13 @@ public class SemanticItemMapping {
 				if(nowOrderCnt<2 && reverseOrderCnt<2)
 					return false;
 				
-				//literal不能做subject
-				
 				else if(nowOrderCnt > reverseOrderCnt)
 				{
-					//return true;
+					// do nothing
 				}
 				else if(reverseOrderCnt > nowOrderCnt)
 				{
-					//TODO:是否需要一个变量表示以后不应该再改变这条t的顺序?
 					t.swapSubjObjOrder();
-					//return true;
 				}
 				else	//now order和reverse order都通过了type fragment检测，需要选择一个
 				{
@@ -585,100 +560,59 @@ public class SemanticItemMapping {
 					if(ed1 < ed2)
 					{
 						t.swapSubjObjOrder();
-				
 					}
 				}
 				return true;
 			}
-//			//TODO:变量，实体 || 这种情况只依据ent一般就可以，先看一下效果  || ?city	<type1>	<City> 、<Chile_Route_68>	<country>	?city ；像这种，<country>对city不合法，可以在这里过滤，不过要看一下是否会出现”误伤“
-//			else if(t.subject.startsWith("?") || t.object.startsWith("?"))
-//			{
-//				Word subjWord = t.getSubjectWord(), objWord = t.getObjectWord();
-//				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
-//				
-//				
-//			}
 			//实体，实体 || 变量，实体
 			else
 			{
+				boolean flag = false;
 				if (fragmentCompatible(t.subjId, t.predicateID, t.objId)) {			
-					return true;
+					flag = true;
 				}			
 				if (fragmentCompatible(t.objId, t.predicateID, t.subjId)) {			
 					t.swapSubjObjOrder();
-					return true;
+					flag = true;
 				}	
-				return false;
-			}
-		
-		}
-	}
-
-	/*//旧版本备份	
-	public boolean isTripleCompatibleCanSwap (Triple t) {
-		
-		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
-		{	
-			if (fragmentCompatible2(t.subject, t.predicateID, t.object) >
-				fragmentCompatible2(t.object, t.predicateID, t.subject)) 
-				t.swapSubjObjOrder();
 				
-			if (fragmentCompatible(t.subject, t.predicateID, t.object))			
-				return true;
-			return false;
-			
-		}
-		else
-		{	
-			//变量，变量
-			if(t.subject.startsWith("?") && t.object.startsWith("?"))
-			{
-				Word subjWord = t.getSubjectWord(), objWord = t.getObjectWord();
-				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
-				
-				//按现在的顺序试一下
-				boolean ok = true;
-				if((subjTf != null && !subjTf.outEdges.contains(t.predicateID)) || (objTf != null && !objTf.inEdges.contains(t.predicateID)))
+				// Var & Ent |  ?city	<type1>	<City> & <Chile_Route_68>	<country>	?city : <country> is invalid for City | Notice: the data often dirty and can not prune correctly.
+				if(flag == true && (t.subject.startsWith("?") || t.object.startsWith("?")))
 				{
-					ok = false;
-				}
-				//交换顺序试一下
-				if(!ok)
-				{
-					if((subjTf == null || subjTf.inEdges.contains(t.predicateID)) && (objTf == null || objTf.outEdges.contains(t.predicateID)))
-					{	
-						ok = true;
-						t.swapSubjObjOrder();
-						//TODO:是否需要一个变量表示以后不应该再改变这条t的顺序?
+					Word subjWord = t.getSubjectWord(), objWord = t.getObjectWord();
+					TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
+					if(subjTf != null)
+					{
+						if(subjTf.outEdges.contains(t.predicateID))
+							flag = true;
+						else if(subjTf.inEdges.contains(t.predicateID))
+						{
+							t.swapSubjObjOrder();
+							flag = true;
+						}
+						else
+							flag = false;
+					}
+					else if(objTf != null)
+					{
+						if(objTf.inEdges.contains(t.predicateID))
+							flag = true;
+						else if(objTf.outEdges.contains(t.predicateID))
+						{
+							t.swapSubjObjOrder();
+							flag = true;
+						}
+						else
+							flag = false;
 					}
 				}
 				
-				return ok;
-			}
-//			//TODO:变量，实体 || 这种情况只依据ent一般就可以，先看一下效果  || ?city	<type1>	<City> 、<Chile_Route_68>	<country>	?city ；像这种，<country>对city不合法，可以在这里过滤，不过要看一下是否会出现”误伤“
-//			else if(t.subject.startsWith("?") || t.object.startsWith("?"))
-//			{
-//				Word subjWord = t.getSubjectWord(), objWord = t.getObjectWord();
-//				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
-//				
-//				
-//			}
-			//实体，实体 || 变量，实体
-			else
-			{
-				if (fragmentCompatible(t.subject, t.predicateID, t.object)) {			
-					return true;
-				}			
-				if (fragmentCompatible(t.object, t.predicateID, t.subject)) {			
-					t.swapSubjObjOrder();
-					return true;
-				}	
-				return false;
+				return flag;
 			}
 		
 		}
 	}
-*/	
+	
 	public boolean isTripleCompatibleNotSwap (Triple t) {
 		if (t.predicateID == Globals.pd.typePredicateID) {
 			return true;
@@ -706,12 +640,20 @@ public class SemanticItemMapping {
 			entityCnt++;
 			if (ef1.outEdges.contains(pid))
 				compatibleCnt++;
+//			else	// <e1,p> 为 false pair
+//			{
+//				falseEntPres.add(new Pair(id1,pid));
+//			}
 		}
 		
 		if (ef2_constant) {
 			entityCnt++;
 			if (ef2.inEdges.contains(pid))
 				compatibleCnt++;
+//			else	// <p,e2> 为false pair
+//			{
+//				falsePreEnts.add(new Pair(pid,id2));
+//			}
 		}
 		
 		//对于select型sparql，要严格保证predicate与subject和object的匹配；而ask型可以放宽
@@ -721,38 +663,6 @@ public class SemanticItemMapping {
 			return entityCnt==compatibleCnt;
 		
 	}
-	
-	//旧版backup
-//	public boolean fragmentCompatible (String en1, int pid, String en2) {
-//		EntityFragment ef1 = efd.getEntityFragmentByName(en1);
-//		EntityFragment ef2 = efd.getEntityFragmentByName(en2);
-//	
-//		// 是合法的entity就必有fragment
-//		if (!en1.startsWith("?") && ef1 == null) return false;
-//		if (!en2.startsWith("?") && ef2 == null) return false;
-//		
-//		boolean ef1_constant = (ef1==null)?false:true;
-//		boolean ef2_constant = (ef2==null)?false:true;
-//		int entityCnt=0,compatibleCnt=0;
-//		if(ef1_constant) {
-//			entityCnt++;
-//			if (ef1.outEdges.contains(pid))
-//				compatibleCnt++;
-//		}
-//		
-//		if (ef2_constant) {
-//			entityCnt++;
-//			if (ef2.inEdges.contains(pid))
-//				compatibleCnt++;
-//		}
-//		
-//		//对于select型sparql，要严格保证predicate与subject和object的匹配；而ask型可以放宽
-//		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)	
-//			return entityCnt-compatibleCnt<=1;		
-//		else		
-//			return entityCnt==compatibleCnt;
-//		
-//	}
 	
 	public int fragmentCompatible2 (int id1, int pid, int id2) {
 		EntityFragment ef1 = efd.getEntityFragmentByEid(id1);
@@ -773,27 +683,6 @@ public class SemanticItemMapping {
 
 		return entityCnt-compatibleCnt;
 	}
-	
-	//旧版本backup
-//	public int fragmentCompatible2 (String en1, int pid, String en2) {
-//		EntityFragment ef1 = efd.getEntityFragmentByName(en1);
-//		EntityFragment ef2 = efd.getEntityFragmentByName(en2);	
-//
-//		int entityCnt=0,compatibleCnt=0;
-//		if(!en1.startsWith("?")) {
-//			entityCnt++;
-//			if (ef1!=null && ef1.outEdges.contains(pid))
-//				compatibleCnt++;
-//		}
-//		
-//		if (!en2.startsWith("?")) {
-//			entityCnt++;
-//			if (ef2!=null && ef2.inEdges.contains(pid))
-//				compatibleCnt++;
-//		}		
-//
-//		return entityCnt-compatibleCnt;
-//	}
 		
 	public boolean checkConstantConsistency (Sparql spql) {
 		HashMap<String, String> constants = new HashMap<String, String>();
@@ -816,28 +705,68 @@ public class SemanticItemMapping {
 						return false;
 				}
 			}
-
 		}
 		return true;
 	}
 	
-	// 枚举subject/object顺序  || 这个函数有必要吗？
-	public boolean enumerateSubjObjOrders (Sparql originalSpq, Sparql currentSpq, int level) {
-		if (level == originalSpq.tripleList.size()) {
+	public void reviseScoreByTripleOrders(Sparql spq)
+	{
+		Triple shouldDel = null;
+		for(Triple triple: spq.tripleList)
+		{
+			// eg, ?who <president> <United_States_Navy> need punished (or dropped).
+			if(triple.subject.toLowerCase().equals("?who"))
+			{
+				String rel = Globals.pd.id_2_predicate.get(triple.predicateID);
+				if(rel.equals("president") || rel.equals("starring") || rel.equals("producer"))
+				{
+					spq.score -= triple.score;
+					triple.score /= 10;
+					spq.score += triple.score;
+					if(triple.semRltn!=null && triple.semRltn.isSteadyEdge == false)
+						shouldDel = triple;
+				}
+			}
+		}
+		if(shouldDel != null)
+			spq.delTriple(shouldDel);
+	}
+	
+	// 枚举subject/object顺序 ，进一步进行 fragment check
+	// 修正Triple的得分
+	public boolean enumerateSubjObjOrders (Sparql originalSpq, Sparql currentSpq, int level) 
+	{
+		if (level == originalSpq.tripleList.size()) 
+		{
+			if(currentSpq.tripleList.size() == 0)
+				return false;
+			
+			CompatibilityChecker cc = new CompatibilityChecker(efd);
+			
 			if (qlog.s.sentenceType==SentenceType.GeneralQuestion) //ask where类型sparql 不需要做fragment check
 			{
+				if(cc.isSparqlCompatible3(currentSpq))	//虽然不需要check，但对于结果为true的ask，得分加倍
+				{
+					for(Triple triple: currentSpq.tripleList)
+						triple.addScore(triple.getScore());
+				}
 				rankedSparqls.add(currentSpq.copy());
 				return true;
 			}
-			
-			CompatibilityChecker cc = new CompatibilityChecker(efd);
-			try {
-				//System.out.println("spq:"+currentSpq);  
-				if (cc.isSparqlCompatible2(currentSpq)) {
-					rankedSparqls.add(currentSpq.copy());
+			try 
+			{
+				sparqlCheckId++;
+				if (cc.isSparqlCompatible3(currentSpq)) 
+				{
+					//修正SPARQL得分，有时谓词具有顺序偏好性， ?who <president> <United_States_Navy> 就应该有分数惩罚 
+					//When query graph contains circle, we just prune this edge 
+					Sparql sparql = currentSpq.copy();
+					reviseScoreByTripleOrders(sparql);
+					rankedSparqls.add(sparql);
 					return true;
-				}					
-			} catch (Exception e) {
+				}
+			} 
+			catch (Exception e) {
 				System.out.println("[CompatibilityChecker ERROR]"+currentSpq);
 				e.printStackTrace();
 			}
@@ -846,37 +775,31 @@ public class SemanticItemMapping {
 		
 		Triple cur_t = originalSpq.tripleList.get(level);
 		
-		// 一般初始的顺序是compatible的
+		// 先试一发初始顺序，一般初始的顺序是compatible的
 		// 初始的顺序是preferred的
 		currentSpq.addTriple(cur_t);
 		boolean flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
 		currentSpq.removeLastTriple();
 		
-		//如果初始顺序是compatible的，那么还要不要继续枚举交换主宾位置的sparql?
-		//if (flag) return flag;
+		// 即使初始顺序compatible，还是要枚举交换主宾位置的SPARQL
+//		if(flag) return flag;
 		
-		/*
-		if (RelationFragment.isLiteral(cur_t.predicateID) || cur_t.predicateID == Globals.pd.typePredicateID) {	// 这两种情况根本不需要尝试进行swap
-			return false;
-		}
-		*/
-		//这个意思是 【可以接literal的谓词】不交换triple顺序？ husen
-		if (RelationFragment.isLiteral(cur_t.predicateID)  ) {
-			return false;
-		}
-		//如果当前triple的predicate是type的话，还需要枚举要不要这个type信息 by hanshuo
-		else if (cur_t.predicateID == Globals.pd.typePredicateID)
+		//[可以接literal的谓词]理论上不应该交换triple顺序，但是有太多脏数据，这里还是需要尝试交换 
+//		if (RelationFragment.isLiteral(cur_t.predicateID)) return false;
+		
+		//如果当前triple的predicate是type的话，还需要枚举要不要这个type信息 
+		if (cur_t.predicateID == Globals.pd.typePredicateID)
 		{
 			flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
 			return flag;
 		}
 		else
 		{		
-			//只要是 【可以接literal的谓词】or【谓词=type】，就根本进不了这块代码
-			// swap后，需要检查一遍是否compatible
+			// swap后，还是先进行single triple check
 			Triple swapped_t = cur_t.copySwap();
 			swapped_t.score = swapped_t.score*0.8;
-			if (isTripleCompatibleNotSwap(swapped_t)) {
+			if (isTripleCompatibleNotSwap(swapped_t))
+			{
 				currentSpq.addTriple(swapped_t);
 				flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
 				currentSpq.removeLastTriple();

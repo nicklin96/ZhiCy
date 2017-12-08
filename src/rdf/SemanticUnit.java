@@ -24,6 +24,16 @@ public class SemanticUnit
 	}
 	
 	@Override
+	public boolean equals(Object o) {
+		if (o instanceof SemanticUnit) {
+			SemanticUnit su2 = (SemanticUnit) o;
+			if(this.centerWord.equals(su2.centerWord))
+				return true;
+		}
+		return false;
+	}
+	
+	@Override
 	public String toString() 
 	{
 		String ret = "<" + centerWord + ", {";

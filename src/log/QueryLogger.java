@@ -28,6 +28,7 @@ public class QueryLogger {
 	public Sentence s = null;
 	public String ipAdress = null;
 	
+	public Word target = null;
 	public Sparql sparql = null;
 	public Matches match = null;
 	public ArrayList<Answer> answers = null;	
@@ -35,56 +36,36 @@ public class QueryLogger {
 	public boolean MODE_debug = false;
 	public boolean MODE_log = true;
 	public boolean MODE_fragment = true;
+	public boolean isMaltParserUsed = false;
 	
 	public HashMap<String, Integer> timeTable = null;
-	
-	public HashMap<Integer, SemanticRelation> semanticRelations = null;
-	
-	public HashMap<Word, ArrayList<EntityMapping>> entityDictionary = null;
-	
-	public ArrayList<Sparql> rankedSparqls = null;
-	public Sparql zhiCySparql = null;
-	public Word target = null;
-	
-	public boolean isMaltParserUsed = false;
-	public int gStoreCallTimes = 0;
-	
-	public boolean shouldTermintate = false;
-	
 	public ArrayList<MergedWord> mWordList = null;
 	public ArrayList<SemanticUnit> semanticUnitList = null;
-	
-	File outputFile = new File(Globals.localPath + "data/test/test_out.txt");
-	public OutputStreamWriter fw = null;
-	
+	public HashMap<Integer, SemanticRelation> semanticRelations = null;
+	public HashMap<Word, ArrayList<EntityMapping>> entityDictionary = null;
+	public ArrayList<Sparql> rankedSparqls = null;
+		
+	public String moreThanStr = null;
 	public String NRlog = "";
 	public String SQGlog = "";
-	public String moreThanStr = null;
+	public int gStoreCallTimes = 0;
 	
-	public QueryLogger (Query query, Sentence sentence) 
+	public QueryLogger (Query query) 
 	{
-		this.s = sentence;
-		
 		timeTable = new HashMap<String, Integer>();
 		rankedSparqls = new ArrayList<Sparql>();
-		
-//		isMaltParserUsed = true;
-		MODE_debug = false;
-		MODE_log = true;
-		MODE_fragment = true;
 		mWordList = query.mWordList;
-		
-		if(Globals.isRunAsWebServer == false)
-		{
-			try 
-			{
-				fw = new OutputStreamWriter(new FileOutputStream(outputFile,true),"utf-8");
-			} 
-			catch (UnsupportedEncodingException | FileNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
+	}
+	
+	public void reloadSentence(Sentence sentence)
+	{
+		this.s = sentence;
+		if(this.semanticUnitList != null)
+			this.semanticUnitList.clear();
+		if(this.semanticRelations != null)
+			this.semanticRelations.clear();
+		if(this.rankedSparqls != null)
+			this.rankedSparqls.clear();
 	}
 		
 	// Source code: http://edu.21cn.com/java/g_189_755584-1.htm

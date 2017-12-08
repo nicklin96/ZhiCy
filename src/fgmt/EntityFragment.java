@@ -18,7 +18,7 @@ public class EntityFragment extends Fragment {
 	public HashSet<Integer> outEdges = new HashSet<Integer>();
 	public HashSet<Integer> types = new HashSet<Integer>();	
 	
-	// inEnt以及inEnt经过哪些edge来到这里。例如 <eId><director><tom> <eId><star><tom>, 那么inEntMap就有一项是 <tom,<director,star>>
+	// inEnt以及inEnt经过哪些edge来到这里。例如 <eId><director><tom> <eId><star><tom>, 那么outEntMap就有一项是 <tom,<director,star>>
 	// 这里用ArrayList是因为输入文件也是去重的，所以不会s,p,o三者都一样。现在s,o固定，那么p肯定是没有重复的。
 	public HashMap<Integer, ArrayList<Integer>> inEntMap = new HashMap<Integer, ArrayList<Integer>>();
 	public HashMap<Integer, ArrayList<Integer>> outEntMap = new HashMap<Integer, ArrayList<Integer>>();
@@ -88,89 +88,6 @@ public class EntityFragment extends Fragment {
 		return ret;
 	}	
 	
-	// 旧版本，以lucene entity name为key；先在改为以entity id为key
-//	public static HashMap<String, Double> getCandEntityNames2(String phrase) {
-//				
-//		HashMap<String, Double> ret = new HashMap<String, Double>();
-//
-//		// 此处获得subject域score大于等于thres1的匹配
-//		ArrayList<EntityNameAndScore> list1 = getCandEntityNames_subject(phrase, thres1, thres2, k);
-//		
-//		// 是否存在精确匹配，若存在，直接返回精确匹配	| 精确匹配不一定是想要的
-//		/*HashMap<String, Double> exact = getExactMatchings(list1, phrase);
-//		if (exact.size() > 0) {
-//			System.out.println("PHRASE=\"" + phrase + "\" is EXACTLY mapped to the following entities:");
-//			for(String s : exact.keySet()) {
-//				System.out.println("\t<" + s + "> " + exact.get(s));
-//			}
-//			return exact;
-//		}*/
-//		
-//		if(list1 == null)
-//			return ret;
-//		
-//		// 按照规则，至多只选择前k个
-//		int iter_size = 0;
-//		if (list1.size() <= k) {
-//			iter_size = list1.size();
-//		}
-//		else if (list1.size() > k) {
-//			if (list1.get(k-1).score >= thres2) {
-//				iter_size = list1.size();
-//			}
-//			else {
-//				iter_size = k;
-//			}
-//		}
-//		
-//		// （接上面）选择前k个
-//		for(int i = 0; i < iter_size; i ++) {
-//			if (i < k) {
-//				ret.put(list1.get(i).entityName, getScore(phrase, list1.get(i).entityName, list1.get(i).score));
-//			}
-//			else if (list1.get(i).score >= thres2) {
-//				ret.put(list1.get(i).entityName, getScore(phrase, list1.get(i).entityName, list1.get(i).score));
-//			}
-//			else {
-//				break;
-//			}
-//		}
-//		
-//		/*
-//		System.out.println("PHRASE=\"" + phrase + "\" is mapped to the following "+ret.size()+" entities:");
-//		for(String s : ret.keySet()) {
-//			System.out.println("\t<" + s + "> " + ret.get(s));
-//		}
-//		*/
-//
-//		return ret;
-//	}
-	
-	
-	/**
-	 * 使用前，必须保证list是从大到小有序！
-	 * @param list
-	 * @param phrase
-	 * @return
-	 */
-/*	public static HashMap<String, Double> getExactMatchings(ArrayList<EntityNameAndScore> list, String phrase) {
-		HashMap<String, Double> ret = new HashMap<String, Double>();
-		for (EntityNameAndScore enas : list) {
-			if (enas.score < 0.95) {
-				break;
-			}
-			else {
-				int ed = calEditDistance(phrase, enas.entityName);
-				if (ed<=thres3) {
-					// 精确匹配对score进行了修正
-					ret.put(enas.entityName, enas.score*((double)enas.entityName.length()-ed)/enas.entityName.length());
-				}
-			}
-		}
-		
-		return ret;
-	}*/
-	
 	public static ArrayList<EntityMapping> getEntityMappingList (String n) 
 	{
 		HashMap<Integer, Double> map = getCandEntityNames2(n);
@@ -183,17 +100,6 @@ public class EntityFragment extends Fragment {
 		Collections.sort(ret);
 		return ret;
 	}
-	
-	//旧版本，string为key
-//	public static ArrayList<EntityMapping> getEntityMappingList (String n) {
-//		HashMap<String, Double> map = getCandEntityNames2(n);
-//		ArrayList<EntityMapping> ret = new ArrayList<EntityMapping>();
-//		for (String s : map.keySet()) {
-//			ret.add(new EntityMapping(s, s, map.get(s)));
-//		}
-//		Collections.sort(ret);
-//		return ret;
-//	}
 	
 	public static double getScore (String s1, String s2, double luceneScore) {
 		double ret = luceneScore*100.0/(Math.log(calEditDistance(s1, s2)*1.5+1)+1);
@@ -271,21 +177,6 @@ public class EntityFragment extends Fragment {
 		
 		return ret_sf;
 	}
-	
-//	public static ArrayList<EntityNameAndScore> getCandEntityNames_literal(String phrase, double thres1, double thres2, int k) {
-//		SearchInLiteralSubset se = new SearchInLiteralSubset();
-//		
-//		//System.out.println("EntityFragment.getCandEntityNames_literal() ...");
-//		
-//		ArrayList<EntityNameAndScore> ret_se = null;
-//		try {
-//			ret_se = se.searchEntity(phrase, thres1, thres2, k);
-//		} catch (Exception e) {
-//			e.printStackTrace();
-//		}
-//		
-//		return ret_se;
-//	}
 
 	public static EntityFragment getEntityFragmentByEntityId(Integer entityId)
 	{
@@ -301,21 +192,6 @@ public class EntityFragment extends Fragment {
 		int id = EntityFragmentFields.entityName2Id.get(entityName);	
 		String fgmt = EntityFragmentFields.entityFragmentString.get(id);
 		return fgmt;
-		
-		//老版代码，从lucene获取ent fragment
-//		SearchInEntityFragments sf = new SearchInEntityFragments();
-//		EntityFragmentFields eff = null;
-//		try {
-//			eff = sf.searchFragment(entityName);
-//		} catch (IOException e) {
-//			e.printStackTrace();
-//		}
-//		if (eff != null){
-//			return eff.fragment;
-//		}
-//		else {
-//			return null;
-//		}
 	}
 	
 	public EntityFragment(int eid, String fgmt) 

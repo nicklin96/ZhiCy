@@ -41,8 +41,10 @@ public class Sentence {
 					word.mayLiteral = mWord.mayLiteral;
 					word.mayEnt = mWord.mayEnt;
 					word.mayType = mWord.mayType;
+					word.mayCategory = mWord.mayCategory;
 					word.tmList = mWord.tmList;
 					word.emList = mWord.emList;
+					word.category = mWord.category;
 				}
 			}
 		}

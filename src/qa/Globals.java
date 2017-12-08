@@ -1,15 +1,10 @@
 package qa;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 import lcn.EntityFragmentFields;
-import fgmt.EntityFragment;
 import fgmt.RelationFragment;
 import fgmt.TypeFragment;
 import paradict.ParaphraseDictionary;
@@ -19,7 +14,6 @@ import nlp.tool.CoreNLP;
 import nlp.tool.MaltParser;
 import nlp.tool.StanfordParser;
 import nlp.tool.StopWordsList;
-import addition.PosTagPattern;
 
 public class Globals {
 	// nlp tools
@@ -28,17 +22,21 @@ public class Globals {
 	public static StopWordsList stopWordsList;
 	public static MaltParser maltParser;
 	public static NERecognizer nerRecognizer;
-	// paraphrase dictionary
+	// relation paraphrase dictionary
 	public static ParaphraseDictionary pd;
-	// fragments
+	// entity linking system
 	public static DBpediaLookup dblk;
-	// postag pattern
-//	public static PosTagPattern pp;
 	
-	public static boolean isRunAsWebServer = false;	// 在本机运行为 false，作为服务端运行为 true
+	/*
+	 * evaluationMethod:
+	 * 1. baseline(SQG), does not allow CIRCLE and WRONG edge. The structure may be different by changing the TARGET.
+	 * 2. super SQG, allow CIRCLE and WRONG edge. The structure is decided by DS tree, and can be changed in query evaluation(TOP-K match) stage. 
+	 * */
+	public static int evaluationMethod = 2; 
+	public static boolean isRunAsWebServer = false;	// Run Local: false; Run Server: true
 	
-	public static String localPath="/media/wip/husen/NBgAnswer/";
-	public static String QueryEngineIP = "127.0.0.1";	//端口还需要在对应函数中修改
+	public static String localPath = "/media/wip/husen/NBgAnswer/";
+	public static String QueryEngineIP = "127.0.0.1";	// Notice, PORT number is in the evaluation function.
 	
 	public static void init () 
 	{
@@ -46,7 +44,7 @@ public class Globals {
 		
 		if(isRunAsWebServer == false)
 		{
-			localPath="D:/husen/gAnswer/";
+			localPath = "D:/husen/gAnswer/";
 			QueryEngineIP = "172.31.222.72";
 		}
 
@@ -69,7 +67,6 @@ public class Globals {
 		
 		t6 = System.currentTimeMillis();
 		pd = new ParaphraseDictionary();
-		//pp = new PosTagPattern();
 		
 		t7 = System.currentTimeMillis();
 		try 
@@ -113,5 +110,4 @@ public class Globals {
 			e.printStackTrace();
 		}
 	}
-
 }
