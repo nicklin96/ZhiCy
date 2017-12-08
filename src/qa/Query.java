@@ -73,7 +73,8 @@ public class Query
 	 */
 	public String getTransferedQuestion(String question)
 	{
-		//rule1: 去掉word中的"."，因为.和_连起来，会被parser拆开; 
+		//rule1: 去掉word中的"."，因为.和_连起来，会被parser拆开; 去掉word末尾的"'"，因为会影响ner
+		question = question.replace("' ", " ");
 		String [] words = question.split(" ");
 		String ret = "";
 		for(String word: words)
@@ -89,12 +90,19 @@ public class Query
 		if(ret.length()>1)
 			ret = ret.substring(0,ret.length()-1);
 		
+		ret = ret.replace("-", " ");
+		ret = ret.replace("in america", "in United States");
+		
 		//rule2: as well as -> and
 		ret = ret.replace("as well as", "and");
 		
 		//rule3: movie -> film
 		ret = ret.replace(" movie", " film");
 		ret = ret.replace(" movies", " films");
+		ret = ret.replace("American", "United States");
+		
+		//rule4: last
+		ret = ret.replace("last Winter Paralympics", "2014 Winter Paralympics");
 		
 		return ret;
 	}

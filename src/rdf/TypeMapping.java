@@ -9,11 +9,10 @@ public class TypeMapping implements Comparable<TypeMapping>
 	public double score = 0;
 	
 	/*
-	 * 因为加入了”伪type“的概念，所以要加入对应的relaiton
-	 * 如果是KB中的标准type，那么relaiton还是<type>
-	 * 如果是起到type作用且需要加入triple的，要声明relaion，例如”Which professional surfers were born in Australia?“，?uri dbo:occupation res:Surfing ，relation就要写dbo:occupation的id
-	 * 如果是起到type作用但可以不加入triple的(KB中没有这个type)，声明-1，例如Who was the father of Queen Elizabeth II中的Queen
-	 * typeid为-1代表非标准type
+	 * 1, For standard type (DBO type in DBpedia), relation = typePredicateID (rdf:type)
+	 * 2, For nonstandard type, typeID = -1
+	 * 3, If add type into triples, need relation | eg, Which professional surfers were born in Australia? (?uri dbo:occupation res:Surfing) relation = dbo:occupation
+	 * 4, If needn't add type, relation = -1 | eg, Who was the father of [Queen] Elizabeth II
 	 * */
 	public int prefferdRelation = Globals.pd.typePredicateID; 
 	
@@ -24,7 +23,6 @@ public class TypeMapping implements Comparable<TypeMapping>
 		score = sco;
 	}
 	
-	//例如 ”queen“不需要加入triple但视为type，则（-1,queen,-1,1）
 	public TypeMapping(Integer tid, String type, Integer relation, double sco) 
 	{
 		typeID = tid;

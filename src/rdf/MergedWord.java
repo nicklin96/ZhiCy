@@ -12,11 +12,13 @@ public class MergedWord implements Comparable<MergedWord>
 	//merge后的位置，如果未被选中则为-1
 	public int mergedPos = -1;
 	public String name;
+	public boolean mayCategory = false;
 	public boolean mayLiteral = false;
 	public boolean mayEnt = false;
 	public boolean mayType = false;
 	public ArrayList<EntityMapping> emList = null;
 	public ArrayList<TypeMapping> tmList = null;
+	public String category = null;
 	
 	public MergedWord(int s,int e,String n)
 	{

@@ -18,9 +18,6 @@ public class CorefResolution {
 	 * 2. 指代消解必须保证在下列操作之前使用，否则可能导致错误：
 	 *    抽取特殊关系，type识别，mapping.
 	 * 3. 也就是说指代消解必须紧跟着最basic的关系抽取
-	 * 
-	 * 
-	 * @param rlist
 	 */
 	public void process(ArrayList<SimpleRelation> simpleRelations, QueryLogger qlog) {
 		if (qlog.s.words.length <= 4) return; // if the sentence is too short, skip the coref step.
@@ -109,7 +106,6 @@ public class CorefResolution {
 //					w.crr = target.word.getNnHead();
 //				}
 //			}
-			// 以下需要dtn.father.father
 			else if(dtn.word.posTag.equals("WDT") 
 					&& (dtn.father.word.posTag.startsWith("V") || dtn.father.word.posTag.startsWith("J"))
 					&& dtn.father.dep_father2child.equals("rcmod")) {	// (2)

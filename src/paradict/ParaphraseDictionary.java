@@ -209,14 +209,10 @@ public class ParaphraseDictionary {
 		System.out.println("Predicate.size = " + predicate_2_id.size());
 		
 		System.out.println("Warning: Predicates not in DBpedia 2014 count: "+missInDBP2014.size());
-//		for(String str: missInDBP2015)
-//		{
-//			System.out.println(str);
-//		}
 
 		//Globals.systemPause();
 		
-		// this is very important.
+		// This is very important.
 		// 注意：目前predicate本身和handwrittern的NL patterns是没有wordSelectivity的
 		addPredicateAsNLPattern();
 		addHandwriteAsNLPattern();
@@ -239,16 +235,14 @@ public class ParaphraseDictionary {
 		int predicate_id;
 		for (String p : predicate_2_id.keySet()) 
 		{
-			
 			//忽略一些基本不会用到，反而常常作为错误谓词出现的predicate（如film）
-			if(p.equals("president") || p.equals("state") || p.equals("states"))
+			if(p.equals("state") || p.equals("states"))
 				continue;
-			
 			
 			predicate_id = predicate_2_id.get(p);
 			StringBuilder pattern = new StringBuilder("");
 			
-			// Work/runtime	11,SpaceStation/volume	68 等有前缀的predicate，生成pattern时，去掉前缀
+			// Work/runtime	11,SpaceStation/volume	68 等有前缀的predicate (DBpedia 2015及后续版本)，生成pattern时，去掉前缀 
 			if(p.contains("/"))
 			{
 				if(p.charAt(0)>='A' && p.charAt(0)<='Z')
@@ -301,7 +295,8 @@ public class ParaphraseDictionary {
 			pattern.deleteCharAt(pattern.length()-1);
 			String patternString = pattern.toString();*/
 			
-			String patternString = Globals.coreNLP.getBaseFormOfPattern(pattern.toString());	// 还是不能够完全转化为 base form，例如foundingYear	//可能要用Porter's Algorithm
+			// 还是不能够完全转化为 base form，例如foundingYear	//可能要用Porter's Algorithm
+			String patternString = Globals.coreNLP.getBaseFormOfPattern(pattern.toString());
 			//System.out.println(p + "-->" + patternString);
 			
 			if (!nlPattern_2_predicateList.containsKey(patternString)) {

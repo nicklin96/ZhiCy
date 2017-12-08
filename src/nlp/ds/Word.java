@@ -6,13 +6,14 @@ import rdf.EntityMapping;
 import rdf.Triple;
 import rdf.TypeMapping;
 
-public class Word implements Comparable<Word> {
-	
-	//type和ent的匹配信息
+public class Word implements Comparable<Word> 
+{
+	public boolean mayCategory = false;
 	public boolean mayLiteral = false;
 	public boolean mayEnt = false;
 	public boolean mayType = false;
 	public boolean mayExtendVariable = false;
+	public String category = null;
 	public ArrayList<EntityMapping> emList = null;
 	public ArrayList<TypeMapping> tmList = null;
 	public Triple embbededTriple = null;
@@ -26,6 +27,7 @@ public class Word implements Comparable<Word> {
 	public boolean isCovered = false;
 	public boolean isIgnored = false;
 	
+	//Notice: These variables are not used because we merge a phrase to a word if it is a node now.
 	public String ner = null;	// 记录ner的结果，不是ne的为null
 	public Word nnNext = null;	// 记录nn修饰词的后一个词，终止以null结束
 	public Word nnPrev = null;	// 记录nn修饰词的前一个词，终止以null结束
@@ -33,7 +35,7 @@ public class Word implements Comparable<Word> {
 	
 	public Word represent = null; // 记录该word被哪个word代表，如"which book is ..."中"which"
 	public boolean omitNode = false; // 标记这个word不会成为node
-	public Word modifiedWord = null; //记录该word修饰哪个word
+	public Word modifiedWord = null; //记录该word修饰哪个word，等于word本身时意味着它不是修饰词
 	
 	public Word (String base, String original, String pos, int posi) {
 		baseForm = base;
@@ -67,7 +69,7 @@ public class Word implements Comparable<Word> {
 	// 小心NnHead不是nn结构的顶点
 	public Word getNnHead() {
 		Word w = this;
-		// 对ent/type和其他word区别对待会产生问题，因此干脆直接都返回本身，即抛弃所有的nn信息
+		return w;
 		
 //		// 当预处理阶段识别出ent和type并聚集成一个word后，parser又把这个word和它前后的word组合起来认为是一个整体word，这时我们不信任parser，即直接返回该word
 //		if(w.mayEnt || w.mayType)
@@ -76,13 +78,11 @@ public class Word implements Comparable<Word> {
 //		while (w.nnPrev != null) {
 //			w = w.nnPrev;
 //		}
-		
-		return w;
+//		return w;
 	}
 	
 	public String getFullEntityName() {
 		Word w = this.getNnHead();
-		// 对ent/type和其他word区别对待会产生问题，因此干脆直接都返回本身，即抛弃所有的nn信息
 		return w.originalForm;
 		
 //		// 当预处理阶段识别出ent和type并聚集成一个word后，parser又把这个word和它前后的word组合起来认为是一个整体word，这时我们不信任parser，即直接返回该word

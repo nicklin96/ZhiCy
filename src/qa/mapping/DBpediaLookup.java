@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import lcn.EntityFragmentFields;
 import log.QueryLogger;
@@ -31,13 +32,24 @@ public class DBpediaLookup {
 	public static final String end = "</Label>";
 	public static final int end_length = end.length();
 	
-	public DBpediaLookup() {
+	public static HashMap<String, String>entMentionDict = null;	//根据redirect数据和wikipedia的页面跳转情况构建mention2ent的词典，目前先人工加一些
+	
+	public DBpediaLookup() 
+	{
 		ctripHttpClient = new HttpClient();		
 		ctripHttpClient.setTimeout(3000);
+		
+		entMentionDict = new HashMap<String, String>();
+		entMentionDict.put("Prince_Charles", "Charles,_Prince_of_Wales");
 	}
 	
-	public ArrayList<EntityMapping> getEntityMappings(String searchString, QueryLogger qlog) {
-		ArrayList<String> slist = lookForEntityNames(searchString, qlog);
+	public ArrayList<EntityMapping> getEntityMappings(String searchString, QueryLogger qlog) 
+	{
+		ArrayList<String> slist = new ArrayList<String>();
+		if(entMentionDict.containsKey(searchString))
+			slist.add(entMentionDict.get(searchString));
+		else
+			slist = lookForEntityNames(searchString, qlog);
 		
 		if (slist.size() == 0 && searchString.contains(". "))		
 			slist.addAll(lookForEntityNames(searchString.replaceAll(". ", "."), qlog));		

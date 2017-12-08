@@ -30,7 +30,7 @@ public class AggregationRecognition {
 				for(Triple triple: sp.tripleList)
 				{
 					String p = Globals.pd.getPredicateById(triple.predicateID).toLowerCase();
-					if(p.contains("number") || p.contains("total") || p.contains("calories"))
+					if(p.contains("number") || p.contains("total") || p.contains("calories") || p.contains("satellites"))
 					{
 						sp.countTarget = false;
 					}

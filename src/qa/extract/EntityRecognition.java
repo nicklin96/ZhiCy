@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
+import lcn.EntityFragmentFields;
 import fgmt.EntityFragment;
 import nlp.ds.Word;
 import qa.Globals;
@@ -22,27 +23,33 @@ import rdf.EntityMapping;
 import rdf.NodeSelectedWithScore;
 import rdf.TypeMapping;
 import rdf.MergedWord;
+import utils.FileUtil;
+import addition.*;
 
 /**
- * 主要为Node Recognition相关功能
+ * Core class of Node Recognition
  * @author husen
  */
 public class EntityRecognition {
 	public String preLog = "";
-	public String stopEntFile = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
+	public String stopEntFilePath = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
 	
 	double EntAcceptedScore = 26;
 	double TypeAcceptedScore = 0.5;
 	double AcceptedDiffScore = 1;
 	
+	public HashMap<String, String> m2e = null;
 	public ArrayList<MergedWord> mWordList = null;
 	public ArrayList<String> stopEntList = null;
 	public ArrayList<String> badTagListForEntAndType = null;
 	ArrayList<ArrayList<Integer>> selectedList = null;
 	
+	TypeRecognition tr = null;
+	AddtionalFix af = null;
+	
 	public EntityRecognition() 
 	{
-		// 清空日志
+		// LOG
 		preLog = "";
 		loadStopEntityDict();
 		
@@ -58,37 +65,39 @@ public class EntityRecognition {
 		badTagListForEntAndType.add("VBP");
 		badTagListForEntAndType.add("POS");
 		
+		// !Handwriting entity linking; (lower case)
+		m2e = new HashMap<String, String>();
+		m2e.put("bipolar_syndrome", "Bipolar_disorder");
+		m2e.put("battle_in_1836_in_san_antonio", "Battle_of_San_Jacinto");
+		m2e.put("federal_minister_of_finance_in_germany", "Federal_Ministry_of_Finance_(Germany)");
+		
+		// Additional fix for CATEGORY (in DBpedia)
+		af = new AddtionalFix();
+		tr = new TypeRecognition();
+		
 		System.out.println("EntityRecognizer Initial : ok!");
 	}
 	
 	public void loadStopEntityDict()
 	{
 		stopEntList = new ArrayList<String>();
-		
 		try 
 		{
-			File file = new File(stopEntFile);
-			InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
-			BufferedReader br = new BufferedReader(in);
-
-			String line = null;
-			
-			while ((line = br.readLine())!= null) 
+			List<String> inputs = FileUtil.readFile(stopEntFilePath);
+			for(String line: inputs)
 			{
 				if(line.startsWith("#"))
 					continue;
 				stopEntList.add(line);
 			}	
-			br.close();
-			
-		} catch (Exception e) {
+		} 
+		catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 	
 	public ArrayList<String> process(String question)
 	{
-		TypeRecognition tr = new TypeRecognition();
 		ArrayList<String> fixedQuestionList = new ArrayList<String>();
 		ArrayList<Integer> literalList = new ArrayList<Integer>();
 		HashMap<Integer, Double> entityScores = new HashMap<Integer, Double>();
@@ -104,26 +113,24 @@ public class EntityRecognition {
 		mWordList = new ArrayList<MergedWord>();
 		
 		long t1 = System.currentTimeMillis();
-		//这里的hit是指通过lucene或者dbpedia lookup找到了结果，但不保证结果正确（事实上有很多时候是错误结果，例如 than 都有对应的 实体，显然是不对的） 
-		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0, hitLuceneEntCnt = 0;
+		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0;
 		boolean needRemoveCommas = false;
 		
-		//check entity & type，之后看要不要分开检测 
-		//注意len由小到大的顺序不能变，因为一些长ent是否保留或得分策略依赖于短ent的识别情况
-		for(int len=1;len<=words.length;len++)
+		// Check entity & type
+		// Notice, ascending order by length
+		for(int len=1; len<=words.length; len++)
 		{
 			for(int st=0,ed=st+len; ed<=words.length; st++,ed++)
 			{
-				String originalWord = "",baseWord = "", allUpperWord = "", posTagSequence = "";
+				String originalWord = "", baseWord = "", allUpperWord = "";
 				String[] posTagArr = new String[len];
-				for(int j=st;j<ed;j++)
+				for(int j=st; j<ed; j++)
 				{
 					posTagArr[j-st] = words[j].posTag;
-					posTagSequence += words[j].posTag;
 					originalWord += words[j].originalForm;
 					baseWord += words[j].baseForm;
 					String tmp = words[j].originalForm;
-					if(tmp.length()>0 && tmp.charAt(0)>='a' && tmp.charAt(0)<='z')
+					if(tmp.length()>0 && tmp.charAt(0) >='a' && tmp.charAt(0)<='z')
 					{
 						String pre = tmp.substring(0,1).toUpperCase();
 						tmp = pre + tmp.substring(1);
@@ -134,25 +141,24 @@ public class EntityRecognition {
 					{
 						originalWord += "_";
 						baseWord += "_";
-						posTagSequence += " ";
 					}
 				}
 				allCnt++;
 				
 /*
- * 加一些规则减少find次数，但是这些规则可能牺牲某些entity 
- * 一系列经过不断增加和修正的手写规则
+ * Filters to save time and drop some bad cases.  
 */				
 				boolean entOmit = false, typeOmit = false;
 				int prep_cnt=0;
 				
-				//如果这一串word都是大写字母开头（符号如果在两个word中间，则也算作大写，eg："Melbourne , Florida"），则必定做mapping，否则进行规则判断是否做mapping 
+				// Upper words can pass filter. eg： "Melbourne , Florida"
 				int UpperWordCnt = 0;
 				for(int i=st;i<ed;i++)
-					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') || (words[i].posTag.equals(",") && i>st && i<ed-1))
+					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') 
+							|| ((words[i].posTag.equals(",") || words[i].originalForm.equals("'")) && i>st && i<ed-1))
 						UpperWordCnt++;
 				
-				//如果符合一些 "基本不可能用作entity"的规则，则不进行ent检测 
+				// Filters 
 				if(UpperWordCnt<len || st==0)
 				{
 					if(st==0)
@@ -163,9 +169,7 @@ public class EntityRecognition {
 							typeOmit = true;
 						}
 					}
-					
-					//这些rule需要判断上一个词，所以要求st大于0；注意这些rule只针对ent 
-					if(st>0)
+					else if(st>0)
 					{
 						Word formerWord = words[st-1];
 						//as princess
@@ -175,7 +179,7 @@ public class EntityRecognition {
 						if(formerWord.baseForm.equals("many"))
 							entOmit = true;
 						
-						//obama's daughter ; your height | 2016.5.2,增加len=1限制，因为Asimov's Foundation series这种会识别错
+						//obama's daughter ; your height | len=1 to avoid: Asimov's Foundation series
 						if(len == 1 && (formerWord.posTag.startsWith("POS") || formerWord.posTag.startsWith("PRP")))
 							entOmit = true;
 						//the father of you
@@ -186,7 +190,7 @@ public class EntityRecognition {
 								entOmit = true;
 						}
 						//the area code of ; the official language of
-						boolean flag1=false,flag2=false;
+						boolean flag1=false, flag2=false;
 						for(int i=0;i<=st;i++)
 							if(words[i].posTag.equals("DT"))
 								flag1 = true;
@@ -195,17 +199,11 @@ public class EntityRecognition {
 								flag2 = true;
 						if(flag1 && flag2)
 							entOmit = true;
-						
-					//	//如果前面一个词不是句首且是大写，就认为前面的词是一个实体（或实体的前缀），那么当前词是他的后缀或者它之后的词。而我们认为不会有两个实体完全相邻（但是type可以相邻）
-					//	if(formerWord.originalForm.charAt(0)>='A' && formerWord.originalForm.charAt(0)<='Z' && st>1)
-					//		entOmit = true;
 					}
-					
 					if(ed < words.length)
 					{
 						Word nextWord = words[ed];
-						
-						//如果后面一个词是大写，就认为后面的词是一个实体（或实体的后缀），那么当前词是他的前缀或者它之前的词。而我们认为不会有两个实体完全相邻（但是type可以相邻）
+						// (lowerCase)+(UpperCase)
 						if(nextWord.originalForm.charAt(0)>='A' && nextWord.originalForm.charAt(0)<='Z')
 							entOmit = true;
 					}
@@ -228,7 +226,7 @@ public class EntityRecognition {
 							entOmit = true;
 							typeOmit = true;
 						}
-						//对首词的判断
+						// First word
 						if(i==st)
 						{
 							if(words[i].posTag.startsWith("I") || words[i].posTag.startsWith("EX") || words[i].posTag.startsWith("TO"))
@@ -251,7 +249,7 @@ public class EntityRecognition {
 								typeOmit = true;
 							}
 						}
-						//对尾词的判断
+						// Last word.
 						if(i==ed-1)
 						{
 							if(words[i].posTag.startsWith("I") || words[i].posTag.startsWith("D") || words[i].posTag.startsWith("TO"))
@@ -265,10 +263,10 @@ public class EntityRecognition {
 								typeOmit = true;
 							}
 						}
-						//词序列只有一个词
+						// Single word.
 						if(len==1)
 						{
-							//TODO: 只允许 名词 进行check，但是常有 应该做变量的“通用名词”被检测为ent，如father等
+							//TODO: Omit general noun. eg: father, book ...
 							if(!words[i].posTag.startsWith("N"))
 							{
 								entOmit = true;
@@ -276,7 +274,7 @@ public class EntityRecognition {
 							}
 						}
 					}
-					//此序列有太多的介词不太可能是ent
+					// Too many preposition. 
 					if(prep_cnt >= 3)
 					{
 						entOmit = true;
@@ -284,42 +282,20 @@ public class EntityRecognition {
 					}
 				}
 /*
- * 过滤规则完毕
+ * Filter done.
 */
+							
+				// Search category | highest priority
+				String category = null;
+				if(af.pattern2category.containsKey(baseWord))
+				{
+					typeOmit = true;
+					entOmit = true;
+					category = af.pattern2category.get(baseWord);
+				}
 				
-/*
- * 实验：pos tag pattern 检测
- * 用pos tag pattern 检测代替上述手写rules，分析 “准确率” 和  ”时间效率“ 的变化  2016-2-22 
- * */
-				// use trie search
-//				if(!Globals.pp.entTrie.search(posTagArr))
-//					entOmit = true;
-//				if(!Globals.pp.typeTrie.search(posTagArr))
-//					typeOmit = true;
-				
-				// use arrayList contain
-//				if(!Globals.pp.entPosTagPatternList.contains(posTagSequence))
-//					entOmit = true;
-//				if(!Globals.pp.typePosTagPatternList.contains(posTagSequence))
-//					typeOmit = true;
-/*
- * pos tag pattern 检测完毕
- * */
-			
-/*
- * 实验：entity extraction
- * 分析不同的策略对entity extraction结果的影响
- * */
-				// do not use any rules & stopEntList
-//				typeOmit = false;
-//				entOmit = false;
-//				stopEntList.clear();
-/*
- * 实验：entity extraction 完毕
- * */
-				
-				//search type
-				int hitMethod = 0; // 1= dbo(baseWord), 2=dbo(originalWord), 3=yago|extend()
+				// Search type
+				int hitMethod = 0; // 1=dbo(baseWord), 2=dbo(originalWord), 3=yago|extend()
 				ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
 				if(!typeOmit)
 				{
@@ -336,7 +312,7 @@ public class EntityRecognition {
 					else
 						hitMethod = 1;
 					
-					//search extend type|现在认为extend type优先级更高（因为手动添加的数量少也更靠谱）|现在extend type主要是yago type了
+					//Search extend type (YAGO type)
 					if(tmList == null || tmList.size() == 0)
 					{
 						tmList = tr.getExtendTypeByStr(allUpperWord);
@@ -348,14 +324,14 @@ public class EntityRecognition {
 					}
 				}
 				
-				//search entity
+				// Search entity
 				ArrayList<EntityMapping> emList = new ArrayList<EntityMapping>();
 				if(!entOmit && !stopEntList.contains(baseWord))
 				{
 					System.out.println("Ent Check: "+originalWord);
 					checkEntCnt++;
-					//注意这里的第二个参数是启用dblk的条件
-					emList = getEntityIDsAndNamesByStr(originalWord,(UpperWordCnt>=len-1 || len==1),len);
+					// Notice, the second parameter is whether use DBpedia Lookup.
+					emList = getEntityIDsAndNamesByStr(originalWord, (UpperWordCnt>=len-1 || len==1),len);
 					if(emList == null || emList.size() == 0)
 					{
 						emList = getEntityIDsAndNamesByStr(baseWord, (UpperWordCnt>=len-1 || len==1), len);
@@ -373,7 +349,16 @@ public class EntityRecognition {
 				
 				MergedWord mWord = new MergedWord(st,ed,originalWord);
 				
-				//add literal
+				// Add category
+				if(category != null)
+				{
+					mWord.mayCategory = true;
+					mWord.category = category;
+					int key = st*(words.length+1) + ed;
+					mustSelectedList.add(key);
+				}
+				
+				// Add literal
 				if(len==1 && checkLiteralWord(words[st]))
 				{
 					mWord.mayLiteral = true;
@@ -381,15 +366,15 @@ public class EntityRecognition {
 					literalList.add(key);
 				}
 				
-				//add type mappings
+				// Add type mappings
 				if(tmList!=null && tmList.size()>0)
 				{
-					//如果最高分太低，直接抛弃
+					// Drop by score threshold
 					if(tmList.get(0).score < TypeAcceptedScore)
 						typeOmit = true;
 
-					//method=1或2时如果非精确匹配，抛弃（这个版本只接受精确匹配，type的模糊匹配或taxonomy高层节点匹配之后再尝试）
-					//method=3是yago|extend，是完全字符串匹配的
+					// Only allow EXACT MATCH when method=1|2
+					// TODO: consider approximate match and taxonomy. eg, actor->person
 					String likelyType = tmList.get(0).typeName.toLowerCase();
 					String candidateBase = baseWord.replace("_", ""), candidateOriginal = originalWord.replace("_", "").toLowerCase();
 					if(!candidateBase.equals(likelyType) && hitMethod == 1)
@@ -408,23 +393,22 @@ public class EntityRecognition {
 					}
 				}
 				
-				//add entity mappings
+				// Add entity mappings
 				if(emList!=null && emList.size()>0)
 				{
-					//如果最高分太低，直接抛弃
+					// Drop by score threshold
 					if(emList.get(0).score < EntAcceptedScore)
 						entOmit = true;
 					
-					//针对形如 the German Shepherd dog形式，防止the German Shepherd dog“被识别为一个ent
+					// Drop: the [German Shepherd] dog
 					else if(len > 2)
 					{
 						for(int key: entityMappings.keySet())
 						{
 							int te=key%(words.length+1),ts=key/(words.length+1);
-							//此序列的第一个word是“ent”
 							if(ts == st+1 && ts <= ed)
 							{
-								//第一个词是DT，且是小写 || The Pillars of the Earth或者The_Storm on the Sea_of_Galilee应该是一个ent，the首字母大写
+								//DT in lowercase (allow uppercase, such as: [The Pillars of the Earth])
 								if(words[st].posTag.startsWith("DT") && !(words[st].originalForm.charAt(0)>='A'&&words[st].originalForm.charAt(0)<='Z'))
 								{
 									entOmit = true;
@@ -433,24 +417,24 @@ public class EntityRecognition {
 						}
 					}
 					
-					//匹配信息记入merge word
+					// Record info in merged word
 					if(!entOmit)
 					{
 						mWord.mayEnt = true;
 						mWord.emList = emList;
 					
-						//用于之后的remove duplicate and select
+						// use to remove duplicate and select
 						int key = st*(words.length+1) + ed;
 						entityMappings.put(key, emList.get(0).entityID);
 						
-						//这里对ent的评分进行一些修正 | 属于conflict resolution
+						// fix entity score | conflict resolution
 						double score = emList.get(0).score;
 						String likelyEnt = emList.get(0).entityName.toLowerCase().replace(" ", "_");
 						String lowerOriginalWord = originalWord.toLowerCase();
-						//如果字符串完全匹配，则得分乘以word的数量；单个word的评分已经很高并且经常会出现不想要的情况，所以相当于没有增加单个word得分
+						// !Award: whole match
 						if(likelyEnt.equals(lowerOriginalWord))
 							score *= len;
-						//如果这个Ent被一些小的ent完全覆盖，那么它的可信度应该比这些小的ent的和更高。例如：Robert Kennedy，[Robert]和[Kennedy]都能找到对应ent，但显然这里应该是[Robert Kennedy]
+						// !Award: COVER (eg, Robert Kennedy: [Robert] [Kennedy] [Robert Kennedy])
 						//像Social_Democratic_Party，这三个word任意组合都是ent，导致方案太多；相比较“冲突选哪个”，“连or不应该连”显得更重要（而且实际错误多为连或不连的错误），所以这里直接抛弃被覆盖的小ent
 						//像Abraham_Lincoln，在“不连接”的方案中，会把他们识别成两个node，最后得分超过了正确答案的得分；故对于这种词设置为必选
 						if(len>1)
@@ -475,7 +459,7 @@ public class EntityRecognition {
 							for(int i=st;i<ed;i++)
 								if(flag[i])
 									hitCnt++;
-							//将完全覆盖的条件改为 完全覆盖 ||大部分覆盖并且大部分大写 || 全部大写
+							// WHOLE match || HIGH match & HIGH upper || WHOLE upper
 							if(hitCnt == len || ((double)hitCnt/(double)len > 0.6 && (double)UpperWordCnt/(double)len > 0.6) || UpperWordCnt == len || len>=4)
 							{
 								//如中间有逗号，则要求两边的词都在mapping的entity中出现
@@ -493,7 +477,6 @@ public class EntityRecognition {
 										needRemoveCommas = true;
 									}
 								}
-									
 								if(commaTotalRight)
 								{
 									mustSelectedList.add(key);
@@ -507,34 +490,42 @@ public class EntityRecognition {
 								}
 							}
 						}
-						
+						//NOTICE: score in mWord have no changes. we only change the score in entityScores.
 						entityScores.put(key,score);
-						//注意mWord中的score并没有改，因为还没考虑好这里的评分是否应该带入后面的环节
 					}
 				}
 				
-				if(mWord.mayEnt || mWord.mayType || mWord.mayLiteral)
+				if(mWord.mayCategory || mWord.mayEnt || mWord.mayType || mWord.mayLiteral)
 					mWordList.add(mWord);
 			}
 		}
 		
-		/*输出所有候选匹配，注意这里输出的评分是上述修正过的评分，并不是真正存在mWord里的评分*/
+		/* Print all candidates (use fixed score).*/
 		System.out.println("------- Result ------");
 		for(MergedWord mWord: mWordList)
 		{
 			int key = mWord.st * (words.length+1) + mWord.ed;
+			if(mWord.mayCategory)
+			{
+				System.out.println("Detect category mapping: "+mWord.name+": "+ mWord.category +" score: 100.0");
+	        	preLog += "++++ Category detect: "+mWord.name+": "+mWord.category+" score: 100.0\n";
+			}
 			if(mWord.mayEnt)
 			{
-				System.out.println("Detect entity mapping: "+mWord.name+": "+mWord.emList.get(0).entityName +" score:"+entityScores.get(key));
+				System.out.println("Detect entity mapping: "+mWord.name+": [");
+				for(EntityMapping em: mWord.emList)
+					System.out.print(em.entityName + ", ");
+				System.out.println("]");
 	        	preLog += "++++ Entity detect: "+mWord.name+": "+mWord.emList.get(0).entityName+" score:"+entityScores.get(key)+"\n";
-	        	//统计hit
 				hitEntCnt++;
 			}
 			if(mWord.mayType)
 			{
-				System.out.println("Detect type mapping: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key));
+				System.out.println("Detect type mapping: "+mWord.name+": [");
+				for(TypeMapping tm: mWord.tmList)
+					System.out.print(tm.typeName + ", ");
+				System.out.println("]");
 	    		preLog += "++++ Type detect: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key)+"\n";
-	    		//统计hit
 				hitTypeCnt++;
 			}
 			if(mWord.mayLiteral)
@@ -568,25 +559,23 @@ public class EntityRecognition {
         		entityMappings.remove(key);
         }
         
-        // 2015-11-28 枚举不冲突的策略
         selectedList = new ArrayList<ArrayList<Integer>>();
         ArrayList<Integer> selected = new ArrayList<Integer>();
         
-        // 先放入肯定要选的key
+        // Some phrases must be selected.
         selected.addAll(mustSelectedList);
         for(Integer key: typeMappings.keySet())
         {
-        	//因为type是全匹配而且很少有噪音，所以识别出type的那个word基本是必选的；
-        	//注意这只针对word sequence，单word的type可能和其他名词组成一个Ent，例如“Brooklyn Bridge”，这里type:Bridge就应该被抛弃；
+        	// !type(len>1) (Omit len=1 because: [Brooklyn Bridge] is a entity.
         	int ed = key%(words.length+1), st = key/(words.length+1);
         	if(st+1 < ed)
         	{
         		boolean beCovered = false;
-        		//[prime_minister of Spain],一个ent完全覆盖了这个type，这时可能会取ent
+        		//Entity cover type, eg:[prime_minister of Spain]
 				for(int preKey: entityMappings.keySet())
 				{
 					int te=preKey%(words.length+1),ts=preKey/(words.length+1);
-					//ent必须要比这个type长才算覆盖
+					//Entiy should longer than type
 					if(ts <= st && te >= ed && ed-st < te-ts)
 					{
 						beCovered = true;
@@ -597,27 +586,11 @@ public class EntityRecognition {
 					selected.add(key);
         	}
         }
-//        for(Integer key: literalList)
-//        {
-//        	//因为literal只识别纯数字，所以识别出literal的那个word也是必选的；
-//        	//有一些实体是包含数字的，例如 Chile Route 68，所以literal不能提前固定
-//        	selected.add(key);
-//        }
         
- /*
-  * 实验：conflict resolution
-  * 不同冲突处理策略对最终node Recognition结果的影响
-  * */
-        //1,longest entity principle 2,shortest entity principle
-//        selected.addAll(keys);
-/*
- * 实验：conflict resolution
- * */       
-        
-        //由于之前的策略问题，必选区段有可能冲突，这里按最长原则消除冲突
+        // Conflict resolvtion
         ArrayList<Integer> noConflictSelected = new ArrayList<Integer>();
     	
-		//select longer one when conflict  || 2015-11-28 ”最长原则“ 被  ”允许多种策略“ 替换  || 2015-12-13 在多种策略基础上进行最长原则
+		//select longer one when conflict
 		boolean[] flag = new boolean[words.length];
 		ByLenComparator blc = new ByLenComparator(words.length+1);
 		Collections.sort(selected,blc);
@@ -641,9 +614,8 @@ public class EntityRecognition {
 		  	noConflictSelected.add(key);
 		}
 		
-//scoring and ranking --> top-k decision
+		// Scoring and ranking --> top-k decision
         dfs(keys,0,noConflictSelected,words.length+1);
-        // get score and sort
         ArrayList<NodeSelectedWithScore> nodeSelectedWithScoreList = new ArrayList<NodeSelectedWithScore>();
         for(ArrayList<Integer> select: selectedList)
         {
@@ -660,8 +632,7 @@ public class EntityRecognition {
         }
         Collections.sort(nodeSelectedWithScoreList);
         
-        
-        //replace
+        // Replace
         int cnt = 0;
         for(int k=0; k<nodeSelectedWithScoreList.size(); k++)
         {
@@ -717,13 +688,13 @@ public class EntityRecognition {
 	        preLog += "plan "+cnt+": "+res+"\n";
 	        fixedQuestionList.add(res);
 	        cnt++;
-	        if(cnt >= 3)
+	        if(cnt >= 3)	// top-3
 	        	break;
         }
         long t2 = System.currentTimeMillis();
-        preLog += "Total hit/check/all ent num: "+hitEntCnt+" / "+checkEntCnt+" / "+allCnt+"\n";
-        preLog += "Total hit/check/all type num: "+hitTypeCnt+" / "+checkTypeCnt+" / "+allCnt+"\n";
-        preLog += "Total Node Recognition time: "+ (t2-t1) + "ms\n";
+//        preLog += "Total hit/check/all ent num: "+hitEntCnt+" / "+checkEntCnt+" / "+allCnt+"\n";
+//        preLog += "Total hit/check/all type num: "+hitTypeCnt+" / "+checkTypeCnt+" / "+allCnt+"\n";
+        preLog += "Node Recognition time: "+ (t2-t1) + "ms\n";
 		System.out.println("Total check time: "+ (t2-t1) + "ms");
 		System.out.println("--------- pre entity/type recognition end ---------");
 		
@@ -739,9 +710,9 @@ public class EntityRecognition {
 		}
 		else
 		{
-			//off 第dep个mWord
+			//off: dep-th mWord
 			dfs(keys,dep+1,selected,size);
-			//不冲突则on
+			//on: no conflict
 			boolean conflict = false;
 			for(int preKey: selected)
 			{
@@ -766,10 +737,19 @@ public class EntityRecognition {
 		String n = entity;
 		ArrayList<EntityMapping> ret= new ArrayList<EntityMapping>();
 		
-		//主要依据Lucene，因为噪音很小。大多数情况可以给出正确结果。
+		//1. Handwriting 
+		if(m2e.containsKey(entity))
+		{
+			String eName = m2e.get(entity);
+			EntityMapping em = new EntityMapping(EntityFragmentFields.entityName2Id.get(eName), eName, 1000);
+			ret.add(em);
+			return ret; //目前认为handwrite一定对，直接返回
+		}
+		
+		//2. Lucene index
 		ret.addAll(EntityFragment.getEntityMappingList(n));
 		
-		//在一些情况下，也使用DBpediaLookup进行补充
+		//3. DBpedia Lookup (some cases)
 		if (useDblk) 
 		{ 
 			ret.addAll(Globals.dblk.getEntityMappings(n, null));
@@ -876,10 +856,10 @@ public class EntityRecognition {
 		return false;
 	}
 	
+	//TODO: other literal words.
 	public boolean checkLiteralWord(Word word)
 	{
 		boolean ok = false;
-		//目前就只认为 数值 是literal
 		if(word.posTag.equals("CD"))
 			ok = true;
 		return ok;
@@ -894,7 +874,7 @@ public class EntityRecognition {
 			BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 			while (true) 
 			{	
-				System.out.print("Please input the question: ");
+				System.out.println("Please input the question: ");
 				String question = br.readLine();
 				
 				er.process(question);
