@@ -1,14 +1,14 @@
 package qa.extract;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+//import java.io.File;
+//import java.io.FileInputStream;
+//import java.io.FileNotFoundException;
+//import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
+//import java.io.OutputStreamWriter;
+//import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -125,7 +125,7 @@ public class EntityRecognition {
 			for(int st=0,ed=st+len; ed<=words.length; st++,ed++)
 			{
 				String originalWord = "", baseWord = "", allUpperWord = "";
-				String[] posTagArr = new String[len];
+				//String[] posTagArr = new String[len];
 				for(int j=st; j<ed; j++)
 				{
 				
@@ -417,7 +417,8 @@ public class EntityRecognition {
 					{
 						for(int key: entityMappings.keySet())
 						{
-							int te=key%(words.length+1),ts=key/(words.length+1);
+							//int te=key%(words.length+1);
+							int ts=key/(words.length+1);
 							if(ts == st+1 && ts <= ed)
 							{
 								//DT in lowercase (allow uppercase, such as: [The Pillars of the Earth])

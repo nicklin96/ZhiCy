@@ -124,7 +124,7 @@ public class DependencyTree {
 	    }
 	}
 	
-	public DependencyTree (Sentence sentence, MaltParser maltParser) {
+	public DependencyTree (Sentence sentence, MaltParser maltParser)throws MaltChainedException {
 		try {
 			// the tokens are parsed in the following line
 			DependencyStructure graph = maltParser.getDependencyStructure(sentence);
@@ -236,8 +236,9 @@ public class DependencyTree {
 		    	dtn.linkNN(this);
 		    }
 		} catch (MaltChainedException e) {
-			e.printStackTrace();
-			System.err.println("MaltParser exception: " + e.getMessage());
+			//e.printStackTrace();
+			//System.err.println("MaltParser exception: " + e.getMessage());
+			throw e;
 		}
 	}
 	
