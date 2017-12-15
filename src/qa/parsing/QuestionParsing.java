@@ -16,11 +16,24 @@ public class QuestionParsing {
 	}
 	
 	public void getDependenciesAndNER (QueryLogger qlog) {
+		long t1 = System.currentTimeMillis();
 		try {
-			long t1 = System.currentTimeMillis();
 			qlog.s.dependencyTreeStanford = new DependencyTree(qlog.s, Globals.stanfordParser);
-			long t2 = System.currentTimeMillis();
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		
+		long t2 = System.currentTimeMillis();
+		try{
 			qlog.s.dependencyTreeMalt = new DependencyTree(qlog.s, Globals.maltParser);
+		}catch(MaltChainedException e){
+			//if errors occur, abandon malt tree
+			qlog.s.dependencyTreeMalt = qlog.s.dependencyTreeStanford;
+		}catch(Exception e){
+			
+		}					
+		
+		try {
 			long t3 = System.currentTimeMillis();
 			Globals.nerRecognizer.recognize(qlog.s);
 			long t4 = System.currentTimeMillis();

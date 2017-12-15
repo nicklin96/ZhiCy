@@ -64,11 +64,11 @@ public class ExtractImplicitRelation {
 			return null;
 		
 		//ent1 & ent2
-		if(w1Role == 1 && w2Role == 1)
-		{
-			EntityFragment ef = null;
+		//if(w1Role == 1 && w2Role == 1)
+		//{
+			//EntityFragment ef = null;
 			// TODO: implement.
-		}
+		//}
 		
 		return res;
 	}

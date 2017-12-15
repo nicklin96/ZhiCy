@@ -322,11 +322,11 @@ public class GAnswer {
 		}
 		try {
 			//String[][] answers = qlog.match.answers;
-			String qf = qlog.sparql.questionFocus;
+			//String qf = qlog.sparql.questionFocus;
 			//int max = Matches.pageNum;			
 		
 			StringBuilder ret = new StringBuilder("");
-			String questionFocus=qf;
+			//String questionFocus=qf;
 			//String sparqlString = qlog.sparql.toStringForGStore();
 			
 			//HashSet<String> printed = new HashSet<String>();
