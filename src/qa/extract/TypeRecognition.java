@@ -8,7 +8,7 @@ import java.util.HashMap;
 
 import nlp.ds.Word;
 import nlp.tool.StopWordsList;
-import fgmt.RelationFragment;
+//import fgmt.RelationFragment;
 import fgmt.TypeFragment;
 import lcn.SearchInTypeShortName;
 import log.QueryLogger;

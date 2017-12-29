@@ -5,18 +5,18 @@ import java.util.HashMap;
 
 import paradict.PredicateIDAndSupport;
 import log.QueryLogger;
-import nlp.ds.DependencyTree;
-import nlp.ds.DependencyTreeNode;
+//import nlp.ds.DependencyTree;
+//import nlp.ds.DependencyTreeNode;
 import nlp.ds.Word;
 import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
-import qa.extract.TypeRecognition;
-import qa.mapping.SemanticItemMapping;
-import rdf.EntityMapping;
+//import qa.extract.TypeRecognition;
+//import qa.mapping.SemanticItemMapping;
+//import rdf.EntityMapping;
 import rdf.SemanticUnit;
 import rdf.Sparql;
 import rdf.Triple;
-import fgmt.TypeFragment;
+//import fgmt.TypeFragment;
 
 
 public class AddtionalFix 
@@ -60,15 +60,15 @@ public class AddtionalFix
 		if(category != null && var != null)
 			for(Sparql spq: qlog.rankedSparqls)
 			{
-				boolean occured = false;
-				for(Triple tri: spq.tripleList)
-				{
-					if(tri.subject.equals(var))
-					{
-						occured = true;
-						break;
-					}
-				}
+				//boolean occured = false;
+				//for(Triple tri: spq.tripleList)
+				//{
+					//if(tri.subject.equals(var))
+					//{
+						//occured = true;
+						//break;
+					//}
+				//}
 				String oName = category;
 				String pName = "subject";
 				int pid = Globals.pd.predicate_2_id.get(pName);

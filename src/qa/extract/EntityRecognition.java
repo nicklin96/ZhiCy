@@ -1,14 +1,14 @@
 package qa.extract;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+//import java.io.File;
+//import java.io.FileInputStream;
+//import java.io.FileNotFoundException;
+//import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
+//import java.io.OutputStreamWriter;
+//import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -113,22 +113,27 @@ public class EntityRecognition {
 		mWordList = new ArrayList<MergedWord>();
 		
 		long t1 = System.currentTimeMillis();
-		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0;
+		//int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0;
 		boolean needRemoveCommas = false;
 		
 		// Check entity & type
 		// Notice, ascending order by length
+		StringBuilder tmpOW = new StringBuilder();
+		StringBuilder tmpBW = new StringBuilder();
 		for(int len=1; len<=words.length; len++)
 		{
 			for(int st=0,ed=st+len; ed<=words.length; st++,ed++)
 			{
 				String originalWord = "", baseWord = "", allUpperWord = "";
-				String[] posTagArr = new String[len];
+				//String[] posTagArr = new String[len];
 				for(int j=st; j<ed; j++)
 				{
-					posTagArr[j-st] = words[j].posTag;
-					originalWord += words[j].originalForm;
-					baseWord += words[j].baseForm;
+				
+					//posTagArr[j-st] = words[j].posTag;
+					//originalWord += words[j].originalForm;
+					//baseWord += words[j].baseForm;
+					tmpOW.append(words[j].originalForm);
+					tmpBW.append(words[j].baseForm);
 					String tmp = words[j].originalForm;
 					if(tmp.length()>0 && tmp.charAt(0) >='a' && tmp.charAt(0)<='z')
 					{
@@ -139,11 +144,18 @@ public class EntityRecognition {
 					
 					if(j < ed-1)
 					{
-						originalWord += "_";
-						baseWord += "_";
+						//originalWord += "_";
+						//baseWord += "_";
+						tmpOW.append("_");
+						tmpBW.append("_");
 					}
 				}
-				allCnt++;
+				originalWord = tmpOW.toString();
+				baseWord=tmpBW.toString();
+				tmpOW.setLength(0);
+				tmpBW.setLength(0);
+				
+				//allCnt++;
 				
 /*
  * Filters to save time and drop some bad cases.  
@@ -300,7 +312,7 @@ public class EntityRecognition {
 				if(!typeOmit)
 				{
 					System.out.println("Type Check:  "+originalWord);
-					checkTypeCnt++;
+					//checkTypeCnt++;
 					//search standard type  
 					tmList = tr.getTypeIDsAndNamesByStr(baseWord);
 					if(tmList == null || tmList.size() == 0)
@@ -329,7 +341,7 @@ public class EntityRecognition {
 				if(!entOmit && !stopEntList.contains(baseWord))
 				{
 					System.out.println("Ent Check: "+originalWord);
-					checkEntCnt++;
+					//checkEntCnt++;
 					// Notice, the second parameter is whether use DBpedia Lookup.
 					emList = getEntityIDsAndNamesByStr(originalWord, (UpperWordCnt>=len-1 || len==1),len);
 					if(emList == null || emList.size() == 0)
@@ -405,7 +417,8 @@ public class EntityRecognition {
 					{
 						for(int key: entityMappings.keySet())
 						{
-							int te=key%(words.length+1),ts=key/(words.length+1);
+							//int te=key%(words.length+1);
+							int ts=key/(words.length+1);
 							if(ts == st+1 && ts <= ed)
 							{
 								//DT in lowercase (allow uppercase, such as: [The Pillars of the Earth])
@@ -517,7 +530,7 @@ public class EntityRecognition {
 					System.out.print(em.entityName + ", ");
 				System.out.println("]");
 	        	preLog += "++++ Entity detect: "+mWord.name+": "+mWord.emList.get(0).entityName+" score:"+entityScores.get(key)+"\n";
-				hitEntCnt++;
+				//hitEntCnt++;
 			}
 			if(mWord.mayType)
 			{
@@ -526,7 +539,7 @@ public class EntityRecognition {
 					System.out.print(tm.typeName + ", ");
 				System.out.println("]");
 	    		preLog += "++++ Type detect: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key)+"\n";
-				hitTypeCnt++;
+				//hitTypeCnt++;
 			}
 			if(mWord.mayLiteral)
 			{
@@ -764,7 +777,6 @@ public class EntityRecognition {
 	public int preferDBpediaLookupOrLucene(String entityName)
 	{
 		int cntUpperCase = 0;
-		int cntLowerCase = 0;
 		int cntSpace = 0;
 		int cntPoint = 0;
 		int length = entityName.length();
@@ -775,8 +787,6 @@ public class EntityRecognition {
 				cntSpace++;
 			else if (c=='.')
 				cntPoint++;
-			else if (c>='a' && c<='z')
-				cntLowerCase++;
 			else if (c>='A' && c<='Z')
 				cntUpperCase++;
 		}

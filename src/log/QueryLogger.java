@@ -1,10 +1,10 @@
 package log;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
+//import java.io.File;
+//import java.io.FileNotFoundException;
+//import java.io.FileOutputStream;
+//import java.io.OutputStreamWriter;
+//import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,7 +12,7 @@ import java.util.HashSet;
 
 import javax.servlet.http.HttpServletRequest;
 
-import qa.Globals;
+//import qa.Globals;
 import qa.Matches;
 import qa.Query;
 import rdf.EntityMapping;

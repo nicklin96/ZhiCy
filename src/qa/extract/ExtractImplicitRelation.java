@@ -1,7 +1,7 @@
 package qa.extract;
 
 import java.io.BufferedReader;
-import java.io.IOException;
+//import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -64,11 +64,11 @@ public class ExtractImplicitRelation {
 			return null;
 		
 		//ent1 & ent2
-		if(w1Role == 1 && w2Role == 1)
-		{
-			EntityFragment ef = null;
+		//if(w1Role == 1 && w2Role == 1)
+		//{
+			//EntityFragment ef = null;
 			// TODO: implement.
-		}
+		//}
 		
 		return res;
 	}

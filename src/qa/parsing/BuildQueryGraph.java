@@ -1,6 +1,6 @@
 package qa.parsing;
 
-import java.io.IOException;
+//import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,7 +20,7 @@ import rdf.Triple;
 import rdf.SemanticRelation;
 import rdf.SimpleRelation;
 import rdf.SemanticUnit;
-import paradict.ParaphraseDictionary;
+//import paradict.ParaphraseDictionary;
 
 /*
  * The core class to build query graph, i.e, to generate SPARQL queries.
