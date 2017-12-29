@@ -1,7 +1,7 @@
 package qa.extract;
 
 import java.io.BufferedReader;
-import java.io.IOException;
+//import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,8 +24,8 @@ import nlp.tool.CoreNLP;
 
 public class ExtractImplicitRelation {
 	
-	static final int SamplingNumber = 100;	//¼ÆËã¹ı³ÌÖĞ£¬ºòÑ¡ÊµÌå¹ı¶àÊ±£¬Ñ¡ÔñµÄ×î´óÊıÄ¿
-	static final int k = 3;	//¿ÉÄÜÓĞ¶à¸ö¹ØÏµÊ±£¬Ñ¡ÔñÇ°top-k¸ö£»word¿ÉÄÜ¶ÔÓ¦¶à¸öentÊ±£¬Ñ¡ÔñÇ°k¸ö
+	static final int SamplingNumber = 100;	//è®¡ç®—è¿‡ç¨‹ä¸­ï¼Œå€™é€‰å®ä½“è¿‡å¤šæ—¶ï¼Œé€‰æ‹©çš„æœ€å¤§æ•°ç›®
+	static final int k = 3;	//å¯èƒ½æœ‰å¤šä¸ªå…³ç³»æ—¶ï¼Œé€‰æ‹©å‰top-kä¸ªï¼›wordå¯èƒ½å¯¹åº”å¤šä¸ªentæ—¶ï¼Œé€‰æ‹©å‰kä¸ª
 	public HashMap<String, Integer> implicitEntRel = new HashMap<String, Integer>();
 	
 	/*
@@ -64,11 +64,11 @@ public class ExtractImplicitRelation {
 			return null;
 		
 		//ent1 & ent2
-		if(w1Role == 1 && w2Role == 1)
-		{
-			EntityFragment ef = null;
+		//if(w1Role == 1 && w2Role == 1)
+		//{
+			//EntityFragment ef = null;
 			// TODO: implement.
-		}
+		//}
 		
 		return res;
 	}
@@ -164,7 +164,7 @@ public class ExtractImplicitRelation {
 	}
 	
 	/*
-	 * eg£ºCzech|ent movies|?type	Chinese|ent actor|?type
+	 * egï¼šCzech|ent movies|?type	Chinese|ent actor|?type
 	 * type variable + entity -> entities belong to type + entity 
 	 * */
 	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_Entity_TypeVariable(Integer entId, Integer typeId)
@@ -175,7 +175,7 @@ public class ExtractImplicitRelation {
 		EntityFragment ef2 = EntityFragment.getEntityFragmentByEntityId(entId);
 		if(tf == null || ef2 == null)
 		{
-			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity £ºType(" + 
+			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity ï¼šType(" + 
 					TypeFragment.typeId2ShortName.get(typeId) + ") or Entity(" + EntityFragmentFields.entityId2Name.get(entId) + ") no fragments.");
 			return null;
 		}
@@ -252,7 +252,7 @@ public class ExtractImplicitRelation {
 	
 	/*
 	 * Notice, this function has not been used in fact.
-	 * eg£º[What] is in a [chocolate_chip_cookie]
+	 * egï¼š[What] is in a [chocolate_chip_cookie]
 	 * Just guess by single entity: select the most frequent edge.
 	 * */
 	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_Entity_Variable(Integer entId, String var)

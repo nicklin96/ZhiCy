@@ -1,6 +1,6 @@
 package qa.parsing;
 
-import java.io.IOException;
+//import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,7 +20,7 @@ import rdf.Triple;
 import rdf.SemanticRelation;
 import rdf.SimpleRelation;
 import rdf.SemanticUnit;
-import paradict.ParaphraseDictionary;
+//import paradict.ParaphraseDictionary;
 
 /*
  * The core class to build query graph, i.e, to generate SPARQL queries.
@@ -169,7 +169,7 @@ public class BuildQueryGraph
 			// !target can NOT be entity. (except general question)| which [city] has most people?
 			if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
 			{
-				//Counter example£ºGive me all Seven_Wonders_of_the_Ancient_World | (in fact, it not ENT, but CATEGORY, ?x subject Seve...)
+				//Counter exampleï¼šGive me all Seven_Wonders_of_the_Ancient_World | (in fact, it not ENT, but CATEGORY, ?x subject Seve...)
 				target.word.mayEnt = false;
 				target.word.emList.clear();
 			}
@@ -195,11 +195,11 @@ public class BuildQueryGraph
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null )
 				{
-					//[2017-1-7]Èç¹ûtarget¾Í±»represent£¬continue¾ÍÖ±½ÓÍË³öÁË£¬semanticUnitList=null£¬³¢ÊÔ¼ÓÈë¹æÔò·Å¹ýwho£»ÖÎ±ê²»ÖÎ±¾£¬»¹ÊÇÓÐ¿Õ×ö¸ù±¾¸Ä¶¯£¬ÔÚÈ·¶¨½á¹¹ºóÔÙ¹²Ö¸Ïû½â
+					//[2017-1-7]å¦‚æžœtargetå°±è¢«representï¼Œcontinueå°±ç›´æŽ¥é€€å‡ºäº†ï¼ŒsemanticUnitList=nullï¼Œå°è¯•åŠ å…¥è§„åˆ™æ”¾è¿‡whoï¼›æ²»æ ‡ä¸æ²»æœ¬ï¼Œè¿˜æ˜¯æœ‰ç©ºåšæ ¹æœ¬æ”¹åŠ¨ï¼Œåœ¨ç¡®å®šç»“æž„åŽå†å…±æŒ‡æ¶ˆè§£
 					//if(curCenterNode != target)
-					//±»À©Õ¹SU±»ÆäËûSU´ú±í£¬ÔòÖ±½ÓÂÔ¹ý´Ë´ÎÀ©Õ¹; TODO: ¹²Ö¸Ïû½âÓ¦¸ÃÔÚ½á¹¹È·¶¨ºó×ö£¬Ö±½ÓÅ×Æú¿ÉÄÜ»á¶ªÊ§²¿·Ö±ßÐÅÏ¢
-					//[2015-12-13]ÕâÑùÏàµ±ÓÚ¶ªÊ§ÁËÕâ¸ö·½Ïò£¬ÑØ¸ÃSU¼ÌÐø×ß±¾À´ÄÜÕÒµ½ÆäËûµã£¬µ«Ö±½Ócontinue¾Í¶Ï¾øÁËÕÒµ½ÕâÐ©µãµÄÏ£Íû; Ö®ËùÒÔÒ»Ö±Ã»ÓÐ·¢ÏÖÎÊÌâÊÇÒòÎª¾ø´ó¶àÊýÇé¿ö±»´ú±íµÄSU¶¼ÔÚquery graphµÄ±ßÔµ£¬¼´²»»áÖÐ¶ÏÌ½Ë÷
-					//[2015-12-13]¸É´àÏÈ°þ¶áËûÃÇÔÚdfsÖÐ±»Ì½Ë÷µ½µÄÈ¨Àû£¬¼´ÔÚisNodeÖÐ¾Ü¾ørepresent£¬×¢ÒâÏÈÖ»Õë¶Ô represent;  
+					//è¢«æ‰©å±•SUè¢«å…¶ä»–SUä»£è¡¨ï¼Œåˆ™ç›´æŽ¥ç•¥è¿‡æ­¤æ¬¡æ‰©å±•; TODO: å…±æŒ‡æ¶ˆè§£åº”è¯¥åœ¨ç»“æž„ç¡®å®šåŽåšï¼Œç›´æŽ¥æŠ›å¼ƒå¯èƒ½ä¼šä¸¢å¤±éƒ¨åˆ†è¾¹ä¿¡æ¯
+					//[2015-12-13]è¿™æ ·ç›¸å½“äºŽä¸¢å¤±äº†è¿™ä¸ªæ–¹å‘ï¼Œæ²¿è¯¥SUç»§ç»­èµ°æœ¬æ¥èƒ½æ‰¾åˆ°å…¶ä»–ç‚¹ï¼Œä½†ç›´æŽ¥continueå°±æ–­ç»äº†æ‰¾åˆ°è¿™äº›ç‚¹çš„å¸Œæœ›; ä¹‹æ‰€ä»¥ä¸€ç›´æ²¡æœ‰å‘çŽ°é—®é¢˜æ˜¯å› ä¸ºç»å¤§å¤šæ•°æƒ…å†µè¢«ä»£è¡¨çš„SUéƒ½åœ¨query graphçš„è¾¹ç¼˜ï¼Œå³ä¸ä¼šä¸­æ–­æŽ¢ç´¢
+					//[2015-12-13]å¹²è„†å…ˆå‰¥å¤ºä»–ä»¬åœ¨dfsä¸­è¢«æŽ¢ç´¢åˆ°çš„æƒåˆ©ï¼Œå³åœ¨isNodeä¸­æ‹’ç»representï¼Œæ³¨æ„å…ˆåªé’ˆå¯¹ represent;  
 						continue;
 				}					
 				
@@ -490,7 +490,7 @@ public class BuildQueryGraph
 		if(cur.word.omitNode || cur.word.represent!=null)
 			return false;
 		
-		// Modifier can NOT be node (They may be added in query graph in the end) e.g., Queen Elizabeth II£¬Queen(modifier)
+		// Modifier can NOT be node (They may be added in query graph in the end) e.g., Queen Elizabeth IIï¼ŒQueen(modifier)
 		if(modifierList.contains(cur.word))
 			return false;
 		
@@ -626,7 +626,7 @@ public class BuildQueryGraph
 		//what
 		else if(target.word.baseForm.equals("what"))
 		{
-			//Detect£ºwhat is [the] sth1 prep. sth2?
+			//Detectï¼šwhat is [the] sth1 prep. sth2?
 			//Omit: what is sth? 
 			if(target.father != null && ds.nodesList.size()>=5)
 			{
@@ -663,7 +663,7 @@ public class BuildQueryGraph
 			if(target.word.baseForm.equals("what"))
 			{
 				int curPos = target.word.position - 1;
-				// what be the [node] ... ? (Notice: words.length CONTAINS symbol(?)£¬different from nodeList)
+				// what be the [node] ... ? (Notice: words.length CONTAINS symbol(?)ï¼Œdifferent from nodeList)
 				if(words.length > 5 && words[curPos+1].baseForm.equals("be") && words[curPos+2].baseForm.equals("the") && isNodeCandidate(words[curPos+3]))
 				{
 					target.word.represent = words[curPos+3];
@@ -675,7 +675,7 @@ public class BuildQueryGraph
 		//who
 		else if(target.word.baseForm.equals("who"))
 		{
-			//Detect£ºwho is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
+			//Detectï¼šwho is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
 			//Others: who is sth? who do sth?  | target = who
 			//test case: Who is the daughter of Robert_Kennedy married to?
 			if(target.father != null && ds.nodesList.size()>=5)
@@ -721,7 +721,7 @@ public class BuildQueryGraph
 		//how
 		else if(target.word.baseForm.equals("how"))
 		{	
-			//Detect£ºhow many sth ...  |eg: how many popular Chinese director are there
+			//Detectï¼šhow many sth ...  |eg: how many popular Chinese director are there
 			int curPos = target.word.position-1;
 			if(curPos+2 < words.length && words[curPos+1].baseForm.equals("many"))
 			{
@@ -745,7 +745,7 @@ public class BuildQueryGraph
 					}
 				}
 			}
-			//Detect£ºhow much ... 
+			//Detectï¼šhow much ... 
 			else if(curPos+2 < words.length && words[curPos+1].baseForm.equals("much"))
 			{
 				Word modifiedWord = words[curPos+2].modifiedWord;
@@ -770,9 +770,9 @@ public class BuildQueryGraph
 	}
 	
 	/*
-	 * There are two cases of [ent]+[type]£º1¡¢Chinese company 2¡¢De_Beer company; 
-	 * For 1, chinese -> company£¬for 2, De_Beer <- company
-	 * Return: True : ent -> type | False £º type <- ent
+	 * There are two cases of [ent]+[type]ï¼š1ã€Chinese company 2ã€De_Beer company; 
+	 * For 1, chinese -> companyï¼Œfor 2, De_Beer <- company
+	 * Return: True : ent -> type | False ï¼š type <- ent
 	 * */
 	public boolean checkModifyBetweenEntType(Word entWord, Word typeWord)
 	{
@@ -787,16 +787,16 @@ public class BuildQueryGraph
 	}
 		
 	/*
-	 * ÐÞÊÎµÄ¸ÅÄî£ºÔÚÕýÈ·µÄdependency treeÖÐ£¬Ò»¸öword(ent/type)Ö¸ÏòÁíÒ»¸öword£¬±ßÍ¨³£ÎªmodÏµÁÐ£¬ËüÃÇÖ®¼äÃ»ÓÐÆäËûµã£¬²¢ÇÒÊÇ¶ÀÁ¢µÄÁ½¸öobject
-	 * ÀýÈç£ºChinese teacher --> ChineseÐÞÊÎteacher£»the Chinese teacher Wang Wei --> ChineseºÍteacher¶¼ÐÞÊÎWang Wei£»
-	 * ×¢Òâ£ºthe Television Show Charmed£¬ÒòÎªÊôÓÚÒ»¸öobjectµÄword sequence»á±»ÌáÇ°Ê¶±ð³öÀ´²¢ÓÃÏÂ»®ÏßÁ¬½ÓÎªÒ»¸öword£¬ËùÒÔTelevision_ShowÐÞÊÎCharmed
-	 * ÕÒµ½µ±Ç°wordËùÐÞÊÎµÄÄÇ¸öword£¨Èç¹ûËü²»ÐÞÊÎ±ðÈË£¬·µ»ØËü×Ô¼º£©
-	 * Í¨¹ýsentence¶ø²»ÊÇdependency tree (ÒòÎªºóÕß³£Éú³É´íÎó)
-	 * Í¨³£Á¬Ðø³öÏÖµÄnode¶¼ÊÇÐÞÊÎ×îºóÒ»¸önodeµÄ£»ÀýÍâÇé¿öÈçtest case 3£»²ÉÓÃµÝ¹éµÄ·½Ê½
+	 * ä¿®é¥°çš„æ¦‚å¿µï¼šåœ¨æ­£ç¡®çš„dependency treeä¸­ï¼Œä¸€ä¸ªword(ent/type)æŒ‡å‘å¦ä¸€ä¸ªwordï¼Œè¾¹é€šå¸¸ä¸ºmodç³»åˆ—ï¼Œå®ƒä»¬ä¹‹é—´æ²¡æœ‰å…¶ä»–ç‚¹ï¼Œå¹¶ä¸”æ˜¯ç‹¬ç«‹çš„ä¸¤ä¸ªobject
+	 * ä¾‹å¦‚ï¼šChinese teacher --> Chineseä¿®é¥°teacherï¼›the Chinese teacher Wang Wei --> Chineseå’Œteacheréƒ½ä¿®é¥°Wang Weiï¼›
+	 * æ³¨æ„ï¼šthe Television Show Charmedï¼Œå› ä¸ºå±žäºŽä¸€ä¸ªobjectçš„word sequenceä¼šè¢«æå‰è¯†åˆ«å‡ºæ¥å¹¶ç”¨ä¸‹åˆ’çº¿è¿žæŽ¥ä¸ºä¸€ä¸ªwordï¼Œæ‰€ä»¥Television_Showä¿®é¥°Charmed
+	 * æ‰¾åˆ°å½“å‰wordæ‰€ä¿®é¥°çš„é‚£ä¸ªwordï¼ˆå¦‚æžœå®ƒä¸ä¿®é¥°åˆ«äººï¼Œè¿”å›žå®ƒè‡ªå·±ï¼‰
+	 * é€šè¿‡sentenceè€Œä¸æ˜¯dependency tree (å› ä¸ºåŽè€…å¸¸ç”Ÿæˆé”™è¯¯)
+	 * é€šå¸¸è¿žç»­å‡ºçŽ°çš„nodeéƒ½æ˜¯ä¿®é¥°æœ€åŽä¸€ä¸ªnodeçš„ï¼›ä¾‹å¤–æƒ…å†µå¦‚test case 3ï¼›é‡‡ç”¨é€’å½’çš„æ–¹å¼
 	 * test case:
 	 * 1) the highest Chinese mountain
 	 * 2) the Chinese popular director
-	 * 3) the De_Beers company  (×¢ÒâÕâÀï company[type]ÐÞÊÎ De_Beers[ent])
+	 * 3) the De_Beers company  (æ³¨æ„è¿™é‡Œ company[type]ä¿®é¥° De_Beers[ent])
 	 * */
 	public Word getTheModifiedWordBySentence(Sentence s, Word curWord)
 	{
@@ -804,19 +804,19 @@ public class BuildQueryGraph
 			return null;
 		if(curWord.modifiedWord != null)
 			return curWord.modifiedWord;
-		//¼È²»ÊÇÐÎÈÝ´ÊÒ²²»ÊÇnode£¬ÓëÐÞÊÎ¹ØÏµÎÞ¹Ø£¬ÉèÎªnull
+		//æ—¢ä¸æ˜¯å½¢å®¹è¯ä¹Ÿä¸æ˜¯nodeï¼Œä¸Žä¿®é¥°å…³ç³»æ— å…³ï¼Œè®¾ä¸ºnull
 		if(!isNodeCandidate(curWord) && !curWord.posTag.startsWith("JJ") && !curWord.posTag.startsWith("R"))
 			return curWord.modifiedWord = null;
 		
-		curWord.modifiedWord = curWord;	//Ä¬ÈÏÐÞÊÎ×Ô¼º£¬ÐÞÊÎ×Ô¼ºµÄword²»Ëã×ömodifier
+		curWord.modifiedWord = curWord;	//é»˜è®¤ä¿®é¥°è‡ªå·±ï¼Œä¿®é¥°è‡ªå·±çš„wordä¸ç®—åšmodifier
 		Word preWord = null, nextWord = null;
-		int curPos = curWord.position - 1; //wordµÄposition´Ó1¿ªÊ¼£¬ËùÒÔ¼õÒ»
+		int curPos = curWord.position - 1; //wordçš„positionä»Ž1å¼€å§‹ï¼Œæ‰€ä»¥å‡ä¸€
 		if(curPos-1 >= 0)	preWord = s.words[curPos-1];
 		if(curPos+1 < s.words.length)	nextWord = s.words[curPos+1];
 		Word nextModifiedWord = getTheModifiedWordBySentence(s, nextWord);
 		
-		//External rule: ÈÏÎª ent+noun(·Çtype|ent)µÄÐÎÊ½£¬ent²»ÊÇÐÞÊÎ´Ê²¢ÇÒºóÃæµÄnoun²»ÊÇnode£»
-		//eg£ºDoes the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
+		//External rule: è®¤ä¸º ent+noun(éžtype|ent)çš„å½¢å¼ï¼Œentä¸æ˜¯ä¿®é¥°è¯å¹¶ä¸”åŽé¢çš„nounä¸æ˜¯nodeï¼›
+		//egï¼šDoes the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
 		if(curWord.mayEnt && nextWord != null && !nextWord.mayEnt && !nextWord.mayType && !nextWord.mayLiteral)
 		{
 			nextWord.omitNode = true;
@@ -824,43 +824,43 @@ public class BuildQueryGraph
 				return curWord.modifiedWord = curWord;
 		}
 		
-		//ÐÞÊÎ×ó±ß: ent + type(cur) : De_Beer company
+		//ä¿®é¥°å·¦è¾¹: ent + type(cur) : De_Beer company
 		if(preWord != null && curWord.mayType && preWord.mayEnt) //ent + type(cur)
 		{
-			if(!checkModifyBetweenEntType(preWord, curWord)) //De_Beer <- company, ×¢Òâ´ËÊ±¼´Ê¹typeºóÃæ»¹Á¬×Ånode£¬Ò²²»Àí»áÁË
+			if(!checkModifyBetweenEntType(preWord, curWord)) //De_Beer <- company, æ³¨æ„æ­¤æ—¶å³ä½¿typeåŽé¢è¿˜è¿žç€nodeï¼Œä¹Ÿä¸ç†ä¼šäº†
 				return curWord.modifiedWord = preWord;
 		}
 		
-		//ÐÞÊÎ×Ô¼º: ent(cur) + type : De_Beer company
+		//ä¿®é¥°è‡ªå·±: ent(cur) + type : De_Beer company
 		if(nextModifiedWord != null && curWord.mayEnt && nextModifiedWord.mayType)
 		{
 			if(!checkModifyBetweenEntType(curWord, nextModifiedWord))
 				return curWord.modifiedWord = curWord;
 		}
 		
-		//ÅÅ³ýÌØÊâÇé¿öºó£¬Í¨³£Çé¿ö¶¼ÊÇÐÞÊÎÓÒ±ß
+		//æŽ’é™¤ç‰¹æ®Šæƒ…å†µåŽï¼Œé€šå¸¸æƒ…å†µéƒ½æ˜¯ä¿®é¥°å³è¾¹
 		if(nextModifiedWord != null)
 			return curWord.modifiedWord = nextModifiedWord;
 		
-		//ÓÒ±ßÃ»ÓÐnodeÁË£¬Ö»ÄÜÐÞÊÎ×Ô¼º
+		//å³è¾¹æ²¡æœ‰nodeäº†ï¼Œåªèƒ½ä¿®é¥°è‡ªå·±
 		return curWord.modifiedWord;
 	}
 	
 	/*
-	 * Ê¶±ð²»Á¬Ðø´ÊÖ®¼äµÄmodifier/modified¹ØÏµ£¬Èç£º
-	 * 1¡¢[ent1] 's [ent2]
-	 * 2¡¢[ent1] by [ent2]
-	 * ×¢Òâ£ºÐèÏÈÔËÐÐgetTheModifiedWordBySentence
+	 * è¯†åˆ«ä¸è¿žç»­è¯ä¹‹é—´çš„modifier/modifiedå…³ç³»ï¼Œå¦‚ï¼š
+	 * 1ã€[ent1] 's [ent2]
+	 * 2ã€[ent1] by [ent2]
+	 * æ³¨æ„ï¼šéœ€å…ˆè¿è¡ŒgetTheModifiedWordBySentence
 	 * */
 	public Word getDiscreteModifiedWordBySentence(Sentence s, Word curWord)
 	{	
-		int curPos = curWord.position - 1; //wordµÄposition´Ó1¿ªÊ¼£¬ËùÒÔ¼õÒ»
+		int curPos = curWord.position - 1; //wordçš„positionä»Ž1å¼€å§‹ï¼Œæ‰€ä»¥å‡ä¸€
 		
-		//[ent1](cur) 's [ent2], Ôòent1ÊÇent2µÄÐÞÊÎ´Ê£¬ÇÒÍ¨³£²»ÐèÒª³öÏÖÔÚsparqlÖÐ¡£| eg£ºShow me all books in Asimov 's Foundation_series
+		//[ent1](cur) 's [ent2], åˆ™ent1æ˜¯ent2çš„ä¿®é¥°è¯ï¼Œä¸”é€šå¸¸ä¸éœ€è¦å‡ºçŽ°åœ¨sparqlä¸­ã€‚| egï¼šShow me all books in Asimov 's Foundation_series
 		if(curPos+2 < s.words.length && curWord.mayEnt && s.words[curPos+1].baseForm.equals("'s") && s.words[curPos+2].mayEnt)
 			return curWord.modifiedWord = s.words[curPos+2];
 		
-		//[ent1] by [ent2](cur), Ôòent2ÊÇent1µÄÐÞÊÎ´Ê£¬ÇÒÍ¨³£²»ÐèÒª³öÏÖÔÚsparqlÖÐ¡£ | eg: Which museum exhibits The Scream by Munch?
+		//[ent1] by [ent2](cur), åˆ™ent2æ˜¯ent1çš„ä¿®é¥°è¯ï¼Œä¸”é€šå¸¸ä¸éœ€è¦å‡ºçŽ°åœ¨sparqlä¸­ã€‚ | eg: Which museum exhibits The Scream by Munch?
 		if(curPos-2 >=0 && curWord.mayEnt && s.words[curPos-1].baseForm.equals("by") && s.words[curPos-2].mayEnt)
 			return curWord.modifiedWord = s.words[curPos-2];
 		

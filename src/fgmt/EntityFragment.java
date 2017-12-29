@@ -171,8 +171,9 @@ public class EntityFragment extends Fragment {
 		ArrayList<EntityNameAndScore> ret_sf = null;
 		try {
 			ret_sf = sf.searchName(phrase, thres1, thres2, k);
-		} catch (Exception e) {
-			e.printStackTrace();
+		} catch (IOException e) {
+			//e.printStackTrace();
+			System.err.println("Reading lcn index error");
 		}
 		
 		return ret_sf;

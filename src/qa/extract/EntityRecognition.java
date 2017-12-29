@@ -1,14 +1,14 @@
 package qa.extract;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+//import java.io.File;
+//import java.io.FileInputStream;
+//import java.io.FileNotFoundException;
+//import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
+//import java.io.OutputStreamWriter;
+//import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -118,17 +118,21 @@ public class EntityRecognition {
 		
 		// Check entity & type
 		// Notice, ascending order by length
+		StringBuilder tmpOW = new StringBuilder();
+		StringBuilder tmpBW = new StringBuilder();
 		for(int len=1; len<=words.length; len++)
 		{
 			for(int st=0,ed=st+len; ed<=words.length; st++,ed++)
 			{
 				String originalWord = "", baseWord = "", allUpperWord = "";
-				String[] posTagArr = new String[len];
+				//String[] posTagArr = new String[len];
 				for(int j=st; j<ed; j++)
 				{
-					posTagArr[j-st] = words[j].posTag;
-					originalWord += words[j].originalForm;
-					baseWord += words[j].baseForm;
+					//posTagArr[j-st] = words[j].posTag;
+					//originalWord += words[j].originalForm;
+					//baseWord += words[j].baseForm;
+					tmpOW.append(words[j].originalForm);
+					tmpBW.append(words[j].baseForm);
 					String tmp = words[j].originalForm;
 					if(tmp.length()>0 && tmp.charAt(0) >='a' && tmp.charAt(0)<='z')
 					{
@@ -139,19 +143,25 @@ public class EntityRecognition {
 					
 					if(j < ed-1)
 					{
-						originalWord += "_";
-						baseWord += "_";
+						//originalWord += "_";
+						//baseWord += "_";
+						tmpOW.append("_");
+						tmpBW.append("_");
 					}
 				}
-				allCnt++;
+				originalWord = tmpOW.toString();
+				baseWord=tmpBW.toString();
+				tmpOW.setLength(0);
+				tmpBW.setLength(0);
 				
+				allCnt++;
 /*
  * Filters to save time and drop some bad cases.  
 */				
 				boolean entOmit = false, typeOmit = false;
 				int prep_cnt=0;
 				
-				// Upper words can pass filter. eg£º "Melbourne , Florida"
+				// Upper words can pass filter. egï¼š "Melbourne , Florida"
 				int UpperWordCnt = 0;
 				for(int i=st;i<ed;i++)
 					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') 
@@ -300,7 +310,7 @@ public class EntityRecognition {
 				if(!typeOmit)
 				{
 					System.out.println("Type Check:  "+originalWord);
-					checkTypeCnt++;
+					//checkTypeCnt++;
 					//search standard type  
 					tmList = tr.getTypeIDsAndNamesByStr(baseWord);
 					if(tmList == null || tmList.size() == 0)
@@ -405,7 +415,8 @@ public class EntityRecognition {
 					{
 						for(int key: entityMappings.keySet())
 						{
-							int te=key%(words.length+1),ts=key/(words.length+1);
+							//int te=key%(words.length+1);
+							int ts=key/(words.length+1);
 							if(ts == st+1 && ts <= ed)
 							{
 								//DT in lowercase (allow uppercase, such as: [The Pillars of the Earth])
@@ -435,8 +446,8 @@ public class EntityRecognition {
 						if(likelyEnt.equals(lowerOriginalWord))
 							score *= len;
 						// !Award: COVER (eg, Robert Kennedy: [Robert] [Kennedy] [Robert Kennedy])
-						//ÏñSocial_Democratic_Party£¬ÕâÈı¸öwordÈÎÒâ×éºÏ¶¼ÊÇent£¬µ¼ÖÂ·½°¸Ì«¶à£»Ïà±È½Ï¡°³åÍ»Ñ¡ÄÄ¸ö¡±£¬¡°Á¬or²»Ó¦¸ÃÁ¬¡±ÏÔµÃ¸üÖØÒª£¨¶øÇÒÊµ¼Ê´íÎó¶àÎªÁ¬»ò²»Á¬µÄ´íÎó£©£¬ËùÒÔÕâÀïÖ±½ÓÅ×Æú±»¸²¸ÇµÄĞ¡ent
-						//ÏñAbraham_Lincoln£¬ÔÚ¡°²»Á¬½Ó¡±µÄ·½°¸ÖĞ£¬»á°ÑËûÃÇÊ¶±ğ³ÉÁ½¸önode£¬×îºóµÃ·Ö³¬¹ıÁËÕıÈ·´ğ°¸µÄµÃ·Ö£»¹Ê¶ÔÓÚÕâÖÖ´ÊÉèÖÃÎª±ØÑ¡
+						//åƒSocial_Democratic_Partyï¼Œè¿™ä¸‰ä¸ªwordä»»æ„ç»„åˆéƒ½æ˜¯entï¼Œå¯¼è‡´æ–¹æ¡ˆå¤ªå¤šï¼›ç›¸æ¯”è¾ƒâ€œå†²çªé€‰å“ªä¸ªâ€ï¼Œâ€œè¿orä¸åº”è¯¥è¿â€æ˜¾å¾—æ›´é‡è¦ï¼ˆè€Œä¸”å®é™…é”™è¯¯å¤šä¸ºè¿æˆ–ä¸è¿çš„é”™è¯¯ï¼‰ï¼Œæ‰€ä»¥è¿™é‡Œç›´æ¥æŠ›å¼ƒè¢«è¦†ç›–çš„å°ent
+						//åƒAbraham_Lincolnï¼Œåœ¨â€œä¸è¿æ¥â€çš„æ–¹æ¡ˆä¸­ï¼Œä¼šæŠŠä»–ä»¬è¯†åˆ«æˆä¸¤ä¸ªnodeï¼Œæœ€åå¾—åˆ†è¶…è¿‡äº†æ­£ç¡®ç­”æ¡ˆçš„å¾—åˆ†ï¼›æ•…å¯¹äºè¿™ç§è¯è®¾ç½®ä¸ºå¿…é€‰
 						if(len>1)
 						{
 							boolean[] flag = new boolean[words.length+1];
@@ -462,8 +473,8 @@ public class EntityRecognition {
 							// WHOLE match || HIGH match & HIGH upper || WHOLE upper
 							if(hitCnt == len || ((double)hitCnt/(double)len > 0.6 && (double)UpperWordCnt/(double)len > 0.6) || UpperWordCnt == len || len>=4)
 							{
-								//ÈçÖĞ¼äÓĞ¶ººÅ£¬ÔòÒªÇóÁ½±ßµÄ´Ê¶¼ÔÚmappingµÄentityÖĞ³öÏÖ
-								//ÀıÈç Melbourne_,_Florida: Melbourne, Florida ÊÇ±ØĞëÑ¡µÄ£¬¶ø California_,_USA: Malibu, California£¬ÈÏÎª²»Ò»¶¨ÕıÈ·
+								//å¦‚ä¸­é—´æœ‰é€—å·ï¼Œåˆ™è¦æ±‚ä¸¤è¾¹çš„è¯éƒ½åœ¨mappingçš„entityä¸­å‡ºç°
+								//ä¾‹å¦‚ Melbourne_,_Florida: Melbourne, Florida æ˜¯å¿…é¡»é€‰çš„ï¼Œè€Œ California_,_USA: Malibu, Californiaï¼Œè®¤ä¸ºä¸ä¸€å®šæ­£ç¡®
 								boolean commaTotalRight = true;
 								if(originalWord.contains(","))
 								{
@@ -537,17 +548,17 @@ public class EntityRecognition {
 		
 		/*
 		 * sort by score and remove duplicate
-		 * <"video_game" "ent:Video game" "50.0"> <"a_video_game" "ent:Video game" "45.0">, Ôò×éºÏ³É¶àÖÖ·½°¸£¬Ã¿¸ö·½°¸ÄÚ²¿²»³åÍ»¡£
-		 * °´ÕÕµÃ·Ö×î¸ßµÄ¶ÔÓ¦ÊµÌåµÄµÃ·ÖÅÅĞò£¬¿³µôÖØ¸´µÄµÍ·Ö¡£×¢ÒâÊµ¼ÊÉÏ²¢Ã»ÓĞÔÚmWordListÖĞÉ¾³ıÈÎºÎĞÅÏ¢¡£
-		 * typeµÄÅĞ¶Ï½ÏÑÏ£¬ÈÏÎª²»»á³öÏÖÕâÖÖÇé¿ö°¡
+		 * <"video_game" "ent:Video game" "50.0"> <"a_video_game" "ent:Video game" "45.0">, åˆ™ç»„åˆæˆå¤šç§æ–¹æ¡ˆï¼Œæ¯ä¸ªæ–¹æ¡ˆå†…éƒ¨ä¸å†²çªã€‚
+		 * æŒ‰ç…§å¾—åˆ†æœ€é«˜çš„å¯¹åº”å®ä½“çš„å¾—åˆ†æ’åºï¼Œç æ‰é‡å¤çš„ä½åˆ†ã€‚æ³¨æ„å®é™…ä¸Šå¹¶æ²¡æœ‰åœ¨mWordListä¸­åˆ é™¤ä»»ä½•ä¿¡æ¯ã€‚
+		 * typeçš„åˆ¤æ–­è¾ƒä¸¥ï¼Œè®¤ä¸ºä¸ä¼šå‡ºç°è¿™ç§æƒ…å†µå•Š
 		 * 
 		 * 2015-11-28
-		 * ¶ÔÓÚÃ¿Ò»¸öĞèÒªÁ¬ÏÂ»¬ÏßµÄ´ÊĞòÁĞ£¨¼´Node£©£¬Ñ¡ÔñÁ¬Ïß£¨½«ËûÃÇµÄÊ¶±ğĞÅÏ¢±£ÁôÏÂÈ¥£©»ò²»Á¬Ïß£¨·ÅÆúÕâ¸ö´ÊĞòÁĞµÄÊ¶±ğĞÅÏ¢£©
-		 * ÒòÎªtypeÊÇÈ«Æ¥Åä¶øÇÒºÜÉÙÓĞÔëÒô£¬ËùÒÔÊ¶±ğ³ötypeµÄÄÇ¸öwordÊÇ±ØÑ¡µÄ£»
-		 * ÒòÎªliteralÖ»Ê¶±ğ´¿Êı×Ö£¬ËùÒÔÊ¶±ğ³öliteralµÄÄÇ¸öwordÒ²ÊÇ±ØÑ¡µÄ£»
-		 * KBÖĞÍ¬Ò»ent¶ÔÓ¦queryÖĞ²»Í¬mergedWordµÄ£¬È¡µÃ·Ö¸ßµÄ
+		 * å¯¹äºæ¯ä¸€ä¸ªéœ€è¦è¿ä¸‹æ»‘çº¿çš„è¯åºåˆ—ï¼ˆå³Nodeï¼‰ï¼Œé€‰æ‹©è¿çº¿ï¼ˆå°†ä»–ä»¬çš„è¯†åˆ«ä¿¡æ¯ä¿ç•™ä¸‹å»ï¼‰æˆ–ä¸è¿çº¿ï¼ˆæ”¾å¼ƒè¿™ä¸ªè¯åºåˆ—çš„è¯†åˆ«ä¿¡æ¯ï¼‰
+		 * å› ä¸ºtypeæ˜¯å…¨åŒ¹é…è€Œä¸”å¾ˆå°‘æœ‰å™ªéŸ³ï¼Œæ‰€ä»¥è¯†åˆ«å‡ºtypeçš„é‚£ä¸ªwordæ˜¯å¿…é€‰çš„ï¼›
+		 * å› ä¸ºliteralåªè¯†åˆ«çº¯æ•°å­—ï¼Œæ‰€ä»¥è¯†åˆ«å‡ºliteralçš„é‚£ä¸ªwordä¹Ÿæ˜¯å¿…é€‰çš„ï¼›
+		 * KBä¸­åŒä¸€entå¯¹åº”queryä¸­ä¸åŒmergedWordçš„ï¼Œå–å¾—åˆ†é«˜çš„
 		*/
-		// KBÖĞÍ¬Ò»ent¶ÔÓ¦queryÖĞ²»Í¬mergedWordµÄ£¬È¡µÃ·Ö¸ßµÄ
+		// KBä¸­åŒä¸€entå¯¹åº”queryä¸­ä¸åŒmergedWordçš„ï¼Œå–å¾—åˆ†é«˜çš„
 		ByValueComparator bvc = new ByValueComparator(entityScores,words.length+1);
 		List<Integer> keys = new ArrayList<Integer>(entityMappings.keySet());
         Collections.sort(keys, bvc);
@@ -743,7 +754,7 @@ public class EntityRecognition {
 			String eName = m2e.get(entity);
 			EntityMapping em = new EntityMapping(EntityFragmentFields.entityName2Id.get(eName), eName, 1000);
 			ret.add(em);
-			return ret; //Ä¿Ç°ÈÏÎªhandwriteÒ»¶¨¶Ô£¬Ö±½Ó·µ»Ø
+			return ret; //ç›®å‰è®¤ä¸ºhandwriteä¸€å®šå¯¹ï¼Œç›´æ¥è¿”å›
 		}
 		
 		//2. Lucene index
@@ -764,7 +775,6 @@ public class EntityRecognition {
 	public int preferDBpediaLookupOrLucene(String entityName)
 	{
 		int cntUpperCase = 0;
-		int cntLowerCase = 0;
 		int cntSpace = 0;
 		int cntPoint = 0;
 		int length = entityName.length();
@@ -775,8 +785,6 @@ public class EntityRecognition {
 				cntSpace++;
 			else if (c=='.')
 				cntPoint++;
-			else if (c>='a' && c<='z')
-				cntLowerCase++;
 			else if (c>='A' && c<='Z')
 				cntUpperCase++;
 		}
@@ -896,7 +904,7 @@ public class EntityRecognition {
 //					question = strArray[1];
 //					id = strArray[0];
 //				}
-//				//È¥µô¾äÎ²·ûºÅ£¬ÁíÍâ×¢Òâ"?"»áµ¼ÖÂlucene/dbpedia lookup±¨´í
+//				//å»æ‰å¥å°¾ç¬¦å·ï¼Œå¦å¤–æ³¨æ„"?"ä¼šå¯¼è‡´lucene/dbpedia lookupæŠ¥é”™
 //				if(question.length()>1 && question.charAt(question.length()-1)=='.' || question.charAt(question.length()-1)=='?')
 //					question = question.substring(0,question.length()-1);
 //				if(question.isEmpty())

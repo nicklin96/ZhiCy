@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -12,6 +13,7 @@ import java.util.HashMap;
 import log.QueryLogger;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import qa.Globals;
@@ -31,10 +33,12 @@ public class QaldJsonDataParser
 		File outputFile = new File("D:\\Documents\\husen\\Java\\DBpediaSparqlEvaluation\\data\\DBpedia2014_qald6train_beta2_jsonAnswers_fixFormat.json");		
 		String rootStr = "";
 		StringBuilder rr = new StringBuilder();
+		BufferedReader br = null;
+		OutputStreamWriter fw = null;
 		try 
 		{
-			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile), "utf-8"));
-			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8");
+			br = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile), "utf-8"));
+			fw = new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8");
 			String input = "";
 			while( (input=br.readLine())!=null )
 			{
@@ -55,9 +59,25 @@ public class QaldJsonDataParser
 			br.close();
 			fw.close();
 		} 
-		catch (Exception e) {
-			e.printStackTrace();
+		catch (IOException e) {
 			// TODO: handle exception
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			System.err.println("Something wrong with JSON Object");
+		}
+		finally {
+			try {
+				if(br!=null)
+					br.close();
+			}catch(Exception e) {
+				e.printStackTrace();
+			}
+			try {
+				if(fw!=null)
+					fw.close();
+			}catch(Exception e) {
+				e.printStackTrace();
+			}
 		}
 	}
 	
@@ -118,7 +138,7 @@ public class QaldJsonDataParser
 				continue;
 			
 			int cnt = 0;
-			ArrayList<String> lastSpqList = new ArrayList<String>();	//¼òµ¥È¥Ò»ÏÂÖØ
+			ArrayList<String> lastSpqList = new ArrayList<String>();	//ç®€å•å»ä¸€ä¸‹é‡
 			for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
 			{
 				Sparql spq = qlog.rankedSparqls.get(j);
@@ -137,7 +157,7 @@ public class QaldJsonDataParser
 					break;
 			}
 			
-			//ÒòÎª¾­³£³öÏÖÎŞÓÃtypeµ¼ÖÂ²éÑ¯²»µ½½á¹û(Èç <type> <yago:Wife>)£¬×·¼ÓÒ»¸öuntyped SPQ
+			//å› ä¸ºç»å¸¸å‡ºç°æ— ç”¨typeå¯¼è‡´æŸ¥è¯¢ä¸åˆ°ç»“æœ(å¦‚ <type> <yago:Wife>)ï¼Œè¿½åŠ ä¸€ä¸ªuntyped SPQ
 			Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 			if(untypedSparql != null)
 			{
@@ -190,7 +210,7 @@ public class QaldJsonDataParser
 		}
 		
 		int cnt = 0;
-		ArrayList<String> lastSpqList = new ArrayList<String>();	//¼òµ¥È¥Ò»ÏÂÖØ
+		ArrayList<String> lastSpqList = new ArrayList<String>();	//ç®€å•å»ä¸€ä¸‹é‡
 		for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
 		{
 			Sparql spq = qlog.rankedSparqls.get(j);
@@ -209,7 +229,7 @@ public class QaldJsonDataParser
 				break;
 		}
 		
-		//ÒòÎª¾­³£³öÏÖÎŞÓÃtypeµ¼ÖÂ²éÑ¯²»µ½½á¹û(Èç <type> <yago:Wife>)£¬×·¼ÓÒ»¸öuntyped SPQ
+		//å› ä¸ºç»å¸¸å‡ºç°æ— ç”¨typeå¯¼è‡´æŸ¥è¯¢ä¸åˆ°ç»“æœ(å¦‚ <type> <yago:Wife>)ï¼Œè¿½åŠ ä¸€ä¸ªuntyped SPQ
 		Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 		if(untypedSparql != null)
 		{
@@ -242,7 +262,7 @@ public class QaldJsonDataParser
 		
 		GAnswer.init();
 		QaldJsonDataParser parser = new QaldJsonDataParser();
-		StringBuilder sb = new StringBuilder();
+		//StringBuilder sb = new StringBuilder();
 		try 
 		{
 //			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(Globals.localPath + "/data/QALD7/testin.json")), "utf-8"));

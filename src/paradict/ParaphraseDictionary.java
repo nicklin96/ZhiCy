@@ -114,17 +114,28 @@ public class ParaphraseDictionary {
 				
 		String input_filename = dbpedia_predicate_id;
 		File file = new File(input_filename);
-		InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
-		BufferedReader br = new BufferedReader(in);
-
-		String line = null;
-		
-		while ((line = br.readLine())!= null) {
+		InputStreamReader in = null;
+		BufferedReader br = null;
+		try{
+			in = new InputStreamReader(new FileInputStream(file), "utf-8");
+			br = new BufferedReader(in);
+			String line = null;
+			while ((line = br.readLine())!= null) {
 			String[] lines = line.split("\t");
 			predicate_2_id.put(lines[0], Integer.parseInt(lines[1]));
 			id_2_predicate.put(Integer.parseInt(lines[1]), lines[0]);
 		}	
-		br.close();
+		}catch(IOException e){
+			System.out.println("NLPatterns.loadPredicateId() : IOException!");
+		}finally{
+			if(br != null){
+				try{
+					br.close();
+				}catch(IOException e){
+					e.printStackTrace();
+				}
+			}
+		}
 		System.out.println("NLPatterns.loadPredicateId() : ok!");
 	}
 	
@@ -134,22 +145,36 @@ public class ParaphraseDictionary {
 		int cnt = 0;
 		
 		String input_filename = dbpedia_dbo_predicate;
-		File file = new File(input_filename);
-		InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
-		BufferedReader br = new BufferedReader(in);
-
-		String line = null;
-		while ((line = br.readLine())!= null) 
-		{
-			if (!predicate_2_id.containsKey(line))
+		InputStreamReader in = null;
+		BufferedReader br = null;
+		try{
+			File file = new File(input_filename);
+			in = new InputStreamReader(new FileInputStream(file), "utf-8");
+			br = new BufferedReader(in);
+			String line = null;
+			while ((line = br.readLine())!= null) 
 			{
-				cnt++;
-				//System.out.println("error: not found "+line+" id.");
-				continue;
+				if (!predicate_2_id.containsKey(line))
+				{
+					cnt++;
+					//System.out.println("error: not found "+line+" id.");
+					continue;
+				}	
+				dbo_predicate_id.add(predicate_2_id.get(line));
 			}	
-			dbo_predicate_id.add(predicate_2_id.get(line));
-		}	
-		br.close();
+		}catch(IOException e){
+			System.out.println("NLPatterns.loadDboPredicate() : IOException!");
+			
+		}finally{
+			if(br!=null){
+				try{
+					br.close();
+				}catch(IOException e){
+					e.printStackTrace();
+				}
+			}
+			
+		}
 		System.out.println("Warning: DBO not found id count: "+cnt);
 		System.out.println("NLPatterns.loadDboPredicate() : ok!");
 	}
@@ -167,42 +192,68 @@ public class ParaphraseDictionary {
 		nlPattern_2_predicateList = new HashMap<String, ArrayList<PredicateIDAndSupport>>();
 		HashSet<String> missInDBP2014 = new HashSet<String>();
 		
-		String inputFileName = dbpedia_relation_paraphrases_baseform_withScore_rerank;
-		File file = new File(inputFileName);
-		InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
-		BufferedReader br = new BufferedReader(in);
-		
-		String line = null;
-		int lineCount = 0;
-		//line = br.readLine();//read the first line which indicates the format
-		while ((line = br.readLine()) != null) 
-		{
-			if (line.startsWith("#")) continue;
-			lineCount ++;
-			String[] content = line.split("\t");
-			
-			if(!predicate_2_id.containsKey(content[0]))
+		InputStreamReader in = null;
+		BufferedReader br = null;
+		try{
+			String inputFileName = dbpedia_relation_paraphrases_baseform_withScore_rerank;
+			File file = new File(inputFileName);
+			in = new InputStreamReader(new FileInputStream(file), "utf-8");
+			br = new BufferedReader(in);
+			String line = null;
+			int lineCount = 0;
+			//line = br.readLine();//read the first line which indicates the format
+			while ((line = br.readLine()) != null) 
 			{
-				missInDBP2014.add(content[0]);
-				continue;
+				if (line.startsWith("#")) continue;
+				lineCount ++;
+				String[] content = line.split("\t");
+				
+				if(!predicate_2_id.containsKey(content[0]))
+				{
+					missInDBP2014.add(content[0]);
+					continue;
+				}
+				
+				int predicateID = predicate_2_id.get(content[0]);
+				String nlPattern = content[1].toLowerCase();
+				int support = Integer.parseInt(content[2]);
+				//double score = Double.parseDouble(content[3]);
+				String []slctString = content[3].split(" ");
+				double[] slct = new double[slctString.length];
+				for (int i=0; i < slct.length; i++) {
+					slct[i] = Double.parseDouble(slctString[i]);
+				}
+				
+				if (!nlPattern_2_predicateList.containsKey(nlPattern)) {
+					nlPattern_2_predicateList.put(nlPattern, new ArrayList<PredicateIDAndSupport>());
+				}
+				nlPattern_2_predicateList.get(nlPattern).add(new PredicateIDAndSupport(predicateID, support, slct));
 			}
 			
-			int predicateID = predicate_2_id.get(content[0]);
-			String nlPattern = content[1].toLowerCase();
-			int support = Integer.parseInt(content[2]);
-			//double score = Double.parseDouble(content[3]);
-			String []slctString = content[3].split(" ");
-			double[] slct = new double[slctString.length];
-			for (int i=0; i < slct.length; i++) {
-				slct[i] = Double.parseDouble(slctString[i]);
+			System.out.println("Number of NL-Patterns-to-predicate mappings = " + lineCount);
+			System.out.println("NLPatterns.size = " + nlPattern_2_predicateList.size());
+			System.out.println("Predicate.size = " + predicate_2_id.size());
+			System.out.println("Warning: Predicates not in DBpedia 2014 count: "+missInDBP2014.size());
+
+			addPredicateAsNLPattern();
+			addHandwriteAsNLPattern();
+			
+			Iterator<String> it = nlPattern_2_predicateList.keySet().iterator();
+			while (it.hasNext()) {
+				Collections.sort(nlPattern_2_predicateList.get(it.next()));
 			}
 			
-			if (!nlPattern_2_predicateList.containsKey(nlPattern)) {
-				nlPattern_2_predicateList.put(nlPattern, new ArrayList<PredicateIDAndSupport>());
+		}catch(IOException e){
+			System.out.println("NLPatterns.Paradict() : IOException!");
+		}finally{
+			if(br!=null){
+				try{
+					br.close();
+				}catch(IOException e){
+					e.printStackTrace();
+				}
 			}
-			nlPattern_2_predicateList.get(nlPattern).add(new PredicateIDAndSupport(predicateID, support, slct));
 		}
-		br.close();
 		
 		System.out.println("Number of NL-Patterns-to-predicate mappings = " + lineCount);
 		System.out.println("NLPatterns.size = " + nlPattern_2_predicateList.size());
@@ -213,16 +264,9 @@ public class ParaphraseDictionary {
 		//Globals.systemPause();
 		
 		// This is very important.
-		// ◊¢“‚£∫ƒø«∞predicate±æ…Ì∫ÕhandwritternµƒNL patterns «√ª”–wordSelectivityµƒ
-		addPredicateAsNLPattern();
-		addHandwriteAsNLPattern();
+		// Ê≥®ÊÑèÔºöÁõÆÂâçpredicateÊú¨Ë∫´ÂíåhandwritternÁöÑNL patternsÊòØÊ≤°ÊúâwordSelectivityÁöÑ
 		
 		// sort
-		Iterator<String> it = nlPattern_2_predicateList.keySet().iterator();
-		while (it.hasNext()) {
-			Collections.sort(nlPattern_2_predicateList.get(it.next()));
-		}
-		
 		System.out.println("NLPatterns.Paradict() : ok!");
 		
 	}
@@ -235,14 +279,14 @@ public class ParaphraseDictionary {
 		int predicate_id;
 		for (String p : predicate_2_id.keySet()) 
 		{
-			//∫ˆ¬‘“ª–©ª˘±æ≤ªª·”√µΩ£¨∑¥∂¯≥£≥£◊˜Œ™¥ÌŒÛŒΩ¥ ≥ˆœ÷µƒpredicate£®»Áfilm£©
+			//ÂøΩÁï•‰∏Ä‰∫õÂü∫Êú¨‰∏ç‰ºöÁî®Âà∞ÔºåÂèçËÄåÂ∏∏Â∏∏‰Ωú‰∏∫ÈîôËØØË∞ìËØçÂá∫Áé∞ÁöÑpredicateÔºàÂ¶ÇfilmÔºâ
 			if(p.equals("state") || p.equals("states"))
 				continue;
 			
 			predicate_id = predicate_2_id.get(p);
 			StringBuilder pattern = new StringBuilder("");
 			
-			// Work/runtime	11,SpaceStation/volume	68 µ»”–«∞◊∫µƒpredicate (DBpedia 2015º∞∫Û–¯∞Ê±æ)£¨…˙≥…pattern ±£¨»•µÙ«∞◊∫ 
+			// Work/runtime	11,SpaceStation/volume	68 Á≠âÊúâÂâçÁºÄÁöÑpredicate (DBpedia 2015ÂèäÂêéÁª≠ÁâàÊú¨)ÔºåÁîüÊàêpatternÊó∂ÔºåÂéªÊéâÂâçÁºÄ 
 			if(p.contains("/"))
 			{
 				if(p.charAt(0)>='A' && p.charAt(0)<='Z')
@@ -285,7 +329,7 @@ public class ParaphraseDictionary {
 				}
 			}
 			
-			// patternªπ“™◊™ªØŒ™base form
+			// patternËøòË¶ÅËΩ¨Âåñ‰∏∫base form
 			/*String[] ptns = pattern.toString().split(" ");
 			pattern = new StringBuilder("");
 			for (String s : ptns) {
@@ -295,7 +339,7 @@ public class ParaphraseDictionary {
 			pattern.deleteCharAt(pattern.length()-1);
 			String patternString = pattern.toString();*/
 			
-			// ªπ «≤ªƒ‹πªÕÍ»´◊™ªØŒ™ base form£¨¿˝»ÁfoundingYear	//ø…ƒ‹“™”√Porter's Algorithm
+			// ËøòÊòØ‰∏çËÉΩÂ§üÂÆåÂÖ®ËΩ¨Âåñ‰∏∫ base formÔºå‰æãÂ¶ÇfoundingYear	//ÂèØËÉΩË¶ÅÁî®Porter's Algorithm
 			String patternString = Globals.coreNLP.getBaseFormOfPattern(pattern.toString());
 			//System.out.println(p + "-->" + patternString);
 			
@@ -313,34 +357,48 @@ public class ParaphraseDictionary {
 	
 	public void addHandwriteAsNLPattern() throws IOException {
 		String inputFileName = dbpedia_relation_paraphrases_handwrite;
-		File file = new File(inputFileName);
-		InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
-		BufferedReader br = new BufferedReader(in);
+		InputStreamReader in = null;
+		BufferedReader br = null;
 		
-		String line = null;
-		int lineCount = 0;
-		//line = br.readLine();//read the first line which indicates the format
-		while ((line = br.readLine()) != null) {
-			if (line.startsWith("#") || line.isEmpty()) continue;
-			lineCount ++;
-			String[] content = line.split("\t");
+		try{
+			File file = new File(inputFileName);
+			in = new InputStreamReader(new FileInputStream(file), "utf-8");
+			br = new BufferedReader(in);
 			
-			if(!predicate_2_id.containsKey(content[0]))
-				continue;
-			
-			int predicateID = predicate_2_id.get(content[0]);
-			String nlPattern = content[1].toLowerCase();
-			int support = Integer.parseInt(content[2]);
-			
-			if (!nlPattern_2_predicateList.containsKey(nlPattern)) {
-				nlPattern_2_predicateList.put(nlPattern, new ArrayList<PredicateIDAndSupport>());
+			String line = null;
+			//int lineCount = 0;
+			//line = br.readLine();//read the first line which indicates the format
+			while ((line = br.readLine()) != null) {
+				if (line.startsWith("#") || line.isEmpty()) continue;
+				//lineCount ++;
+				String[] content = line.split("\t");
+				
+				if(!predicate_2_id.containsKey(content[0]))
+					continue;
+				
+				int predicateID = predicate_2_id.get(content[0]);
+				String nlPattern = content[1].toLowerCase();
+				int support = Integer.parseInt(content[2]);
+				
+				if (!nlPattern_2_predicateList.containsKey(nlPattern)) {
+					nlPattern_2_predicateList.put(nlPattern, new ArrayList<PredicateIDAndSupport>());
+				}
+				nlPattern_2_predicateList.get(nlPattern).add(
+						new PredicateIDAndSupport(predicateID, 
+								support,
+								PredicateIDAndSupport.genSlct(nlPattern.split(" ").length)));			
 			}
-			nlPattern_2_predicateList.get(nlPattern).add(
-					new PredicateIDAndSupport(predicateID, 
-							support,
-							PredicateIDAndSupport.genSlct(nlPattern.split(" ").length)));			
+		}catch(IOException e){
+			System.out.println("NLPatterns.addHandwriteAsNLPattern(): IOException!");
+		}finally{
+			if(br!=null){
+				try{
+					br.close();
+				}catch(IOException e){
+					e.printStackTrace();
+				}
+			}
 		}
-		br.close();
 		
 		System.out.println("NLPatterns.addHandwriteAsNLPattern(): ok!");
 	}

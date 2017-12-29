@@ -5,18 +5,18 @@ import java.util.HashMap;
 
 import paradict.PredicateIDAndSupport;
 import log.QueryLogger;
-import nlp.ds.DependencyTree;
-import nlp.ds.DependencyTreeNode;
+//import nlp.ds.DependencyTree;
+//import nlp.ds.DependencyTreeNode;
 import nlp.ds.Word;
 import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
-import qa.extract.TypeRecognition;
-import qa.mapping.SemanticItemMapping;
-import rdf.EntityMapping;
+//import qa.extract.TypeRecognition;
+//import qa.mapping.SemanticItemMapping;
+//import rdf.EntityMapping;
 import rdf.SemanticUnit;
 import rdf.Sparql;
 import rdf.Triple;
-import fgmt.TypeFragment;
+//import fgmt.TypeFragment;
 
 
 public class AddtionalFix 
@@ -78,18 +78,18 @@ public class AddtionalFix
 	}
 	
 	/* recognize one-Node query 
-	 * Á½ÖÖÇé¿ö£º1¡¢ÌØÊâÒÉÎÊ¾ä|ÆíÊ¹¾ä	2¡¢Ò»°ãÒÉÎÊ¾ä
-	 * 1-1£ºhow many [], highest [] ...  | ¶Ôµ¥¸ö variable£¨Ò»°ãÎªtype£©Ìí¼ÓÒ»Ğ©¶îÍâÏŞÖÆ(aggregation)
-	 * 1-2: What is backgammon? | What is a bipolar syndrome? | (ÓĞÊ±»á°ÑwhatÊ¶±ğ³Énode£¬ÓĞÊ±Ôò»á±»Ïû½â)²éÑ¯  entµÄ¶¨Òå£¬ÎŞ¶îÍâÏŞÖÆ£»Ä¿Ç°ÈÏÎªÖ±½Ó·µ»Ø¸Ã ent 
-	 * 1-3: Give me all Seven Wonders of the Ancient World. | ×¢ÒâSeven Wonders of the Ancient WorldĞèÒªÏÈ±»Ê¶±ğÎªent£¨Êµ¼ÊËûÊÇcategory¶ø²»ÊÇent£©
+	 * ä¸¤ç§æƒ…å†µï¼š1ã€ç‰¹æ®Šç–‘é—®å¥|ç¥ˆä½¿å¥	2ã€ä¸€èˆ¬ç–‘é—®å¥
+	 * 1-1ï¼šhow many [], highest [] ...  | å¯¹å•ä¸ª variableï¼ˆä¸€èˆ¬ä¸ºtypeï¼‰æ·»åŠ ä¸€äº›é¢å¤–é™åˆ¶(aggregation)
+	 * 1-2: What is backgammon? | What is a bipolar syndrome? | (æœ‰æ—¶ä¼šæŠŠwhatè¯†åˆ«æˆnodeï¼Œæœ‰æ—¶åˆ™ä¼šè¢«æ¶ˆè§£)æŸ¥è¯¢  entçš„å®šä¹‰ï¼Œæ— é¢å¤–é™åˆ¶ï¼›ç›®å‰è®¤ä¸ºç›´æ¥è¿”å›è¯¥ ent 
+	 * 1-3: Give me all Seven Wonders of the Ancient World. | æ³¨æ„Seven Wonders of the Ancient Worldéœ€è¦å…ˆè¢«è¯†åˆ«ä¸ºentï¼ˆå®é™…ä»–æ˜¯categoryè€Œä¸æ˜¯entï¼‰
  	 * 2-1: Are there any [castles_in_the_United_States](yago:type)
- 	 * 2-2£ºWas Sigmund Freud married? | Î½´ÊÒ×³éÈ¡£¬Ö»ÊÇÈ±ÉÙÒ»¸övariable node
- 	 * 2-3£ºAre penguins endangered? | ÔÌº¬ĞÅÏ¢£¬ĞèÒª±ä»»
+ 	 * 2-2ï¼šWas Sigmund Freud married? | è°“è¯æ˜“æŠ½å–ï¼Œåªæ˜¯ç¼ºå°‘ä¸€ä¸ªvariable node
+ 	 * 2-3ï¼šAre penguins endangered? | è•´å«ä¿¡æ¯ï¼Œéœ€è¦å˜æ¢
 	 */ 
 	public void oneNode(QueryLogger qlog)
 	{
-		//±ÜÃâºÍask-one-tripleÖØ¸´£¬ÕâÀïÏÈÅĞ¶ÏÒ»ÏÂsparqlListÊÇ·ñÎª¿Õ |Èç¹ûÓĞÁ½¸ö»ò¸ü¶àµÄnodeÒ²ÍË³ö
-		//ÒòÎªmerge wordsºóÊÇ´ÓµÃ·ÖµÍµÄdecisionµ½µÃ·Ö¸ßµÄÀ´×ö£¬µÍ·ÖÊ±¿ÉÄÜÍ¨¹ı¸Ãº¯ÊıÔö¼ÓÒ»ÌõsparqlÁË£¬ÈôÕâÀïÒòÎªsparqlList²»Îª¿ÕreturnÔò»á´í¹ı¸ß·Ö£¨ÕıÈ·£©decision
+		//é¿å…å’Œask-one-tripleé‡å¤ï¼Œè¿™é‡Œå…ˆåˆ¤æ–­ä¸€ä¸‹sparqlListæ˜¯å¦ä¸ºç©º |å¦‚æœæœ‰ä¸¤ä¸ªæˆ–æ›´å¤šçš„nodeä¹Ÿé€€å‡º
+		//å› ä¸ºmerge wordsåæ˜¯ä»å¾—åˆ†ä½çš„decisionåˆ°å¾—åˆ†é«˜çš„æ¥åšï¼Œä½åˆ†æ—¶å¯èƒ½é€šè¿‡è¯¥å‡½æ•°å¢åŠ ä¸€æ¡sparqläº†ï¼Œè‹¥è¿™é‡Œå› ä¸ºsparqlListä¸ä¸ºç©ºreturnåˆ™ä¼šé”™è¿‡é«˜åˆ†ï¼ˆæ­£ç¡®ï¼‰decision
 		if(qlog.semanticUnitList.size()>1)
 			return;
 		
@@ -136,7 +136,7 @@ public class AddtionalFix
 		{
 			if(target.mayEnt && target.emList != null)
 			{
-				//2-2£ºWas Sigmund Freud married?
+				//2-2ï¼šWas Sigmund Freud married?
 				String relMention = "";
 				for(Word word: words)
 					if(word != target && !word.baseForm.equals(".") && !word.baseForm.equals("?"))
@@ -159,7 +159,7 @@ public class AddtionalFix
 					qlog.rankedSparqls.add(sparql);
 				}
 		
-				//2-3£ºAre penguins endangered? | ÔÌº¬ĞÅÏ¢£¬ĞèÒª±ä»»
+				//2-3ï¼šAre penguins endangered? | è•´å«ä¿¡æ¯ï¼Œéœ€è¦å˜æ¢
 				else
 				{
 					if(target.position < words.length && pattern2category.containsKey(words[target.position].baseForm))
@@ -188,7 +188,7 @@ public class AddtionalFix
 				qlog.rankedSparqls.add(sparql);
 			}
 		}
-		/*TODO: ´¦ÀítargetÊÇentµÄÇé¿ö£¬ÀıÈçÏÂÃæ£»ĞèÒªÒ»¸öºòÑ¡Î½´ÊÁĞ±í
+		/*TODO: å¤„ç†targetæ˜¯entçš„æƒ…å†µï¼Œä¾‹å¦‚ä¸‹é¢ï¼›éœ€è¦ä¸€ä¸ªå€™é€‰è°“è¯åˆ—è¡¨
 		 * res:Aldi dbo:numberOfLocations ?number .
 		 */
 	}
