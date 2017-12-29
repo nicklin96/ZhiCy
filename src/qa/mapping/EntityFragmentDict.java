@@ -21,7 +21,7 @@ public class EntityFragmentDict {
 	}
 	
 	/*
-	 * 旧版代码，有name最终从lucene匹配得到fragment
+	 * 鏃х増浠ｇ爜锛屾湁name鏈�缁堜粠lucene鍖归厤寰楀埌fragment
 	 * */
 //	public EntityFragment getEntityFragmentByName (String name) {
 //		if (name.startsWith("?")) {

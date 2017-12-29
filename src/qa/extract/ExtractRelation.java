@@ -205,16 +205,16 @@ public class ExtractRelation {
 			{
 				if(s.equals(curOuterNode.word.baseForm))
 				{
-					// ¿ªÊ¼³¢ÊÔÆ¥ÅäËùÓĞµã
+					// å¼€å§‹å°è¯•åŒ¹é…æ‰€æœ‰ç‚¹
 					ArrayList<DependencyTreeNode> subTreeNodes = new ArrayList<DependencyTreeNode>();
 					Queue<DependencyTreeNode> queue2 = new LinkedList<DependencyTreeNode>();
 					queue2.add(curOuterNode);
 					
-					int unMappedLeft = BoW_P.length;	//ÉĞÎ´Æ¥ÅäµÄµ¥´ÊÊı
-					int mappedCharacterCount = 0;	// Æ¥ÅäµÄ"×Ö·ûÊı"
-					int hitPathCnt = 0;	//patternÖĞµÄwordÂäÔÚshortest pathÉÏ£¬ÏÔÈ»±ÈÂäÔÚÍâÃæ¸ü¿ÉĞÅ
-					int hitPathBetweenTwoArgCnt = 0; //patternÖĞµÄwordÂäÔÚshortest pathÉÏ£¬²¢ÇÒ²»°üÀ¨Á½¶ËµÄÁ½¸ö±äÁ¿
-					double mappedCharacterCountPunishment = 0;	// ÎÒÃÇ²»Ï£Íû[[]]ÕâÖÖÅÅÔÚÇ°Ãæ£¬¸øµã³Í·£
+					int unMappedLeft = BoW_P.length;	//å°šæœªåŒ¹é…çš„å•è¯æ•°
+					int mappedCharacterCount = 0;	// åŒ¹é…çš„"å­—ç¬¦æ•°"
+					int hitPathCnt = 0;	//patternä¸­çš„wordè½åœ¨shortest pathä¸Šï¼Œæ˜¾ç„¶æ¯”è½åœ¨å¤–é¢æ›´å¯ä¿¡
+					int hitPathBetweenTwoArgCnt = 0; //patternä¸­çš„wordè½åœ¨shortest pathä¸Šï¼Œå¹¶ä¸”ä¸åŒ…æ‹¬ä¸¤ç«¯çš„ä¸¤ä¸ªå˜é‡
+					double mappedCharacterCountPunishment = 0;	// æˆ‘ä»¬ä¸å¸Œæœ›[[]]è¿™ç§æ’åœ¨å‰é¢ï¼Œç»™ç‚¹æƒ©ç½š
 					
 					DependencyTreeNode curNode;
 					boolean[] matchedFlag = new boolean[BoW_P.length];
@@ -252,7 +252,7 @@ public class ExtractRelation {
 									subTreeNodes.add(curNode);
 									queue2.addAll(curNode.childrenList);
 									matchedFlag[idx] = true;
-									mappedCharacterCount += curNode.word.baseForm.length();//ÉÔÎ¢ºÍÉÏÃæ²»Í¬
+									mappedCharacterCount += curNode.word.baseForm.length();//ç¨å¾®å’Œä¸Šé¢ä¸åŒ
 									mappedCharacterCountPunishment += 0.01;
 									break;
 								}
@@ -279,14 +279,14 @@ public class ExtractRelation {
 						break outer;
 					}
 					
-					// Æ¥ÅäµÄ²¿·Ö±ØĞëÓĞÊµ´Ê£¬²»ÄÜÈ«ÊÇÍ£ÓÃ´Ê
-					// Æ¥ÅäµÄ·ÇÍ£ÓÃ´Ê¸öÊı´óÓÚ0
+					// åŒ¹é…çš„éƒ¨åˆ†å¿…é¡»æœ‰å®è¯ï¼Œä¸èƒ½å…¨æ˜¯åœç”¨è¯
+					// åŒ¹é…çš„éåœç”¨è¯ä¸ªæ•°å¤§äº0
 					if (matchedNoneStopWordCount == 0){
 						if(qlog.MODE_debug) System.out.println("----But the matching for pattern \"" + pattern + "\" does not have content words.");
 						break outer;
 					}
 					
-					// Èç¹ûÊÇ¡°²»ÍêÈ«Æ¥Åä¡±£¬ÈôÆ¥ÅäµÄ²¿·ÖÇ¡ºÃÊÇÁíÒ»¸öÍêÕûpattern£¬Ôòµ±Ç°pattern¾Í²»¿¼ÂÇÁË
+					// å¦‚æœæ˜¯â€œä¸å®Œå…¨åŒ¹é…â€ï¼Œè‹¥åŒ¹é…çš„éƒ¨åˆ†æ°å¥½æ˜¯å¦ä¸€ä¸ªå®Œæ•´patternï¼Œåˆ™å½“å‰patternå°±ä¸è€ƒè™‘äº†
 					if (unMappedLeft > 0) {
 						StringBuilder subpattern = new StringBuilder();
 						for (int idx = 0; idx < BoW_P.length; idx ++) {
@@ -333,23 +333,23 @@ public class ExtractRelation {
 					if (matched_score > 0.95) 
 						matched_score *= 10; // Award for WHOLE match
 					
-					//patternÓëpathÖØºÏµÄ²¿·Ö±ÈÀıÔ½´ó£¬·ÖÊıÔ½¸ß£»Èç¹ûÃ»ÓĞÓÚÁ½±ßµÄargÖØºÏ£¬·ÖÊı¸ü¸ß
+					//patternä¸pathé‡åˆçš„éƒ¨åˆ†æ¯”ä¾‹è¶Šå¤§ï¼Œåˆ†æ•°è¶Šé«˜ï¼›å¦‚æœæ²¡æœ‰äºä¸¤è¾¹çš„argé‡åˆï¼Œåˆ†æ•°æ›´é«˜
 					if(hitPathCnt != 0)
 					{
 						double hitScore = 1 + (double)hitPathCnt/(double)BoW_P.length;
 						if(hitPathBetweenTwoArgCnt == hitPathCnt)
 							hitScore += 1;
-						else if(shortestPath.size() >= 4)	//Èç¹ûpath×ã¹»³¤£¬patternÈ´ÒÀÈ»ÓëargÖØºÏ£¬ÈÏÎªÒª¿Û·Ö
+						else if(shortestPath.size() >= 4)	//å¦‚æœpathè¶³å¤Ÿé•¿ï¼Œpatternå´ä¾ç„¶ä¸argé‡åˆï¼Œè®¤ä¸ºè¦æ‰£åˆ†
 						{
 							//hitScore = 0.5;
-							if(hitPathBetweenTwoArgCnt == 0) //path×ã¹»³¤£¬µ«patternÍêÈ«ÓëargÖØºÏ,¿Û·Ö¸ü¶à
+							if(hitPathBetweenTwoArgCnt == 0) //pathè¶³å¤Ÿé•¿ï¼Œä½†patternå®Œå…¨ä¸argé‡åˆ,æ‰£åˆ†æ›´å¤š
 								hitScore = 0.25;
 						}
 						matched_score *= hitScore;
 					}
 					
 					matched_score = matched_score * Math.sqrt(mappedCharacterCount) - mappedCharacterCountPunishment;	// the longer, the better (unsuitable in some cases)
-					if (qlog.MODE_debug) System.out.println("¡î" + pattern + ", score=" + matched_score);
+					if (qlog.MODE_debug) System.out.println("â˜†" + pattern + ", score=" + matched_score);
 
 					DependencyTreeNode subject = n1;
 					DependencyTreeNode object = n2;
@@ -423,8 +423,8 @@ public class ExtractRelation {
 				semr.relationParaphrase = simr.relationParaphrase;
 			}
 			
-			//ÕâÀïÖ»¿¼ÂÇ¡°patternºÍpidÖ®¼äµÄÆ¥Åä·ÖÊı¡°¶ø²»¿¼ÂÇÖ®Ç°³éÈ¡Ê±µÄ¡±matching score¡°ºÏÀíÂğ£¿ ×Ô´ğ£º³éÈ¡·ÖÊıÒÑ¾­ÔÚpasListµÄµÃ·ÖÀïÁË£¬paslistµÄµÃ·Ö=³éÈ¡µÃ·Ö³ËÒÔÆ¥ÅäµÃ·Ö³ËÒÔÒ»¸öĞŞÕıµÄ¶«Î÷
-			//ÕâÀïµÄÒâË¼ÊÇ£¬¶ÔÓÚÒ»¸öÌØ¶¨µÄpid=x£¬²»¹ÜÄãÊÇÄÄ¸öpatternÀ´µÄ£¬Ò²²»¹ÜÄã³éÈ¡Ê±µÄÆ¥Åä³Ì¶È£¬ÎÒ¾Í¼ÇÂ¼ÏÂ×î´ó¡±×ÛºÏµÃ·Ö¡°ºÍËü¶ÔÓ¦µÄpattern¡£
+			//è¿™é‡Œåªè€ƒè™‘â€œpatternå’Œpidä¹‹é—´çš„åŒ¹é…åˆ†æ•°â€œè€Œä¸è€ƒè™‘ä¹‹å‰æŠ½å–æ—¶çš„â€matching scoreâ€œåˆç†å—ï¼Ÿ è‡ªç­”ï¼šæŠ½å–åˆ†æ•°å·²ç»åœ¨pasListçš„å¾—åˆ†é‡Œäº†ï¼Œpaslistçš„å¾—åˆ†=æŠ½å–å¾—åˆ†ä¹˜ä»¥åŒ¹é…å¾—åˆ†ä¹˜ä»¥ä¸€ä¸ªä¿®æ­£çš„ä¸œè¥¿
+			//è¿™é‡Œçš„æ„æ€æ˜¯ï¼Œå¯¹äºä¸€ä¸ªç‰¹å®šçš„pid=xï¼Œä¸ç®¡ä½ æ˜¯å“ªä¸ªpatternæ¥çš„ï¼Œä¹Ÿä¸ç®¡ä½ æŠ½å–æ—¶çš„åŒ¹é…ç¨‹åº¦ï¼Œæˆ‘å°±è®°å½•ä¸‹æœ€å¤§â€ç»¼åˆå¾—åˆ†â€œå’Œå®ƒå¯¹åº”çš„patternã€‚
 			for (int pid : simr.pasList.keySet()) {
 				double score = simr.pasList.get(pid);
 				if (!pasMap.containsKey(pid)) {

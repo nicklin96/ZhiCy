@@ -79,7 +79,6 @@ public class QaldJsonDataParser
 				e.printStackTrace();
 			}
 		}
-		
 	}
 	
 	public HashMap<Integer, String> parseQALDdata(String rootStr)
@@ -139,7 +138,7 @@ public class QaldJsonDataParser
 				continue;
 			
 			int cnt = 0;
-			ArrayList<String> lastSpqList = new ArrayList<String>();	//¼òµ¥È¥Ò»ÏÂÖØ
+			ArrayList<String> lastSpqList = new ArrayList<String>();	//ç®€å•å»ä¸€ä¸‹é‡
 			for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
 			{
 				Sparql spq = qlog.rankedSparqls.get(j);
@@ -158,7 +157,7 @@ public class QaldJsonDataParser
 					break;
 			}
 			
-			//ÒòÎª¾­³£³öÏÖÎŞÓÃtypeµ¼ÖÂ²éÑ¯²»µ½½á¹û(Èç <type> <yago:Wife>)£¬×·¼ÓÒ»¸öuntyped SPQ
+			//å› ä¸ºç»å¸¸å‡ºç°æ— ç”¨typeå¯¼è‡´æŸ¥è¯¢ä¸åˆ°ç»“æœ(å¦‚ <type> <yago:Wife>)ï¼Œè¿½åŠ ä¸€ä¸ªuntyped SPQ
 			Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 			if(untypedSparql != null)
 			{
@@ -211,7 +210,7 @@ public class QaldJsonDataParser
 		}
 		
 		int cnt = 0;
-		ArrayList<String> lastSpqList = new ArrayList<String>();	//¼òµ¥È¥Ò»ÏÂÖØ
+		ArrayList<String> lastSpqList = new ArrayList<String>();	//ç®€å•å»ä¸€ä¸‹é‡
 		for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
 		{
 			Sparql spq = qlog.rankedSparqls.get(j);
@@ -230,7 +229,7 @@ public class QaldJsonDataParser
 				break;
 		}
 		
-		//ÒòÎª¾­³£³öÏÖÎŞÓÃtypeµ¼ÖÂ²éÑ¯²»µ½½á¹û(Èç <type> <yago:Wife>)£¬×·¼ÓÒ»¸öuntyped SPQ
+		//å› ä¸ºç»å¸¸å‡ºç°æ— ç”¨typeå¯¼è‡´æŸ¥è¯¢ä¸åˆ°ç»“æœ(å¦‚ <type> <yago:Wife>)ï¼Œè¿½åŠ ä¸€ä¸ªuntyped SPQ
 		Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 		if(untypedSparql != null)
 		{

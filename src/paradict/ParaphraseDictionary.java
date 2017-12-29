@@ -255,15 +255,16 @@ public class ParaphraseDictionary {
 			}
 		}
 		
-//		for(String str: missInDBP2015)
-//		{
-//			System.out.println(str);
-//		}
+		System.out.println("Number of NL-Patterns-to-predicate mappings = " + lineCount);
+		System.out.println("NLPatterns.size = " + nlPattern_2_predicateList.size());
+		System.out.println("Predicate.size = " + predicate_2_id.size());
+		
+		System.out.println("Warning: Predicates not in DBpedia 2014 count: "+missInDBP2014.size());
 
 		//Globals.systemPause();
 		
-		// this is very important.
-		// ×¢Òâ£ºÄ¿Ç°predicate±¾ÉíºÍhandwritternµÄNL patternsÊÇÃ»ÓÐwordSelectivityµÄ
+		// This is very important.
+		// æ³¨æ„ï¼šç›®å‰predicateæœ¬èº«å’Œhandwritternçš„NL patternsæ˜¯æ²¡æœ‰wordSelectivityçš„
 		
 		// sort
 		System.out.println("NLPatterns.Paradict() : ok!");
@@ -278,14 +279,14 @@ public class ParaphraseDictionary {
 		int predicate_id;
 		for (String p : predicate_2_id.keySet()) 
 		{
-			//ºöÂÔÒ»Ð©»ù±¾²»»áÓÃµ½£¬·´¶ø³£³£×÷Îª´íÎóÎ½´Ê³öÏÖµÄpredicate£¨Èçfilm£©
+			//å¿½ç•¥ä¸€äº›åŸºæœ¬ä¸ä¼šç”¨åˆ°ï¼Œåè€Œå¸¸å¸¸ä½œä¸ºé”™è¯¯è°“è¯å‡ºçŽ°çš„predicateï¼ˆå¦‚filmï¼‰
 			if(p.equals("state") || p.equals("states"))
 				continue;
 			
 			predicate_id = predicate_2_id.get(p);
 			StringBuilder pattern = new StringBuilder("");
 			
-			// Work/runtime	11,SpaceStation/volume	68 µÈÓÐÇ°×ºµÄpredicate (DBpedia 2015¼°ºóÐø°æ±¾)£¬Éú³ÉpatternÊ±£¬È¥µôÇ°×º 
+			// Work/runtime	11,SpaceStation/volume	68 ç­‰æœ‰å‰ç¼€çš„predicate (DBpedia 2015åŠåŽç»­ç‰ˆæœ¬)ï¼Œç”Ÿæˆpatternæ—¶ï¼ŒåŽ»æŽ‰å‰ç¼€ 
 			if(p.contains("/"))
 			{
 				if(p.charAt(0)>='A' && p.charAt(0)<='Z')
@@ -328,7 +329,7 @@ public class ParaphraseDictionary {
 				}
 			}
 			
-			// pattern»¹Òª×ª»¯Îªbase form
+			// patternè¿˜è¦è½¬åŒ–ä¸ºbase form
 			/*String[] ptns = pattern.toString().split(" ");
 			pattern = new StringBuilder("");
 			for (String s : ptns) {
@@ -338,7 +339,7 @@ public class ParaphraseDictionary {
 			pattern.deleteCharAt(pattern.length()-1);
 			String patternString = pattern.toString();*/
 			
-			// »¹ÊÇ²»ÄÜ¹»ÍêÈ«×ª»¯Îª base form£¬ÀýÈçfoundingYear	//¿ÉÄÜÒªÓÃPorter's Algorithm
+			// è¿˜æ˜¯ä¸èƒ½å¤Ÿå®Œå…¨è½¬åŒ–ä¸º base formï¼Œä¾‹å¦‚foundingYear	//å¯èƒ½è¦ç”¨Porter's Algorithm
 			String patternString = Globals.coreNLP.getBaseFormOfPattern(pattern.toString());
 			//System.out.println(p + "-->" + patternString);
 			
