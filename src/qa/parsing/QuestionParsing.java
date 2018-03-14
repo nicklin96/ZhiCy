@@ -1,5 +1,7 @@
 package qa.parsing;
 
+import org.maltparser.core.exception.MaltChainedException;
+
 import log.QueryLogger;
 import nlp.ds.DependencyTree;
 import nlp.ds.DependencyTreeNode;
@@ -16,11 +18,24 @@ public class QuestionParsing {
 	}
 	
 	public void getDependenciesAndNER (QueryLogger qlog) {
+		long t1 = System.currentTimeMillis();
 		try {
-			long t1 = System.currentTimeMillis();
 			qlog.s.dependencyTreeStanford = new DependencyTree(qlog.s, Globals.stanfordParser);
-			long t2 = System.currentTimeMillis();
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		
+		long t2 = System.currentTimeMillis();
+		try{
 			qlog.s.dependencyTreeMalt = new DependencyTree(qlog.s, Globals.maltParser);
+		}catch(MaltChainedException e){
+			//if errors occur, abandon malt tree
+			qlog.s.dependencyTreeMalt = qlog.s.dependencyTreeStanford;
+		}catch(Exception e){
+			
+		}					
+		
+		try {
 			long t3 = System.currentTimeMillis();
 			Globals.nerRecognizer.recognize(qlog.s);
 			long t4 = System.currentTimeMillis();
@@ -46,7 +61,7 @@ public class QuestionParsing {
 		if (IsImperativeSentence)
 		{
 			qlog.s.sentenceType = SentenceType.ImperativeSentence;
-			//两棵dependencyTree中的ignored words要保持统一
+			//two dependencyTree's ignored words should equal
 			for (DependencyTreeNode sNode : qlog.s.dependencyTreeStanford.nodesList)
 				for (DependencyTreeNode mNode : qlog.s.dependencyTreeMalt.nodesList)
 					if (sNode.equals(mNode) && (sNode.word.isIgnored||mNode.word.isIgnored))
@@ -70,12 +85,12 @@ public class QuestionParsing {
 			return;
 		}
 		
-		//都没识别出来时，还是当特殊疑问句处理吧
+		//default is special
 		qlog.s.sentenceType = SentenceType.SpecialQuestion;
 		
 	}
 	
-	//当是祈使句时，同时忽略那些客套词
+	//if imperative, omitting those polite words
 	private boolean recognizeImperativeSentence(DependencyTree tree) {
 		if(tree.getRoot().word.posTag.startsWith("V") || tree.getRoot().word.posTag.startsWith("NN")) {
 			DependencyTreeNode dobj = null;
@@ -92,7 +107,7 @@ public class QuestionParsing {
 				tree.getRoot().word.isIgnored = true;
 				iobj.word.isIgnored = true;
 				
-				//识别 give me a list of 句型
+				// give me a list of ..
 				if (dobj.word.baseForm.equals("list"))
 				{
 					dobj.word.isIgnored = true;
@@ -101,7 +116,7 @@ public class QuestionParsing {
 				return true;
 			}
 			
-			//识别以list开头的祈使句，如List all games by GMT.
+			//start with "List": List all games by GMT.
 			if (dobj != null && tree.getRoot().word.baseForm.equals("list"))
 			{
 				//System.out.println("isListSentence!");
@@ -168,7 +183,7 @@ public class QuestionParsing {
 		return false;
 	}
 	
-	public String detectQuestionFocus(Sparql spq) {
+	public static String detectQuestionFocus(Sparql spq) {
 		String ret = null;
 		int posi = Integer.MAX_VALUE;
 		for (Triple t : spq.tripleList) {

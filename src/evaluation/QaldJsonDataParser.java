@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -12,6 +13,7 @@ import java.util.HashMap;
 import log.QueryLogger;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import qa.Globals;
@@ -20,6 +22,8 @@ import rdf.Sparql;
 
 public class QaldJsonDataParser 
 {
+	public static String NOAnswerJSON = "{\"questions\":[{\"answers\":[{\"head\":{\"vars\":[\"uri\"]},\"results\":{\"bindings\":[]}}],\"id\":\"0\"}],\"dataset\":{\"id\":\"qald-7-test-multilingual\"}}";
+	
 	/*
 	 * "id":1 -> "id":"1"
 	 * */
@@ -29,10 +33,12 @@ public class QaldJsonDataParser
 		File outputFile = new File("D:\\Documents\\husen\\Java\\DBpediaSparqlEvaluation\\data\\DBpedia2014_qald6train_beta2_jsonAnswers_fixFormat.json");		
 		String rootStr = "";
 		StringBuilder rr = new StringBuilder();
+		BufferedReader br = null;
+		OutputStreamWriter fw = null;
 		try 
 		{
-			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile), "utf-8"));
-			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8");
+			br = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile), "utf-8"));
+			fw = new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8");
 			String input = "";
 			while( (input=br.readLine())!=null )
 			{
@@ -53,9 +59,25 @@ public class QaldJsonDataParser
 			br.close();
 			fw.close();
 		} 
-		catch (Exception e) {
-			e.printStackTrace();
+		catch (IOException e) {
 			// TODO: handle exception
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			System.err.println("Something wrong with JSON Object");
+		}
+		finally {
+			try {
+				if(br!=null)
+					br.close();
+			}catch(Exception e) {
+				e.printStackTrace();
+			}
+			try {
+				if(fw!=null)
+					fw.close();
+			}catch(Exception e) {
+				e.printStackTrace();
+			}
 		}
 	}
 	
@@ -82,7 +104,6 @@ public class QaldJsonDataParser
 			}
 		} 
 		catch (Exception e) {
-			// TODO: handle exception
 			System.err.println("Input data is not JSON format!");
 		}
 		
@@ -117,7 +138,7 @@ public class QaldJsonDataParser
 				continue;
 			
 			int cnt = 0;
-			ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
+			ArrayList<String> lastSpqList = new ArrayList<String>();	
 			for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
 			{
 				Sparql spq = qlog.rankedSparqls.get(j);
@@ -136,8 +157,8 @@ public class QaldJsonDataParser
 					break;
 			}
 			
-			//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
-			Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1), qlog);
+			//Try dropping types, as some types are useless (?x <type> <yago:Wife>)
+			Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 			if(untypedSparql != null)
 			{
 				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
@@ -178,12 +199,19 @@ public class QaldJsonDataParser
 		qr.qId = 0;	// default
 		qr.question = question;
 		
-		if(qlog.rankedSparqls.size() == 0)
-			return "";
+		if(qlog == null || qlog.rankedSparqls.size() == 0)
+		{
+//			ssg.generateStandardSparql();
+//			ssg.printSparqls();
+//			ssg.evaluate();
+//			ssg.printAnswers();
+			
+			return NOAnswerJSON;
+		}
 		
 		int cnt = 0;
-		ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
-		for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
+		ArrayList<String> lastSpqList = new ArrayList<String>();
+		for(int j=0; j<qlog.rankedSparqls.size()-1; j++)
 		{
 			Sparql spq = qlog.rankedSparqls.get(j);
 			String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, spq);
@@ -201,8 +229,8 @@ public class QaldJsonDataParser
 				break;
 		}
 		
-		//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
-		Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1), qlog);
+		//Try dropping types, as some types are useless (?x <type> <yago:Wife>)
+		Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 		if(untypedSparql != null)
 		{
 			String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
@@ -218,10 +246,13 @@ public class QaldJsonDataParser
 		ssg.qrList.add(qr);
 		
 		ssg.generateStandardSparql();
-		ssg.printSparqls();
+//		ssg.printSparqls();
 		ssg.evaluate();
-		ssg.printAnswers();
+//		ssg.printAnswers();
 		res = ssg.printJsonResult();
+		
+		if(res.length() <= 10)
+			res = NOAnswerJSON;
 		
 		return res;
 	}
@@ -231,11 +262,11 @@ public class QaldJsonDataParser
 		
 		GAnswer.init();
 		QaldJsonDataParser parser = new QaldJsonDataParser();
-		StringBuilder sb = new StringBuilder();
+		//StringBuilder sb = new StringBuilder();
 		try 
 		{
 //			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(Globals.localPath + "/data/QALD7/testin.json")), "utf-8"));
-//			String input = "";
+			String input = "";
 //			while((input = br.readLine()) != null)
 //			{
 //				sb.append(input);
@@ -243,13 +274,21 @@ public class QaldJsonDataParser
 //			String jsonInput = sb.toString();
 //			String jsonOutput = parser.runQALDdata(jsonInput);
 			
-			String jsonOutput = parser.runQALDdataBySentence("What is the longest river in the world?");
-			System.out.println("Send:\n" + jsonOutput);
+			BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+			while((input = br.readLine()) != null)
+			{
+				String jsonOutput = parser.runQALDdataBySentence(input);
+				System.out.println("Send:\n" + jsonOutput);
+			}
+//			String jsonOutput = parser.runQALDdataBySentence("Which building after the Burj Khalifa has the most floors?");
+//			System.out.println("Send:\n" + jsonOutput);
+//			jsonOutput = parser.runQALDdataBySentence("What is Donald Trump's main business?");
+//			System.out.println("Send:\n" + jsonOutput);
 			
 //			br.close();
 		} 
 		catch (Exception e) {
-			// TODO: handle exception
+			e.printStackTrace();
 		}
 		
 	}

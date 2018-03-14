@@ -18,19 +18,14 @@ public class BuildIndexForTypeShortName {
 	public static void buildIndex(HashMap<String, ArrayList<Integer>> typeShortName2IdList) throws Exception
 	{
 		long startTime = new Date().getTime();
-	
-		//File indexDir_li = new File("E:\\huangruizhe\\dataset_DBpedia\\wenqiang\\type_fragment_index");
-		//File indexDir_li = new File("E:\\Hanshuo\\DBpedia3.9\\reducedDBpedia3.9\\fragments\\type_fragment_index");
-		//File sourceDir_en = new File("E:\\huangruizhe\\dataset_DBpedia\\wenqiang\\entity_fragment.txt");
-		
 		File indexDir_li = new File("D:\\husen\\DBpedia2014\\reducedDBpedia2014\\fragments\\type_fragment_index");
 		
 		Analyzer luceneAnalyzer_li = new StandardAnalyzer();  
 		IndexWriter indexWriter_li = new IndexWriter(indexDir_li, luceneAnalyzer_li,true); 
 		
-		int mergeFactor = 100000;    //默认是10
-		int maxBufferedDoc = 1000;  // 默认是10
-		int maxMergeDoc = Integer.MAX_VALUE;  //默认无穷大
+		int mergeFactor = 100000;
+		int maxBufferedDoc = 1000;
+		int maxMergeDoc = Integer.MAX_VALUE;
 		
 		//indexWriter.DEFAULT_MERGE_FACTOR = mergeFactor;
 		indexWriter_li.setMergeFactor(mergeFactor);
@@ -69,7 +64,7 @@ public class BuildIndexForTypeShortName {
 					}
 				}
 				splittedSn.append(sn.substring(last, i).toLowerCase());
-				while(splittedSn.charAt(0) == ' ') {	// 小心首字母大写
+				while(splittedSn.charAt(0) == ' ') {
 					splittedSn.deleteCharAt(0);
 				}
 			}

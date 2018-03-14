@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 import jgsc.GstoreConnector;
 import log.QueryLogger;
-import log.ResultJspFile;
 import nlp.ds.Sentence;
 import nlp.ds.Word;
 import nlp.ds.Sentence.SentenceType;
@@ -19,9 +19,9 @@ import qa.parsing.BuildQueryGraph;
 import rdf.EntityMapping;
 import rdf.PredicateMapping;
 import rdf.SemanticRelation;
-import rdf.SemanticUnit;
 import rdf.Sparql;
 import rdf.Triple;
+import utils.FileUtil;
 import addition.AddtionalFix;
 import qa.Globals;
 
@@ -51,28 +51,24 @@ public class GAnswer {
 			// step 0: Node (entity & type & literal) Recognition 
 			long t0 = System.currentTimeMillis(), t, NRtime;
 			Query query = new Query(input);
+			qlog = new QueryLogger(query);
 			ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
 			NRtime = (int)(System.currentTimeMillis()-t0);
 			System.out.println("step0 [Node Recognition] : "+ NRtime +"ms");	
 			
-			//对每种NR结果，新建qlog并尝试生成querys，把所有querys合并到plan 0的qlog中；
-			//因为plan 0的得分是最高的，我们只保留plan 0求解过程中的日志（在for过程中fw的数据因为还没close就new了qlog，所以丢失掉，相当于只输出最后plan 0的log）；
-			//system.out是输出了每种方案的日志。
-			for(int i=query.sList.size()-1;i>=0;i--)
+			// Try to solve each NR plan, and combine the ranked SPARQLs.
+			// We only reserve LOG of BEST NR plan for convenience.
+			for(int i=query.sList.size()-1; i>=0; i--)
 			{
 				Sentence possibleSentence = query.sList.get(i);
-				qlog = new QueryLogger(query,possibleSentence);
-			
+				qlog.reloadSentence(possibleSentence);
+				
+				// LOG
 				System.out.println("transQ: "+qlog.s.plainText);
 				qlog.NRlog = query.preLog;
-				qlog.SQGlog += "Id: "+query.queryId+"\nQuery: "+query.MergedQuestionList.get(0)+"\n";
+				qlog.SQGlog = "Id: "+query.queryId+"\nQuery: "+query.NLQuestion+"\n";
+				qlog.SQGlog += qlog.NRlog;
 				qlog.timeTable.put("step0", (int)NRtime);
-				
-				if(i == 0 && qlog.fw!=null)	//只输出plan0的日志,只在本地的时候进行文件输出
-				{
-					qlog.fw.write("Id: "+query.queryId+"\nQuery: "+query.MergedQuestionList.get(0)+"\n");
-					qlog.fw.write(query.preLog);
-				}
 				
 				// step 1: question parsing (dependency tree, sentence type)
 				t = System.currentTimeMillis();
@@ -84,6 +80,7 @@ public class GAnswer {
 				t = System.currentTimeMillis();
 				BuildQueryGraph step2 = new BuildQueryGraph();
 				step2.process(qlog);
+//				step2.processEXP(qlog);
 				qlog.timeTable.put("step2", (int)(System.currentTimeMillis()-t));
 				
 				// step 3: some fix (such as "one-node" or "ask-one-triple") and aggregation
@@ -91,70 +88,98 @@ public class GAnswer {
 				AddtionalFix step3 = new AddtionalFix();
 				step3.process(qlog);
 				
-				//把各种方案生成的sparql记录下来
+				// Collect SPARQLs.
 				rankedSparqls.addAll(qlog.rankedSparqls);
 				qlog.timeTable.put("step3", (int)(System.currentTimeMillis()-t));
-				
 			}
 
-			
-			//排序，把最后一个qlog作为载体，放入完整的sparql list
+			// Sort (descending order).
 			Collections.sort(rankedSparqls);
+			curSparqlIdx = 0;
 			qlog.rankedSparqls = rankedSparqls;
 			System.out.println("number of rankedSparqls = " + qlog.rankedSparqls.size());
 			
-			//确定question focus，注意rankedSparqls是按照从小到大排序的
+			// Detect question focus.
 			int count = 0;
-			QuestionParsing step1 = new QuestionParsing();
-			for (int i = qlog.rankedSparqls.size()-1; i >= 0; i --) 
+			for (int i=0; i<qlog.rankedSparqls.size(); i++) 
 			{
+				// First detect by SPARQLs.
 				Sparql spq = qlog.rankedSparqls.get(i);
-				// get question focus
-				String questionFocus = step1.detectQuestionFocus(spq);
+				String questionFocus = QuestionParsing.detectQuestionFocus(spq);
 				
-				// 如果从sparql上得不到focus，就认为target是focus
+				// If failed, use TARGET directly.
 				if(questionFocus == null)
 					questionFocus = "?"+qlog.target.originalForm;
 				
 				spq.questionFocus = questionFocus;
 				
 				count ++;
-				if (count == terminateThreshold) 
-				{
+				if (count == terminateThreshold)
 					break;
-				}
 			}
-			curSparqlIdx = qlog.rankedSparqls.size()-1;
 						
 			return qlog;
-		} catch (Exception e) {
+		} 
+		catch (Exception e) {
 			e.printStackTrace();
 			return qlog;
 		}	
 	}
 	
-	public Sparql getNextSparql(QueryLogger qlog) {
-		if (qlog == null || qlog.rankedSparqls.size()==0 || curSparqlIdx < 0 || qlog.gStoreCallTimes > terminateThreshold) {
+	public Sparql getNextSparql(QueryLogger qlog) 
+	{
+		// Notice, only return TOP-K queries.
+		if (qlog == null || qlog.rankedSparqls.size()==0 || curSparqlIdx < 0 || curSparqlIdx >= qlog.rankedSparqls.size() 
+				|| curSparqlIdx >= terminateThreshold)
 			return null;
-		}
-		else {
+		else 
+		{
 			Sparql ret = qlog.rankedSparqls.get(curSparqlIdx);
-			curSparqlIdx --;
-			qlog.gStoreCallTimes ++;
+			curSparqlIdx ++;
 			return ret;
 		}
 	}
 	
-	public Sparql getUntypedSparql (Sparql spq, QueryLogger qlog) {
-		qlog.gStoreCallTimes ++;
+	public String getStdSparqlWoPrefix(QueryLogger qlog, Sparql curSpq) 
+	{
+		if(qlog == null || curSpq == null)
+			return null;
+		
+		String res = "";
+		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
+			res += "ask where";
+		else
+		{
+			if(!curSpq.countTarget)
+				res += ("select DISTINCT " + curSpq.questionFocus + " where");		
+			else
+				res += ("select COUNT(DISTINCT " + curSpq.questionFocus + ") where");	
+		}					
+		res += "\n";
+		res += curSpq.toStringForGStore();
+		if(qlog.moreThanStr != null)
+		{
+			res += qlog.moreThanStr+"\n";
+		}
+		if(curSpq.mostStr != null)
+		{
+			res += curSpq.mostStr+"\n";
+		}
+		
+		return res;
+	}
+	
+	// Notice, this will change the original SPARQL.
+	public Sparql getUntypedSparql (Sparql spq) 
+	{
 		if(spq == null)
 			return null;
-		//注意，这是直接在传入的spq里去掉所有type，执行后，原spq就被改变了
 		spq.removeAllTypeInfo();
 		if (spq.tripleList.size() == 0) return null;
 		return spq;
 	}
 	
+	// Is it a Basic Graph Pattern without filter and aggregation?
 	public boolean isBGP(QueryLogger qlog, Sparql spq)
 	{
 		if(qlog.s.sentenceType == SentenceType.GeneralQuestion || qlog.moreThanStr != null || spq.mostStr != null || spq.countTarget)
@@ -162,7 +187,11 @@ public class GAnswer {
 		return true;
 	}
 	
-	//Virtuoso can solve "Aggregation"
+	
+	/**
+	 * Get answers from Virtuoso + DBpedia, this function require OLD version Virtuoso + Virtuoso Handler.
+	 * Virtuoso can solve "Aggregation"
+	 **/
 	public Matches getAnswerFromVirtuoso (QueryLogger qlog, Sparql spq)
 	{
 		Matches ret = new Matches();
@@ -187,12 +216,11 @@ public class GAnswer {
 				rawLines.add(line);
 			}
 			
-			//由于支持性原因，ask查询被转化为select查询执行。需要单独处理放回结果。
+			// ASK query was translated to SELECT query, whose answer need translation.
 			if(qlog.s.sentenceType == SentenceType.GeneralQuestion)
 			{
 				ret.answersNum = 1;
 				ret.answers = new String[1][1];
-				//false
 				if(rawLines.size() == 0)
 				{
 					ret.answers[0][0] = "general:false";
@@ -249,7 +277,7 @@ public class GAnswer {
 	{
 		GstoreConnector gc = new GstoreConnector(Globals.QueryEngineIP, 3304);
 		
-		//gc.load("db_dbpedia_ganswer");
+		//gc.load("DBpediaYago");
 		String rawAnswer = gc.query(spq.toStringForGStore2());
 		String[] rawLines = rawAnswer.split("\n");
 		
@@ -271,14 +299,13 @@ public class GAnswer {
 		System.out.println("rawLines.length=" + rawLines.length);
 		for (int i=2;i<rawLines.length;i++)
 		{
-			// 因为rawAnswer里一个答案可能包含\n，就会出现4个答案但rawLines.lengh为6的情况；在gserver修正输出格式前，先简单的截断尾部避免异常
+			// if one answer of rawAnswer contains '\n', it may leads error so we just return.
 			if(i-2 >= ansNum)
 				break;
 			
 			String[] ansLineContents = rawLines[i].split("\t");
 			for (int j=0;j<varNum;j++)
 			{
-				//System.out.println("i:"+i+" j:"+j);
 				ret.answers[i-2][j] = varLineContents[j] + ":" + ansLineContents[j];
 			}
 		}
@@ -296,23 +323,15 @@ public class GAnswer {
 		}
 		try {
 			//String[][] answers = qlog.match.answers;
-			String qf = qlog.sparql.questionFocus;
+			//String qf = qlog.sparql.questionFocus;
 			//int max = Matches.pageNum;			
 		
 			StringBuilder ret = new StringBuilder("");
-			String questionFocus=qf;
+			//String questionFocus=qf;
 			//String sparqlString = qlog.sparql.toStringForGStore();
 			
 			//HashSet<String> printed = new HashSet<String>();
 			for (int i = beginResult; i < Math.min(endResult,qlog.answers.size()); i ++) {
-				//if (i == max) break;
-				//Answer ans = new Answer(questionFocus, answers[i]);
-				//if (printed.contains(ans.questionFocusValue)) continue;
-				//printed.add(ans.questionFocusValue);
-				//System.out.println("ans="+ans.questionFocusKey+"("+ans.questionFocusValue+")"+" "+questionFocus);
-				
-				//if (sparqlString.contains(ans.questionFocusValue)) continue;
-				//cnt ++;
 				Answer ans = qlog.answers.get(i);
 				if (!Character.isDigit(ans.questionFocusValue.charAt(0))) {
 					String link = null;
@@ -349,27 +368,10 @@ public class GAnswer {
 			}
 			
 			return ret.toString();
-		} catch (Exception e) {
-			/*
-			String[][] answers = qlog.match.answers;
-			int max = Matches.pageNum;
-
-			
-			int cnt = 0;
-			for (int i = 0; i < answers.length; i ++) {
-				if (i == max) break;
-				cnt ++;
-				for (int j = 0; j < answers[i].length; j ++) {
-					ret.append("<span id=\"values\">"
-							+answers[i][j]
-							+"   </br></span>");
-				}
-				ret.append("</td></tr>");
-			}
-			*/
+		} 
+		catch (Exception e) {	
 			e.printStackTrace();
-			StringBuilder ret = new StringBuilder("");
-			return ret.toString();
+			return "";
 		}
 	}
 	
@@ -517,294 +519,95 @@ public class GAnswer {
 		return sb.toString();
 	}
 	
-	public ArrayList<String> genNRdata(QueryLogger qlog)
-	{
-		ArrayList<String> outputs = new ArrayList<String>();
-		HashSet<Word> nodes = new HashSet<Word>();
-		HashSet<Word> isConstant = new HashSet<Word>();
-		for(SemanticUnit su: qlog.semanticUnitList)
-		{
-			Word word = su.centerWord;
-			nodes.add(word);
-		}
-		for(SemanticRelation sr: qlog.semanticRelations.values())
-		{
-			if(sr.isArg1Constant)
-				isConstant.add(sr.arg1Word);
-			if(sr.isArg2Constant)
-				isConstant.add(sr.arg2Word);
-		}
-		for(Word word: qlog.s.words)
-		{
-			if(nodes.contains(word))
-			{
-				if(word.mayEnt)
-				{
-					String[] ws = word.originalForm.split("_");
-					int cnt = 0;
-					for(String w: ws)
-					{
-						if(cnt == 0)
-							outputs.add(w + " B-E");
-						else
-							outputs.add(w + " I-E");
-						cnt++;
-					}
-				}
-				else if(word.mayType)
-				{
-					if(isConstant.contains(word))
-					{
-						String[] ws = word.originalForm.split("_");
-						int cnt = 0;
-						for(String w: ws)
-						{
-							if(cnt == 0)
-								outputs.add(w + " B-T");
-							else
-								outputs.add(w + " I-T");
-							cnt++;
-						}
-					}
-					else
-					{
-						String[] ws = word.originalForm.split("_");
-						int cnt = 0;
-						for(String w: ws)
-						{
-							if(cnt == 0)
-								outputs.add(w + " B-V");
-							else
-								outputs.add(w + " I-V");
-							cnt++;
-						}
-					}
-				}
-				else
-				{
-					String[] ws = word.originalForm.split("_");
-					int cnt = 0;
-					for(String w: ws)
-					{
-						if(cnt == 0)
-							outputs.add(w + " B-V");
-						else
-							outputs.add(w + " I-V");
-						cnt++;
-					}
-				}
-			}
-			else
-				outputs.add(word.originalForm + " O");
-		}
-		
-		return outputs;
-	}
-	
-	/*
-	 * 1. word, postag, type
-	 * 2. 实体是经过下划线聚集的，例如将 Robert_Kennedy 作为一个word输出，而不拆开来
-	 * */
-	public ArrayList<String> genNRdataWithPosTag(QueryLogger qlog)
-	{
-		ArrayList<String> outputs = new ArrayList<String>();
-		HashSet<Word> nodes = new HashSet<Word>();
-		HashSet<Word> isConstant = new HashSet<Word>();
-		for(SemanticUnit su: qlog.semanticUnitList)
-		{
-			Word word = su.centerWord;
-			nodes.add(word);
-		}
-		for(SemanticRelation sr: qlog.semanticRelations.values())
-		{
-			if(sr.isArg1Constant)
-				isConstant.add(sr.arg1Word);
-			if(sr.isArg2Constant)
-				isConstant.add(sr.arg2Word);
-		}
-		for(Word word: qlog.s.words)
-		{
-			if(nodes.contains(word))
-			{
-				if(word.mayEnt)
-				{
-					outputs.add(word.originalForm + " " + word.posTag + " B-E");
-				}
-				else if(word.mayType)
-				{
-					if(isConstant.contains(word))
-					{
-						outputs.add(word.originalForm + " " + word.posTag + " B-E");
-					}
-					else
-					{
-						outputs.add(word.originalForm + " " + word.posTag + " B-V");
-					}
-				}
-				else
-				{
-					outputs.add(word.originalForm + " " + word.posTag + " B-V");
-				}
-			}
-			else
-				outputs.add(word.originalForm + " " + word.posTag + " O");
-		}
-		
-		return outputs;
-	}
-
-	
-	public static void main (String[] args){
-				
+	public static void main (String[] args)
+	{			
 		Globals.init();
-		File inputFile = new File(Globals.localPath+"data/test/test_in.txt");
-		try {
-			GAnswer ga = new GAnswer();
+		GAnswer ga = new GAnswer();
+		
+		//file in/output
+		List<String> inputList = FileUtil.readFile(Globals.localPath+"data/test/test_in.txt");
+		for(String input: inputList) 
+		{	
+			ArrayList<String> outputs = new ArrayList<String>();
+			long parsing_st_time = System.currentTimeMillis();
 			
-			//file in/output
-			BufferedReader fr = new BufferedReader(new InputStreamReader(new FileInputStream(inputFile),"utf-8"));
-//			OutputStreamWriter nrfw = new OutputStreamWriter(new FileOutputStream(new File(Globals.localPath+"data/test/nrQ6T.train"),true),"utf-8");
-			String input;
+			QueryLogger qlog = ga.getSparqlList(input);
+			if(qlog == null)
+				continue;
 			
-			while ((input = fr.readLine()) != null) 
-			{	
-				long st_time = System.currentTimeMillis();
-				QueryLogger qlog = ga.getSparqlList(input);
-				if(qlog == null)
-					continue;
-				
-//				if(qlog != null)
-//				{
-//					ArrayList<String>outputs = ga.genNRdataWithPosTag(qlog);
-//					for(String line: outputs)
-//					{
-//						nrfw.write(line + "\n");
-//					}
-//					nrfw.write("\n");
-//				}
-				
-				Sparql curSpq = ga.getNextSparql(qlog);		
-				Sparql bestSpq = curSpq;
-				int idx_sparql = 0;
-				
-				long ed_time = System.currentTimeMillis();
-				System.out.println("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms");
-				System.out.println("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms");
-				System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms");
-				System.out.println("Ranked Sparqls: " + qlog.rankedSparqls.size());
-				if(qlog.fw != null)
-				{
-				//	for(String key: qlog.timeTable.keySet())
-				//		qlog.fw.write(key + ": " + qlog.timeTable.get(key) + "ms\n");
-					qlog.fw.write("Building HQG time: "+ (qlog.timeTable.get("step0")+qlog.timeTable.get("step1")+qlog.timeTable.get("step2")-qlog.timeTable.get("BQG_topkjoin")) + "ms\n");
-					qlog.fw.write("TopKjoin time: "+ qlog.timeTable.get("BQG_topkjoin") + "ms\n");
-					qlog.fw.write("Qustion Understanding time: "+ (int)(ed_time - st_time)+ "ms\n");
-				}
-					
-				long excute_st_time = System.currentTimeMillis();
-				Matches m = null;
-				System.out.println("[RESULT]");
-				ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
-				while (curSpq != null) 
-				{
-					qlog.sparql = curSpq;
-					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
-					
-					if(!lastSpqList.contains(stdSPQwoPrefix))
-					{
-						idx_sparql++;
-						System.out.println("[" + idx_sparql + "]" + "score=" + curSpq.score);
-						System.out.println(stdSPQwoPrefix);
-	
-						if(idx_sparql <= 3)
-						{
-							if(qlog.fw != null)
-							{
-								qlog.fw.write("[" + idx_sparql + "]" + "score=" + curSpq.score + "\n");
-								qlog.fw.write(stdSPQwoPrefix+"\n");
-							}
-							//这去重先只对要输出文件的使用，即只保留”不同的前三个“+“第一的untyped”
-							lastSpqList.add(stdSPQwoPrefix);
-						}
-						
-						// execute by Virtuoso or GStore
-//						if(m == null || m.answers == null)
-//						{
-//							if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
-//							{
-//								if(ga.isBGP(qlog, curSpq))
-//                                    m = ga.getAnswerFromGStore2(curSpq);
-//                                else
-//                                    m = ga.getAnswerFromVirtuoso(qlog, curSpq);
-//							}
-//								
-//							if (m != null && m.answers != null) 
-//	                        {
-//	                            // Found results using current SPQ, then we can break and print result.
-//	                            qlog.sparql = curSpq;
-//	                            qlog.match = m;
-//	                            
-//	                            qlog.reviseAnswers();
-//	                            
-//	                            qlog.fw.write("Query Executing time: "+ (int)(System.currentTimeMillis() - excute_st_time)+ "ms\n");
-//	                            // ResultJspFile jspFile = new ResultJspFile();
-//	                            // jspFile.saveToFile(qlog,"","","");
-//	                        }
-//						}
-					}
-					curSpq = ga.getNextSparql(qlog);
-				}		
-				
-				//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
-				Sparql untypedSparql = ga.getUntypedSparql(bestSpq, qlog);
-				if(untypedSparql != null)
-				{
-					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
-					if(!lastSpqList.contains(stdSPQwoPrefix) && qlog.fw != null)
-					{
-						qlog.fw.write("[" + Math.min(4,idx_sparql) + "]" + "score=" + 1000 + "\n");
-						qlog.fw.write(stdSPQwoPrefix+"\n");
-					}
-				}
-				
-				//System.out.println(ga.printMappingJsp(qlog));
-				
-				qlog.fw.close();
-			}
-			fr.close();
-//			nrfw.close();
+			Sparql curSpq = ga.getNextSparql(qlog);		
+			Sparql bestSpq = curSpq;
+			int idx_sparql = 0;
 			
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+			long parsing_ed_time = System.currentTimeMillis();
+			System.out.println("Question Understanding time: "+ (int)(parsing_ed_time - parsing_st_time)+ "ms");
+			System.out.println("TripleCheck time: "+ qlog.timeTable.get("TripleCheck") + "ms");
+			System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms");
+			System.out.println("Ranked Sparqls: " + qlog.rankedSparqls.size());
+			
+			outputs.add(qlog.SQGlog);
+//			outputs.add(qlog.SQGlog + "Building HQG time: "+ (qlog.timeTable.get("step0")+qlog.timeTable.get("step1")+qlog.timeTable.get("step2")-qlog.timeTable.get("BQG_topkjoin")) + "ms");
+			outputs.add("TopKjoin time: "+ qlog.timeTable.get("BQG_topkjoin") + "ms");
+			outputs.add("Question Understanding time: "+ (int)(parsing_ed_time - parsing_st_time)+ "ms");
+				
+			long excuting_st_time = System.currentTimeMillis();
+			Matches m = null;
+			System.out.println("[RESULT]");
+			ArrayList<String> lastSpqList = new ArrayList<String>();
+			while (curSpq != null) 
+			{
+				qlog.sparql = curSpq;
+				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
+				
+				if(!lastSpqList.contains(stdSPQwoPrefix))
+				{
+					idx_sparql++;
+					System.out.println("[" + idx_sparql + "]" + "score=" + curSpq.score);
+					System.out.println(stdSPQwoPrefix);
 
-	public String getStdSparqlWoPrefix(QueryLogger qlog, Sparql curSpq) 
-	{
-		if(qlog == null || curSpq == null)
-			return null;
-		
-		String res = "";
-		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
-			res += "ask where";
-		else
-		{
-			if(!curSpq.countTarget)
-				res += ("select DISTINCT " + curSpq.questionFocus + " where");		
-			else
-				res += ("select COUNT(DISTINCT " + curSpq.questionFocus + ") where");	
-		}					
-		res += "\n";
-		res += curSpq.toStringForGStore();
-		if(qlog.moreThanStr != null)
-		{
-			res += qlog.moreThanStr+"\n";
+					// Print top-3 SPARQLs to file.
+					if(idx_sparql <= 3)
+					{
+						outputs.add("[" + idx_sparql + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+						lastSpqList.add(stdSPQwoPrefix);
+					}
+					
+					// Execute by Virtuoso or GStore when answers not found
+//					if(m == null || m.answers == null)
+//					{
+//						if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
+//						{
+//							if(ga.isBGP(qlog, curSpq))
+//                                m = ga.getAnswerFromGStore2(curSpq);
+//                            else
+//                                m = ga.getAnswerFromVirtuoso(qlog, curSpq);
+//						}
+//						if (m != null && m.answers != null) 
+//                        {
+//                            // Found results using current SPQ, then we can break and print result.
+//                            qlog.sparql = curSpq;
+//                            qlog.match = m;
+//                            qlog.reviseAnswers();
+//                            System.out.println("Query Executing time: "+ (int)(System.currentTimeMillis() - excuting_st_time)+ "ms");
+//                        }
+//					}
+				}
+				curSpq = ga.getNextSparql(qlog);
+			}		
+			
+			// Some TYPEs can be omitted, (such as <type> <yago:Wife>)
+			Sparql untypedSparql = ga.getUntypedSparql(bestSpq);
+			if(untypedSparql != null)
+			{
+				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
+				if(!lastSpqList.contains(stdSPQwoPrefix))
+				{
+					outputs.add("[" + Math.min(4,idx_sparql) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
+				}
+			}
+			
+			FileUtil.writeFile(outputs, Globals.localPath + "data/test/test_out.txt", true);
 		}
-		if(curSpq.mostStr != null)
-		{
-			res += curSpq.mostStr+"\n";
-		}
-		
-		return res;
+			
 	}
 }

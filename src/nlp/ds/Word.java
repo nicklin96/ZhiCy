@@ -6,9 +6,8 @@ import rdf.EntityMapping;
 import rdf.Triple;
 import rdf.TypeMapping;
 
-public class Word implements Comparable<Word> {
-	
-	//type和ent的匹配信息
+public class Word implements Comparable<Word> 
+{
 	public boolean mayCategory = false;
 	public boolean mayLiteral = false;
 	public boolean mayEnt = false;
@@ -22,20 +21,21 @@ public class Word implements Comparable<Word> {
 	public String baseForm = null;
 	public String originalForm = null;
 	public String posTag = null;
-	public int position = -1;	// 句子中第一个词的position是1. 亦可参见输出的语法树结点后面[]中的数字.
+	public int position = -1;	// Notice the first word's position = 1
 	public String key = null;
 	
 	public boolean isCovered = false;
 	public boolean isIgnored = false;
 	
-	public String ner = null;	// 记录ner的结果，不是ne的为null
-	public Word nnNext = null;	// 记录nn修饰词的后一个词，终止以null结束
-	public Word nnPrev = null;	// 记录nn修饰词的前一个词，终止以null结束
-	public Word crr	= null;		// 记录指代消解的指向，只记录在短语的head上，指向另一个短语的head
+	//Notice: These variables are not used because we merge a phrase to a word if it is a node now.
+	public String ner = null;	// record NER result
+	public Word nnNext = null;
+	public Word nnPrev = null;
+	public Word crr	= null;		// coreference resolution result
 	
-	public Word represent = null; // 记录该word被哪个word代表，如"which book is ..."中"which"
-	public boolean omitNode = false; // 标记这个word不会成为node
-	public Word modifiedWord = null; //记录该word修饰哪个word，等于word本身时意味着它不是修饰词
+	public Word represent = null; // This word is represented by others, eg, "which book is ..." "which"
+	public boolean omitNode = false; // This word can not be node
+	public Word modifiedWord = null; // This word modify which word (it modify itself if it is not a modified word)
 	
 	public Word (String base, String original, String pos, int posi) {
 		baseForm = base;
@@ -66,28 +66,24 @@ public class Word implements Comparable<Word> {
 			&& position == ((Word)o).position;
 	}
 	
-	// 小心NnHead不是nn结构的顶点
+	// We now discard all NN information and return the word itself. | husen 2016
 	public Word getNnHead() {
 		Word w = this;
-		// 对ent/type和其他word区别对待会产生问题，因此干脆直接都返回本身，即抛弃所有的nn信息
+		return w;
 		
-//		// 当预处理阶段识别出ent和type并聚集成一个word后，parser又把这个word和它前后的word组合起来认为是一个整体word，这时我们不信任parser，即直接返回该word
 //		if(w.mayEnt || w.mayType)
 //			return w;
 //		
 //		while (w.nnPrev != null) {
 //			w = w.nnPrev;
 //		}
-		
-		return w;
+//		return w;
 	}
 	
 	public String getFullEntityName() {
 		Word w = this.getNnHead();
-		// 对ent/type和其他word区别对待会产生问题，因此干脆直接都返回本身，即抛弃所有的nn信息
 		return w.originalForm;
 		
-//		// 当预处理阶段识别出ent和type并聚集成一个word后，parser又把这个word和它前后的word组合起来认为是一个整体word，这时我们不信任parser，即直接返回该word
 //		if(w.mayEnt || w.mayType)
 //			return w.originalForm;
 //		
@@ -103,7 +99,6 @@ public class Word implements Comparable<Word> {
 	
 	public String getBaseFormEntityName() {
 		Word w = this.getNnHead();
-		// 当预处理阶段识别出ent和type并聚集成一个word后，parser又把这个word和它前后的word组合起来认为是一个整体word，这时我们不信任parser，即直接返回该word
 		if(w.mayEnt || w.mayType)
 			return w.baseForm;
 				

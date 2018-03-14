@@ -5,18 +5,18 @@ import java.util.HashMap;
 
 import paradict.PredicateIDAndSupport;
 import log.QueryLogger;
-import nlp.ds.DependencyTree;
-import nlp.ds.DependencyTreeNode;
+//import nlp.ds.DependencyTree;
+//import nlp.ds.DependencyTreeNode;
 import nlp.ds.Word;
 import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
-import qa.extract.TypeRecognition;
-import qa.mapping.SemanticItemMapping;
-import rdf.EntityMapping;
+//import qa.extract.TypeRecognition;
+//import qa.mapping.SemanticItemMapping;
+//import rdf.EntityMapping;
 import rdf.SemanticUnit;
 import rdf.Sparql;
 import rdf.Triple;
-import fgmt.TypeFragment;
+//import fgmt.TypeFragment;
 
 
 public class AddtionalFix 
@@ -31,7 +31,6 @@ public class AddtionalFix
 		pattern2category.put("seven_wonder_of_the_ancient_world", "Seven_Wonders_of_the_Ancient_World");
 		pattern2category.put("three_ship_use_by_columbus", "Christopher_Columbus");
 		pattern2category.put("13_british_colony", "Thirteen_Colonies");
-		//pattern2category.put("battle_in_1836_in_san_antonio", "Battle_of_San_Jacinto");
 	}
 	
 	public void process(QueryLogger qlog)
@@ -48,6 +47,9 @@ public class AddtionalFix
 	
 	public void fixCategory(QueryLogger qlog)
 	{
+		if(qlog == null || qlog.semanticUnitList == null)
+			return;
+		
 		String var = null, category = null;
 		for(SemanticUnit su: qlog.semanticUnitList)
 		{
@@ -79,19 +81,17 @@ public class AddtionalFix
 	}
 	
 	/* recognize one-Node query 
-	 * ¡Ω÷÷«Èøˆ£∫1°¢Ãÿ ‚“…Œ æ‰|∆Ì πæ‰	2°¢“ª∞„“…Œ æ‰
-	 * 1-1£∫how many [], highest [] ...  | ∂‘µ•∏ˆ variable£®“ª∞„Œ™type£©ÃÌº”“ª–©∂ÓÕ‚œﬁ÷∆(aggregation)
-	 * 1-2: What is backgammon? | What is a bipolar syndrome? | (”– ±ª·∞—what ∂±≥…node£¨”– ±‘Úª·±ªœ˚Ω‚)≤È—Ø  entµƒ∂®“Â£¨Œﬁ∂ÓÕ‚œﬁ÷∆£ªƒø«∞»œŒ™÷±Ω”∑µªÿ∏√ ent 
-	 * 1-3: Give me all Seven Wonders of the Ancient World. | ◊¢“‚Seven Wonders of the Ancient World–Ë“™œ»±ª ∂±Œ™ent£® µº À˚ «category∂¯≤ª «ent£©
+	 * Two casesÔºö1„ÄÅSpecial question|Imperative sentence	2„ÄÅGeneral question
+	 * 1-1Ôºöhow many [], highest [] ...  | For single variable, add constraint (aggregation)
+	 * 1-2: What is backgammon? | What is a bipolar syndrome? | Search an entity (return itself or its type/description ...)
+	 * 1-3: Give me all Seven Wonders of the Ancient World. | Notice, "Seven Wonders of the Ancient World" should be recognized as ENT before. (in fact it is CATEGORY in DBpeida)
  	 * 2-1: Are there any [castles_in_the_United_States](yago:type)
- 	 * 2-2£∫Was Sigmund Freud married? | ŒΩ¥ “◊≥È»°£¨÷ª «»±…Ÿ“ª∏ˆvariable node
- 	 * 2-3£∫Are penguins endangered? | ‘Ã∫¨–≈œ¢£¨–Ë“™±‰ªª
+ 	 * 2-2ÔºöWas Sigmund Freud married? | Lack of variable node.
+ 	 * 2-3ÔºöAre penguins endangered? | No suitable relation matching, need transition.
 	 */ 
 	public void oneNode(QueryLogger qlog)
 	{
-		//±‹√‚∫Õask-one-triple÷ÿ∏¥£¨’‚¿Ôœ»≈–∂œ“ªœ¬sparqlList «∑ÒŒ™ø’ |»Áπ˚”–¡Ω∏ˆªÚ∏¸∂‡µƒnode“≤ÕÀ≥ˆ
-		//“ÚŒ™merge words∫Û «¥”µ√∑÷µÕµƒdecisionµΩµ√∑÷∏ﬂµƒ¿¥◊ˆ£¨µÕ∑÷ ±ø…ƒ‹Õ®π˝∏√∫Ø ˝‘ˆº”“ªÃısparql¡À£¨»Ù’‚¿Ô“ÚŒ™sparqlList≤ªŒ™ø’return‘Úª·¥Ìπ˝∏ﬂ∑÷£®’˝»∑£©decision
-		if(qlog.semanticUnitList.size()>1)
+		if(qlog == null || qlog.semanticUnitList == null || qlog.semanticUnitList.size()>1)
 			return;
 		
 		Word target = qlog.target;
@@ -99,7 +99,7 @@ public class AddtionalFix
 		if(qlog.s.sentenceType != SentenceType.GeneralQuestion)
 		{
 			//1-1: how many [type] are there | List all [type]
-			if(target.mayType && target.tmList!=null)
+			if(target.mayType && target.tmList != null)
 			{
 				String subName = "?"+target.originalForm;
 				String typeName = target.tmList.get(0).typeName;
@@ -137,7 +137,7 @@ public class AddtionalFix
 		{
 			if(target.mayEnt && target.emList != null)
 			{
-				//2-2£∫Was Sigmund Freud married?
+				//2-2ÔºöWas Sigmund Freud married?
 				String relMention = "";
 				for(Word word: words)
 					if(word != target && !word.baseForm.equals(".") && !word.baseForm.equals("?"))
@@ -160,7 +160,7 @@ public class AddtionalFix
 					qlog.rankedSparqls.add(sparql);
 				}
 		
-				//2-3£∫Are penguins endangered? | ‘Ã∫¨–≈œ¢£¨–Ë“™±‰ªª
+				//2-3ÔºöAre penguins endangered?
 				else
 				{
 					if(target.position < words.length && pattern2category.containsKey(words[target.position].baseForm))
@@ -189,21 +189,20 @@ public class AddtionalFix
 				qlog.rankedSparqls.add(sparql);
 			}
 		}
-		/*TODO: ¥¶¿Ìtarget «entµƒ«Èøˆ£¨¿˝»Áœ¬√Ê£ª–Ë“™“ª∏ˆ∫Ú—°ŒΩ¥ ¡–±Ì
+		/*TODO: Target is ENT, need candidate relations.
 		 * res:Aldi dbo:numberOfLocations ?number .
 		 */
 	}
 	
 	/*
-	 *  ∂±≥ˆ“ª∏ˆtriple£¨µ´Œ¥’“µΩ∫œ  relation
-	 * ¡Ω÷÷«Èøˆ£∫1°¢Ãÿ ‚“…Œ æ‰	2°¢“ª∞„“…Œ æ‰
-	 * 1-1: What is backgammon? | What is a bipolar syndrome? | ≤È—Ø  entµƒ∂®“Â£¨Œﬁ∂ÓÕ‚œﬁ÷∆£ªæ≠QALD÷˜∞Ï∑ΩΩ‚ Õ£¨–Ë“™∑µªÿ type
-	 * 2-1: Is [horse racing] a sport?
+	 * One triple recognized but no suitable relation.
+	 * 1, special question 2, general question
 	 * */ 
-	// TODO£∫’‚ «”√dependency tree¿¥ ∂±ent∫Õtypeµƒ£¨–Ë“™∏¸–¬
-	// recognize add ASK-one-triple sparql here |’‚∏ˆ∫√œÒæÕ «¥¶¿Ì¡À  “ª∞„“…Œ æ‰Œ “ª∏ˆentµƒtypeµƒ«Èøˆ
 	public void oneTriple (QueryLogger qlog)
 	{
+		if(qlog == null || qlog.semanticUnitList == null)
+			return;
+		
 		if(qlog.s.sentenceType == SentenceType.SpecialQuestion)
 		{
 			Word[] words = qlog.s.words;
@@ -217,19 +216,18 @@ public class AddtionalFix
 					if(qlog.semanticUnitList.get(i).centerWord.mayEnt)
 						entWord = qlog.semanticUnitList.get(i).centerWord;
 				}
-				//1-1: (what) is [ent]
+				// 1-1: (what) is [ent] | we guess users may want the type of ent.
 				if(entWord!=null && whWord!= null && words.length >= 3 && words[0].baseForm.equals("what") && words[1].baseForm.equals("be"))
 				{
 					int eid = entWord.emList.get(0).entityID;
 					String subName = entWord.emList.get(0).entityName;
-					//System.out.println("typeName="+typeName+" subName="+subName);
 					Triple triple =	new Triple(eid, subName, Globals.pd.typePredicateID, Triple.VAR_ROLE_ID, "?"+whWord.originalForm, null, entWord.emList.get(0).score);
 					Sparql sparql = new Sparql();
 					sparql.addTriple(triple);
 					qlog.rankedSparqls.add(sparql);
 				}
-				// Ãÿ ‚¥¶¿ÌCategory
-				// 1: who killed/assassinated [ent]?
+				// !Special case for Category
+				// 1-2: who killed/assassinated [ent]?
 				if(entWord!=null && whWord!=null && words.length >= 3 && words[0].baseForm.equals("who") && (words[1].baseForm.equals("kill")||words[1].baseForm.equals("assassinate")))
 				{
 					if(entWord.emList != null && entWord.emList.size() > 0)
@@ -247,41 +245,8 @@ public class AddtionalFix
 					}
 				}
 			}
-	
-			
 		}
-
-		//2-1: Is horse_racing a sport? 
-		if(qlog.s.sentenceType == SentenceType.GeneralQuestion && qlog.s.words.length<=5)
-		{
-			TypeRecognition tr = new TypeRecognition();
-			DependencyTree dependencyTree = qlog.isMaltParserUsed ? qlog.s.dependencyTreeMalt : qlog.s.dependencyTreeStanford;
-			String type = dependencyTree.getRoot().word.getNnHead().getFullEntityName();
-			
-			Word sub = null;
-			for (DependencyTreeNode dtn : qlog.s.dependencyTreeMalt.nodesList)		
-				if (Globals.pd.relns_subject.contains(dtn.dep_father2child))
-				{
-					sub = dtn.word.getNnHead();
-					break;
-				}
-			ArrayList<EntityMapping> emList=null;
-			SemanticItemMapping sim = new SemanticItemMapping();
-			emList = sim.getEntityIDsAndNames(sub, qlog);
-			ArrayList<Integer> typeList = tr.recognize(type);
-			if (typeList!=null && !typeList.isEmpty() &&
-				emList!=null && !emList.isEmpty())
-			{
-				String typeName = TypeFragment.typeId2ShortName.get(typeList.get(0));
-				int eid = emList.get(0).entityID;
-				String subName = emList.get(0).entityName;
-				//System.out.println("typeName="+typeName+" subName="+subName);
-				Triple triple =	new Triple(eid, subName, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeName, null, 100);
-				Sparql sparql = new Sparql();
-				sparql.addTriple(triple);
-				qlog.rankedSparqls.add(sparql);
-			}	
-		}
+		//TODO: general question
 	}
 }
 

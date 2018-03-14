@@ -22,7 +22,6 @@ public class SearchInTypeShortName {
 		String queryString = s;
 		Query query = null;
 		
-		//IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia3.9/lucene/type_fragment_index");
 		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2014/lucene/type_fragment_index");
 
 		ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
@@ -94,8 +93,6 @@ public class SearchInTypeShortName {
 		String queryString = null;
 		Query query = null;
 		
-		//IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data\\DBpedia\\lucene\\type_fragment_index");
-		//IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia3.9/lucene/type_fragment_index");
 		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2014/lucene/type_fragment_index");
 		
 		ArrayList<String> typeNames = new ArrayList<String>(); 
@@ -145,10 +142,8 @@ public class SearchInTypeShortName {
 		return typeNames;	
 	}
 	
-	private boolean satisfiedStrictly (String splittedTypeShortName, String queryString) {
-		
-		// 不匹配的部分,不能包含实词(非停用词)
-		// 例如,匹配"AreaCode"时, 必须同时匹配"area"和"code"
+	private boolean satisfiedStrictly (String splittedTypeShortName, String queryString) 
+	{
 		String[] tnames = splittedTypeShortName.toLowerCase().split(" ");
 		String[] qnames = queryString.toLowerCase().split(" ");
 		for (int i = 0; i < tnames.length; i ++) {
@@ -164,7 +159,6 @@ public class SearchInTypeShortName {
 				return false;
 			}
 		}
-		// 必须包含queryString的最后一个词
 		String qlast = qnames[qnames.length-1];
 		boolean flag = false;
 		for (int i = 0; i < tnames.length; i ++) {

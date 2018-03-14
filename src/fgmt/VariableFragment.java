@@ -29,7 +29,6 @@ public class VariableFragment extends Fragment {
 		Iterator<HashSet<Integer>> it = candTypes.iterator();
 		while(it.hasNext()) {
 			HashSet<Integer> s2 = it.next();
-			// ·ÖÀàÌÖÂÛ
 			if (s2.contains(magic_number)) {
 				if (!Collections.disjoint(s1, s2)) {
 					return true;

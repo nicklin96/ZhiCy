@@ -1,34 +1,36 @@
 package nlp.tool;
 
+import java.io.File;
+import java.net.URL;
 
 import nlp.ds.Sentence;
 import nlp.ds.Word;
 
-import org.maltparser.MaltParserService;
+import org.maltparser.concurrent.ConcurrentMaltParserModel;
+import org.maltparser.concurrent.ConcurrentMaltParserService;
+import org.maltparser.concurrent.graph.ConcurrentDependencyGraph;
 import org.maltparser.core.exception.MaltChainedException;
-import org.maltparser.core.syntaxgraph.DependencyStructure;
+//import org.maltparser.core.syntaxgraph.DependencyStructure;
 
-import qa.Globals;
 
-public class MaltParser {
-	private MaltParserService service = null;
-	public MaltParser() {
-		try
-		{
-			System.out.print("Loading MaltParser ...");
-			service = new MaltParserService();
-			// Inititalize the parser model 'model0' and sets the working directory to '.' and sets the logging file to 'parser.log'
-			//service.initializeParserModel("-c engmalt.linear-1.7 -m parse -w . -lfi parser.log");
-			service.initializeParserModel("-c engmalt.linear-1.7 -m parse -w "+Globals.localPath+"project -lfi parser.log");
-			firstParse();
-			System.out.println("ok!");
-		} catch (MaltChainedException e) {
+public class MaltParserCon {
+	private ConcurrentMaltParserModel model = null;
+	public ConcurrentDependencyGraph outputGraph = null;
+	
+	public MaltParserCon(){
+		try{
+			System.out.println("Loading Maltparser...\n");
+			URL ModelURL = new File("output/engmalt.linear-1.7.mco").toURI().toURL();
+			model = ConcurrentMaltParserService.initializeParserModel(ModelURL);
+			firstTest();
+			System.out.println("ok!\n");
+		}catch(Exception e){
 			e.printStackTrace();
 			System.err.println("MaltParser exception: " + e.getMessage());
 		}
 	}
 	
-	private void firstParse() {
+	private void firstTest(){
 		String[] tokens = new String[12];
 		tokens[0] = "1\tIn\t_\tIN\tIN\t_"; 
 		tokens[1] = "2\twhich\t_\tWDT\tWDT\t_";
@@ -43,15 +45,16 @@ public class MaltParser {
 		tokens[10] = "11\tstarring\t_\tVBG\tVBG\t_";
 		tokens[11] = "12\t?\t_\t.\t.\t_";
 		try {
-			service.parse(tokens);
-		} catch (MaltChainedException e) {
+			outputGraph = model.parse(tokens);
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		System.out.println(outputGraph);
 	}
 	
-	public DependencyStructure getDependencyStructure (Sentence sentence) {
+	public ConcurrentDependencyGraph getDependencyStructure (Sentence sentence) {
 		try {
-			return service.parse(getTaggedTokens(sentence));
+			return model.parse(getTaggedTokens(sentence));
 		} catch (MaltChainedException e) {
 			e.printStackTrace();
 		}

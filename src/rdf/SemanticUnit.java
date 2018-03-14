@@ -23,6 +23,20 @@ public class SemanticUnit
 		isSubj = isSubJ;
 	}
 	
+	public SemanticUnit copy()
+	{
+		SemanticUnit su = new SemanticUnit(this.centerWord, this.isSubj);
+		su.describeNodeList = (ArrayList<DependencyTreeNode>) this.describeNodeList.clone();
+		su.neighborUnitList = (ArrayList<SemanticUnit>) this.neighborUnitList.clone();
+		su.RelationList = (HashMap<Word, SemanticRelation>) this.RelationList.clone();
+		return su;
+	}
+	
+	@Override
+	public int hashCode() {
+		return centerWord.hashCode();
+	}
+	
 	@Override
 	public boolean equals(Object o) {
 		if (o instanceof SemanticUnit) {

@@ -10,11 +10,11 @@ import nlp.ds.DependencyTree;
 import nlp.ds.DependencyTreeNode;
 import nlp.ds.Word;
 
-// 可以重复,而且结构比SemanticRelations简单
+// allow repetition
 public class SimpleRelation {
-	public Word arg1Word = null;	// 记录对应哪个Word
+	public Word arg1Word = null;
 	public Word arg2Word = null;
-	public String relationParaphrase = null;	// 按照最长匹配获得
+	public String relationParaphrase = null;
 	public double matchingScore = 0;
 	
 	public Word arg1Word_beforeCRR = null;
@@ -63,11 +63,9 @@ public class SimpleRelation {
 					sumSelectivity += pidsup.wordSelectivity[i];
 				}
 			}
-			//这里加入pasList的score已经综合了【query|pattern匹配得分】和【pattern|predicate匹配得分】
-			//TODO:但是比重是否合适？
 			sumSelectivity = matchingScore*sumSelectivity*pidsup.support;			
 			int pid = pidsup.predicateID;
-			if (Globals.pd.dbo_predicate_id.contains(pid)) sumSelectivity *= 1.5; //奖励dbo中的predicate //pid 可能不在 dbo 中？
+			if (Globals.pd.dbo_predicate_id.contains(pid)) sumSelectivity *= 1.5; //锟斤拷锟斤拷dbo锟叫碉拷predicate //pid 锟斤拷锟杰诧拷锟斤拷 dbo 锟叫ｏ拷
 			
 			if (!pasList.containsKey(pid))
 				pasList.put(pid, sumSelectivity);

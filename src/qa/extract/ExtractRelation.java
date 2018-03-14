@@ -10,7 +10,7 @@ import java.util.Queue;
 import log.QueryLogger;
 import nlp.ds.DependencyTree;
 import nlp.ds.DependencyTreeNode;
-import nlp.ds.Word;
+//import nlp.ds.Word;
 import paradict.ParaphraseDictionary;
 import qa.Globals;
 import rdf.SimpleRelation;
@@ -20,9 +20,12 @@ import rdf.SemanticUnit;
 
 public class ExtractRelation {
 
-	public static final int notMatchedCountThreshold = 1;// ¸ÃthresholdÔ½´ó£¬Æ¥ÅäµÄ³Ì¶ÈÔ½Ğ¡£¨Ô½·ÅËÉ£©
+	public static final int notMatchedCountThreshold = 1; // the bigger, the looser (more relations can be extracted)
 	public static final int notCoverageCountThreshold = 2; 
 	
+	/*
+	 * Find relations by dependency tree & paraphrases.
+	 * */
 	public ArrayList<SimpleRelation> findRelationsBetweenTwoUnit(SemanticUnit su1, SemanticUnit su2, QueryLogger qlog)
 	{
 		DependencyTree T = qlog.s.dependencyTreeStanford;
@@ -36,13 +39,13 @@ public class ExtractRelation {
 		HashSet<String> BoW_T = new HashSet<String>();
 		HashSet<String> SubBoW_T = new HashSet<String>();
 				
-		// ½«shortest pathÖĞ¡°·ÇÍ£ÓÃ´Ê¡±×÷ÎªËüµÄSubBag of Words
+		// Shortest path -> SubBag of Words
 		for(DependencyTreeNode curNode: shortestPath)
 		{
 			String text = curNode.word.baseForm;
 			if(!curNode.word.isIgnored && !Globals.stopWordsList.isStopWord(text))
 			{
-				//Àı£ºsoccer club¾­¹ıÔ¤´¦ÀíºÏ³ÉÎªÒ»¸öword£ºsoccer_club£¬ÕÒrelation¿ÉÄÜÒªÓÃµ½Ô­´Ê£¬ËùÒÔÒªÔÙÇĞ¿ª
+				//!split words |eg, soccer club -> soccer_club(after node recognition) -> soccer club(used in matching paraphrase)
 				if(curNode.word.mayEnt || curNode.word.mayType)
 				{
 					String [] strArray = curNode.word.baseForm.split("_");
@@ -55,7 +58,7 @@ public class ExtractRelation {
 				}
 			}
 		}
-		// Á½¸ö½Úµã¼ä¹ØÏµµÄ×÷ÓÃ·¶Î§¿ÉÄÜ²»Ö¹×î¶ÌÂ·¾¶£¬¾ßÌå·¶Î§²»ºÃÕÒ£¬¾Í°ÑÕû¸öds treeÊÓÎª¿ÉÄÜ·¶Î§
+		// DS tree -> Bag of Words
 		for (DependencyTreeNode curNode : T.getNodesList()) 
 		{
 			if (!curNode.word.isIgnored) 
@@ -73,7 +76,7 @@ public class ExtractRelation {
 				}
 			}
 		}
-		// ÕÒµ½SubBoW_TÖĞµÄ´Ê¶ÔÓ¦µÄpatterns£¬ÕâĞ©patternÖÁÉÙ°üº¬ÁËquestionÖĞµÄÒ»¸öword
+		// Find candidate patterns by SubBoW_T & inveretdIndex
 		HashSet<String> candidatePatterns = new HashSet<String>();
 		for (String curWord : SubBoW_T) 
 		{
@@ -84,42 +87,37 @@ public class ExtractRelation {
 			}
 		}
 		
-		// ¼ìÑéÕâĞ©patternsÊÇ·ñÕæµÄÊÇTµÄBag of WordsµÄ×Ó¼¯
-		// Èç¹ûÊÇ£¬ÊÇ·ñÄÜÕÒµ½Æ¥ÅäµÄ×ÓÊ÷
+		// Check patterns by BoW_P & subtree matching
 		int notMatchedCount = 0;
 		HashSet<String> validCandidatePatterns = new HashSet<String>();
 		for (String p : candidatePatterns) 
 		{
 			String[] BoW_P = p.split(" ");
-			notMatchedCount = 0;	// notMatchedCount¼ÇÂ¼ÁËµ±Ç°NL patternÓëquestion²»Æ¥ÅäµÄµ¥´ÊÊı
-			for (String s : BoW_P) {	//Èç¹û¸ÃstringÖĞ£¨BoW_PÖĞ£©µÄÃ¿¸ö´Ê¶¼³öÏÖÔÚBoW_TÖĞ
-				if (s.length() < 2) //0, 1
+			notMatchedCount = 0;	// not match number between pattern & question
+			for (String s : BoW_P) 
+			{
+				if (s.length() < 2)
 					continue;
 				if (s.startsWith("["))
 					continue;
 				if (Globals.stopWordsList.isStopWord(s))
 					continue;
-				if (!BoW_T.contains(s)) {
-					notMatchedCount ++;	// Óöµ½Ò»¸ö²»Æ¥ÅäµÄword£¬isSubSet¾Í++
+				if (!BoW_T.contains(s)) 
+				{
+					notMatchedCount ++;
 					if (notMatchedCount > notMatchedCountThreshold)
 						break;
 				}
-				
 			}
 			if (notMatchedCount <= notMatchedCountThreshold) 
 			{
 				validCandidatePatterns.add(p);
-				//System.out.println("[" + (++i) + "]" + p);
-				// µ½ÕâÀï£¬ËµÃ÷pÖÁ¶à°üº¬ÁËÒ»¸ö²»ÔÚBoW_TÖĞ³öÏÖµÄ·ÇÍ£ÓÃ´Ê
-				// ¼ìÑéÕâĞ©pattensÊÇ·ñÕæµÄÊÇTµÄBag of WordsµÄ×Ó¼¯
-				// Èç¹ûÊÇ£¬ÊÇ·ñÄÜÕÒµ½Æ¥ÅäµÄ×ÓÊ÷
-				
-				//TODO:×¢ÒâÕâ¸öº¯Êı»¹ÊÇ²»ÄÜ´¦Àí  soccer club ±ä³É soccer_club ºóµÄ¹ØÏµÆ¥Åä
+				//TODO: to support matching like [soccer_club]
 				subTreeMatching(p, BoW_P, shortestPath, T, qlog, ret, 'S');
 			}
 		}
 		
-		//×¨ÃÅÎª soccer club ±äÎª soccer_club µ¼ÖÂÆ¥ÅäÊ§°ÜµÄÇé¿öÔÙÒ»´Î»ú»á
+		// Another chance for [soccer_club] (the relation embedded in nodes)
 		if(validCandidatePatterns.size() > 0)
 		{
 			if(n1.word.originalForm.contains("_") || n2.word.originalForm.contains("_"))
@@ -127,7 +125,7 @@ public class ExtractRelation {
 				for (String p : validCandidatePatterns) 
 				{
 					String[] BoW_P = p.split(" ");
-					notMatchedCount = 0;	// notMatchedCount¼ÇÂ¼ÁËµ±Ç°NL patternÓëquestion²»Æ¥ÅäµÄµ¥´ÊÊı
+					notMatchedCount = 0;
 					int mappedCharacterCount = 0;
 					int matchedWordInArg = 0;
 
@@ -136,7 +134,7 @@ public class ExtractRelation {
 					int idx = 0;
 					for (String s : BoW_P) 
 					{	
-						if(n1.word.baseForm.contains(s) || n2.word.baseForm.contains(s))
+						if(n1.word.baseForm.contains(s) || n2.word.baseForm.contains(s)) // Hit nodes
 							matchedWordInArg++;
 						if(BoW_T.contains(s))
 						{
@@ -144,25 +142,23 @@ public class ExtractRelation {
 							matchedFlag[idx] = true;
 						}
 						idx++;
-						
-						if (s.length() < 2) //0, 1
+						if (s.length() < 2) 
 							continue;
 						if (s.startsWith("["))
 							continue;
 						if (Globals.stopWordsList.isStopWord(s))
 							continue;
-						
 						if (!BoW_T.contains(s)) 
-							notMatchedCount ++;	// Óöµ½Ò»¸ö²»Æ¥ÅäµÄword£¬isSubSet¾Í++
+							notMatchedCount ++;
 					}
-					//ÓĞÁ½¸ö´ÊÂäÔÚargÉÏ£¬Ö±½ÓÈÏÎª³É¹¦£¬Òª±àÒ»ÏÂµÃ·Ö¹¹Ôìsr
+					// Success if has 2 hits
 					if(matchedWordInArg >= 2)
 					{
-						double matched_score = ((double)(BoW_P.length-notMatchedCount))/((double)(BoW_P.length));	//Æ¥ÅäµÄ±ÈÀıÔ½¶à£¬µÃ·ÖÔ½¸ß
+						double matched_score = ((double)(BoW_P.length-notMatchedCount))/((double)(BoW_P.length));
 						if (matched_score > 0.95) 
-							matched_score *= 10;// ½±ÀøÍêÈ«Æ¥Åä£¬Êµ¼ÊÉÏÕâÀïÃ»ÓĞ¿¼ÂÇ[[]]µÈ£¬²¢²»ÊÇÕæµÄÍêÈ«Æ¥Åä
+							matched_score *= 10; // award for WHOLE match 
 						
-						//ÏÂÃæÕâ¸ö×Ö·ûÊıµÃ·Ö£¬»áÈÃÒ»Ğ©Ææ¹ÖµÄ³¤µÄpattenr±ÈÈç ¡±be bear die in¡°µÄµÃ·Ö½Ï¸ß
+						// TODO: this will make LONGER one has LARGER score, sometimes unsuitable | eg, be bear die in
 						matched_score = matched_score * Math.sqrt(mappedCharacterCount);
 						
 						SimpleRelation sr = new SimpleRelation();
@@ -189,19 +185,18 @@ public class ExtractRelation {
 		return ret;
 	}
 	
+	// Core function of paraphrase matching
 	private void subTreeMatching (String pattern, String[] BoW_P, 
 			ArrayList<DependencyTreeNode> shortestPath,
 			DependencyTree T, QueryLogger qlog, 
 			ArrayList<SimpleRelation> ret, char extractingMethod) 
 	{
-		// relation µÄÁ½¸ö±äÁ¿
 		DependencyTreeNode n1 = shortestPath.get(0);
 		DependencyTreeNode n2 = shortestPath.get(shortestPath.size()-1);
 		
 		ParaphraseDictionary pd = Globals.pd;
 		Queue<DependencyTreeNode> queue = new LinkedList<DependencyTreeNode>();
 		queue.add(T.getRoot());
-		//DependencyTreeNode curOuterNode = null;
 				
 		for(DependencyTreeNode curOuterNode: shortestPath)
 		{
@@ -210,16 +205,16 @@ public class ExtractRelation {
 			{
 				if(s.equals(curOuterNode.word.baseForm))
 				{
-					// ¿ªÊ¼³¢ÊÔÆ¥ÅäËùÓĞµã
+					// try to match all nodes
 					ArrayList<DependencyTreeNode> subTreeNodes = new ArrayList<DependencyTreeNode>();
 					Queue<DependencyTreeNode> queue2 = new LinkedList<DependencyTreeNode>();
 					queue2.add(curOuterNode);
 					
-					int unMappedLeft = BoW_P.length;	//ÉĞÎ´Æ¥ÅäµÄµ¥´ÊÊı
-					int mappedCharacterCount = 0;	// Æ¥ÅäµÄ"×Ö·ûÊı"
-					int hitPathCnt = 0;	//patternÖĞµÄwordÂäÔÚshortest pathÉÏ£¬ÏÔÈ»±ÈÂäÔÚÍâÃæ¸ü¿ÉĞÅ
-					int hitPathBetweenTwoArgCnt = 0; //patternÖĞµÄwordÂäÔÚshortest pathÉÏ£¬²¢ÇÒ²»°üÀ¨Á½¶ËµÄÁ½¸ö±äÁ¿
-					double mappedCharacterCountPunishment = 0;	// ÎÒÃÇ²»Ï£Íû[[]]ÕâÖÖÅÅÔÚÇ°Ãæ£¬¸øµã³Í·£
+					int unMappedLeft = BoW_P.length;
+					int mappedCharacterCount = 0;
+					int hitPathCnt = 0;	// words in pattern hit the shortest path
+					int hitPathBetweenTwoArgCnt = 0; //words in pattern hit the shortest path and excluding the two target nodes
+					double mappedCharacterCountPunishment = 0;	// punishment when contains [[]] (function word)
 					
 					DependencyTreeNode curNode;
 					boolean[] matchedFlag = new boolean[BoW_P.length];
@@ -231,10 +226,10 @@ public class ExtractRelation {
 						int idx = 0;
 						for (String ss : BoW_P) 
 						{
-							// patternÖĞµÄ´ÊÖ»ÄÜmatchÒ»´Î
+							// words in pattern only can be matched once
 							if (!matchedFlag[idx]) 
 							{
-								// ´ÊÆ¥Åä 
+								// check word 
 								if (ss.equals(curNode.word.baseForm)) 
 								{	
 									unMappedLeft --;
@@ -250,14 +245,14 @@ public class ExtractRelation {
 									}
 									break;
 								}
-								// ´ÊĞÔÆ¥Åä
+								// check POS tag
 								else if (ss.startsWith("[") && posSame(curNode.word.posTag, ss)) 
 								{	
 									unMappedLeft --;
 									subTreeNodes.add(curNode);
 									queue2.addAll(curNode.childrenList);
 									matchedFlag[idx] = true;
-									mappedCharacterCount += curNode.word.baseForm.length();//ÉÔÎ¢ºÍÉÏÃæ²»Í¬
+									mappedCharacterCount += curNode.word.baseForm.length();
 									mappedCharacterCountPunishment += 0.01;
 									break;
 								}
@@ -265,16 +260,16 @@ public class ExtractRelation {
 							idx ++;
 						}
 					}
-					int unMatchedNoneStopWordCount = 0;	// PatternÖĞ²»Æ¥ÅäµÄ·ÇÍ£ÓÃ´Ê¸öÊı
+					int unMatchedNoneStopWordCount = 0;
 					int matchedNoneStopWordCount = 0;
 					for (int idx = 0; idx < BoW_P.length; idx ++) {
 						if (BoW_P[idx].startsWith("[")) continue;
 						if (!matchedFlag[idx]) {
-							if (!Globals.stopWordsList.isStopWord(BoW_P[idx]))	// ²»Æ¥ÅäµÄ·ÇÍ£ÓÃ´Ê
+							if (!Globals.stopWordsList.isStopWord(BoW_P[idx]))	// unmatched
 								unMatchedNoneStopWordCount ++;
 						}
 						else {
-							if (!Globals.stopWordsList.isStopWord(BoW_P[idx]))	// Æ¥ÅäµÄ·ÇÍ£ÓÃ´Ê
+							if (!Globals.stopWordsList.isStopWord(BoW_P[idx]))	// matched
 								matchedNoneStopWordCount ++;
 						}							
 					}
@@ -284,14 +279,13 @@ public class ExtractRelation {
 						break outer;
 					}
 					
-					// Æ¥ÅäµÄ²¿·Ö±ØĞëÓĞÊµ´Ê£¬²»ÄÜÈ«ÊÇÍ£ÓÃ´Ê
-					// Æ¥ÅäµÄ·ÇÍ£ÓÃ´Ê¸öÊı´óÓÚ0
+					// MUST have notional words matched, non stop words > 0
 					if (matchedNoneStopWordCount == 0){
 						if(qlog.MODE_debug) System.out.println("----But the matching for pattern \"" + pattern + "\" does not have content words.");
 						break outer;
 					}
 					
-					// Èç¹ûÊÇ¡°²»ÍêÈ«Æ¥Åä¡±£¬ÈôÆ¥ÅäµÄ²¿·ÖÇ¡ºÃÊÇÁíÒ»¸öÍêÕûpattern£¬Ôòµ±Ç°pattern¾Í²»¿¼ÂÇÁË
+					// IF partial match and be covered by other pattern, give up the current pattern
 					if (unMappedLeft > 0) {
 						StringBuilder subpattern = new StringBuilder();
 						for (int idx = 0; idx < BoW_P.length; idx ++) {
@@ -307,9 +301,8 @@ public class ExtractRelation {
 						}
 					}
 					
-					// ½é´ÊÀ©Õ¹
-					// ¼ÙÉèÃ¿¸ö¶ÌÓïÖĞÖ»ÓĞ1¸ö½é´Ê
-					// TODO ²»Ò»¶¨Ö»ÓĞÒ»¸ö½é´Ê£¬»òÕßµÚÒ»¸ö½é´Ê¿ÉÄÜÊÇ´íÎóµÄ
+					// !Preposition | suppose only have one preposition
+					// TODO: consider more preposition | the first preposition may be wrong
 					DependencyTreeNode prep = null;
 					for (DependencyTreeNode dtn : subTreeNodes) {
 						outer2:
@@ -327,38 +320,35 @@ public class ExtractRelation {
 					if(!isContained && prep != null) {
 						subTreeNodes.add(prep);
 					}
-
 					
-					// ´ËÊ±£¬¹ØÏµ³éÈ¡³É¹¦
-					// ±ê¼Ç×ÓÊ÷ÉÏµÄ½áµã£ºÒÑ¸²¸Ç
+					// Relation extracted, set COVER flags
 					for (DependencyTreeNode dtn : subTreeNodes) 
 					{
 						dtn.word.isCovered = true;
 					}
 					
 					int cnt = 0;
-					double matched_score = ((double)(BoW_P.length-unMappedLeft))/((double)(BoW_P.length));	//Æ¥ÅäµÄ±ÈÀıÔ½¶à£¬µÃ·ÖÔ½¸ß
+					double matched_score = ((double)(BoW_P.length-unMappedLeft))/((double)(BoW_P.length));
 					if (matched_score > 0.95) 
-						matched_score *= 10;// ½±ÀøÍêÈ«Æ¥Åä
+						matched_score *= 10; // Award for WHOLE match
 					
-					//patternÓëpathÖØºÏµÄ²¿·Ö±ÈÀıÔ½´ó£¬·ÖÊıÔ½¸ß£»Èç¹ûÃ»ÓĞÓÚÁ½±ßµÄargÖØºÏ£¬·ÖÊı¸ü¸ß
+					// The match ratio between pattern and path larger, the score higher; especially when uncovered with the two target nodes
 					if(hitPathCnt != 0)
 					{
 						double hitScore = 1 + (double)hitPathCnt/(double)BoW_P.length;
 						if(hitPathBetweenTwoArgCnt == hitPathCnt)
 							hitScore += 1;
-						else if(shortestPath.size() >= 4)	//Èç¹ûpath×ã¹»³¤£¬patternÈ´ÒÀÈ»ÓëargÖØºÏ£¬ÈÏÎªÒª¿Û·Ö
+						else if(shortestPath.size() >= 4)	// If path long enough, pattern still cover with the target nodes, punishment 
 						{
 							//hitScore = 0.5;
-							if(hitPathBetweenTwoArgCnt == 0) //path×ã¹»³¤£¬µ«patternÍêÈ«ÓëargÖØºÏ,¿Û·Ö¸ü¶à
+							if(hitPathBetweenTwoArgCnt == 0) // If path long enough, pattern cover with target nodes totally, punishment a lot
 								hitScore = 0.25;
 						}
 						matched_score *= hitScore;
 					}
 					
-					//ÏÂÃæÕâ¸ö×Ö·ûÊıµÃ·Ö£¬»áÈÃÒ»Ğ©Ææ¹ÖµÄ³¤µÄpattenr±ÈÈç ¡±be bear die in¡°µÄµÃ·Ö½Ï¸ß
-					matched_score = matched_score * Math.sqrt(mappedCharacterCount) - mappedCharacterCountPunishment;	// Æ¥ÅäµÄ"×Ö·ûÊı"Ô½¶à£¨Å¼È»ĞÔÔ½Ğ¡£©£¬ÏÔÈ»µÃ·ÖÔ½¸ß	//¿ª·½Æ½»¬Ò»ÏÂ 
-					if (qlog.MODE_debug) System.out.println("¡î" + pattern + ", score=" + matched_score);
+					matched_score = matched_score * Math.sqrt(mappedCharacterCount) - mappedCharacterCountPunishment;	// the longer, the better (unsuitable in some cases)
+					if (qlog.MODE_debug) System.out.println("â˜†" + pattern + ", score=" + matched_score);
 
 					DependencyTreeNode subject = n1;
 					DependencyTreeNode object = n2;
@@ -384,7 +374,6 @@ public class ExtractRelation {
 						cnt ++;
 						//String binaryRelation = "<" + subjectString + "> <" + pattern + "> <" + objectString + ">";
 					}
-
 					if (cnt == 0) break outer;
 				}
 			}
@@ -426,15 +415,14 @@ public class ExtractRelation {
 			SemanticRelation semr = ret.get(key);
 			HashMap<Integer, StringAndDouble> pasMap = key2pasMap.get(key);
 						
-			//Ö»ÊÇ¼ÇÂ¼ÁËÒ»ÏÂ×î¸ßµÄmatching scoreºÍËü¶ÔÓ¦µÄpatternÓÃÀ´³äÃÅÃæ£¨outÊ±Õ¹Ê¾ÕâÁ½¸ö¶«Î÷£©£¬Êµ¼ÊÉÏÓëpredicate mappingÃ»ÓĞ±ØÈ»ÁªÏµ¡£¶øºóÕß²ÅÊÇÕæÕı×óÓÒ½á¹ûµÄ¡£
+			// Just use to display.
 			if (simr.matchingScore > semr.LongestMatchingScore) 
 			{
 				semr.LongestMatchingScore = simr.matchingScore;
 				semr.relationParaphrase = simr.relationParaphrase;
 			}
 			
-			//ÕâÀïÖ»¿¼ÂÇ¡°patternºÍpidÖ®¼äµÄÆ¥Åä·ÖÊı¡°¶ø²»¿¼ÂÇÖ®Ç°³éÈ¡Ê±µÄ¡±matching score¡°ºÏÀíÂğ£¿ ×Ô´ğ£º³éÈ¡·ÖÊıÒÑ¾­ÔÚpasListµÄµÃ·ÖÀïÁË£¬paslistµÄµÃ·Ö=³éÈ¡µÃ·Ö³ËÒÔÆ¥ÅäµÃ·Ö³ËÒÔÒ»¸öĞŞÕıµÄ¶«Î÷
-			//ÕâÀïµÄÒâË¼ÊÇ£¬¶ÔÓÚÒ»¸öÌØ¶¨µÄpid=x£¬²»¹ÜÄãÊÇÄÄ¸öpatternÀ´µÄ£¬Ò²²»¹ÜÄã³éÈ¡Ê±µÄÆ¥Åä³Ì¶È£¬ÎÒ¾Í¼ÇÂ¼ÏÂ×î´ó¡±×ÛºÏµÃ·Ö¡°ºÍËü¶ÔÓ¦µÄpattern¡£
+			// for pid=x, no wonder from which pattern, we only record the highest score and the related pattern.
 			for (int pid : simr.pasList.keySet()) {
 				double score = simr.pasList.get(pid);
 				if (!pasMap.containsKey(pid)) {
@@ -452,11 +440,7 @@ public class ExtractRelation {
 			semr.predicateMappings = new ArrayList<PredicateMapping>();
 			//System.out.print("<"+semr.arg1Word.getFullEntityName() + "," + semr.arg2Word.getFullEntityName() + ">:");
 			for (Integer pid : pasMap.keySet()) 
-			{
-				// Å×ÆúµÃ·Ö¹ıµÍµÄºòÑ¡predicate£¬¾¡Á¿Ö»±£Áôt(top-kÊ±µÄÃ¶¾ÙÉî¶È)ÒÔÄÚµÄºòÑ¡£»¾­²âÊÔ´Ë¼ôÖ¦»áÅ×ÆúºÜ¶àÕıÈ·Î½´Ê£¨ÌåÏÖ³öparaphrase dictionaryÖÊÁ¿½ÏµÍ£©
-//				if(pasMap.get(pid).score < 100)
-//					continue;
-				
+			{	
 				semr.predicateMappings.add(new PredicateMapping(pid, pasMap.get(pid).score, pasMap.get(pid).str));
 				//System.out.print("[" + Globals.pd.getPredicateById(pid) + "," + pasMap.get(pid).str + "," + pasMap.get(pid).score + "]");
 			}
@@ -466,186 +450,9 @@ public class ExtractRelation {
 		return ret;
 	}	
 	
-	/*
-	 * 1¡¢ÓÅÏÈ¼¶£¨Ê××ÖÄ¸´óĞ´µÄent£©>mayType>mayEnt
-	 * 2¡¢mayEnt=1,ÔòÎª³£Á¿
-	 * 3¡¢mayType=1£¬·ÖÎªÁ½ÖÖÇé¿ö£º
-	 * £¨1£©ÈÏÎª¸ÃwordÎª±äÁ¿£¬ÔÚtop-k½×¶Î»áÎªÕâÖÖÇé¿ö¼ÓÒ»Ìõ¸ÃwordµÄtypeÈıÔª×é¡£
-	 * ÀıÈç£ºWhich books by Kerouac were published by Viking Press? ÖĞµÄ¡°books¡±¡£
-	 * £¨2£©ÈÏÎª¸ÃwordÎª³£Á¿¡£ÕâÖ»ÔÚËü±»ÓÃÀ´ĞŞÊÎÆäËûwordÊ±£¬¼´Î½´ÊÊÇ<type1>Ê±¡£
-	 * ÀıÈç£ºAre tree frogs a type of amphibian? ÖĞµÄ¡°amphibian¡±¡£How many [countries] are there in [exT:Europe]¡£
-	 * 
-	 * [2016-6-17] ¿ªÊ¼¼ì²â <´øtripleµÄ±äÁ¿> | Ö÷ÒªÎª¡±xx¹úÈË/xx¹úµÄ¡°ÔÚ²»Í¬µÄÌõ¼şÏÂ²»Í¬µÄÊ¶±ğ
-	 * 
-	 * */
-	public void constantVariableRecognition(HashMap<Integer, SemanticRelation> semanticRelations, QueryLogger qlog, TypeRecognition tr) 
-	{
-		Word[] words = qlog.s.words;
-		//Ä¿Ç°ÊÇÖ»Ê¶±ğ ¡°±»semantic relaiton¸²¸ÇµÄ½Úµã¡°¡£¼´Ò»Ğ© modifier½ÚµãÃ»ÓĞ×öÒÔÏÂ¡±³£/±äÁ¿¼ì²â¡°ÒÔ¼°¡±embeddedĞÅÏ¢À©³ä¡°
-		for (Integer it : semanticRelations.keySet()) 
-		{
-			SemanticRelation sr = semanticRelations.get(it);
-			int arg1WordPos = sr.arg1Word.position - 1;
-			int arg2WordPos = sr.arg2Word.position - 1;
-			
-//			// [2016-6-17]ÓĞÊ±ÓÃ»§»á´óĞ´±äÁ¿£¬Èç£º all [Canadians] that... ¾ö¶¨²»ÒÀÀµÓÚ´óĞ´£¬Ö»ÒÀÀµÓÚnode recognition½×¶ÎµÄmapping½á¹û¡£
-//			// [2016-6-17]ÒòÎª¼´Ê¹ÕâÀï¸ù¾İ´óĞ´ÉèÎª³£Á¿£¬ÔÚºóÃætop-k joinµÄÊ±ºòÃ»ÓĞ¶ÔÓ¦mapping£¬Ò²»á±»Å×Æú
-//			// Èç¹û°üº¬Ê××ÖÄ¸´óĞ´(·Ç¾äÊ×µ¥´Ê)£¬»òÊÇÃüÃûÊµÌå£¬ÔòÊÓ×÷³£Á¿
-//			if (sr.arg1Word.isNER() != null && !sr.arg1Word.isNER().equals("PERSON")
-//				|| containsUpperCharacter(sr.arg1Word.getFullEntityName(), sr.arg1Word.getNnHead().position)) 
-//			{
-//				sr.isArg1Constant = true;
-//				
-//				//[2015-12-12]Ê××ÖÄ¸´óĞ´²»Ì«¿ÉÄÜÊÇtype£¬ÕâÀïmayTypeĞŞÕıÎªfalse  | [2015-12-13]·´Àı How many countries are there in [exType|Europe]£¬¸ÄÎªÕë¶Ôword sequence
-//				//[2016-6-17] ·´ÀıIn which U.S. state is Mount McKinley located -> US_state[type:<yago:StatesOfTheUnitedStates>].È¥µô´ËĞŞÕı
-//				if(sr.arg1Word.baseForm.contains("_"))
-//					sr.arg1Word.mayType = false;
-//			}
-
-/*
- * extend variableÊ¶±ğ
- * */
-			tr.recognizeExtendVariable(sr.arg1Word);
-			tr.recognizeExtendVariable(sr.arg2Word);
-			
-/*
- * ³£±äÁ¿Ê¶±ğ£¬Ä¬ÈÏµÄ isArgConstant = false
- * */			
-			// extendVariableÓÅÏÈ¼¶×î¸ß£¬ÏÈÅĞ¶Ï¿ÉÄÜÊÇËüµÄÇé¿ö
-			if(sr.arg1Word.mayExtendVariable)
-			{
-				//eg: ¼ÈÊÇextendVariable£º?canadian <birthPlace> <Canada> ÓÖ´æÔÚ<type: canadian>£»ÕâÊ±ÎÒÃÇ·ÅÆútype
-				if(sr.arg1Word.mayType)
-					sr.arg1Word.mayType = false;
-				
-				//¿ÉÄÜÊÇent£¬ĞèÒª½øĞĞ¹æÔòÅĞ¶Ï
-				if(sr.arg1Word.mayEnt)
-				{
-					//rule: [extendVaraible&&ent]+noun,ÔòÈÏÎªÊÇent || Canadian movies -> ent:Canada
-					if(arg1WordPos+1 < words.length && words[arg1WordPos+1].posTag.startsWith("N"))
-					{
-						sr.arg1Word.mayExtendVariable = false;
-						sr.isArg1Constant = true;
-					}
-					//·ñÔòÈÏÎªÊÇ±äÁ¿£¬·ÅÆúmayEnt
-					else
-					{
-						sr.arg1Word.mayEnt = false;
-					}
-				}
-			}
-			// typeÓÅÏÈ¼¶½Ï¸ß£¬ÅĞ¶Ïtype
-			else if(sr.arg1Word.mayType)
-			{
-				//rule£ºin/of [type]£¬ÔòÈÏÎªÊÇ×÷³£Á¿  ||How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
-				if(arg1WordPos >= 2 && (words[arg1WordPos-1].baseForm.equals("in") || words[arg1WordPos-1].baseForm.equals("of"))  && !words[arg1WordPos-2].posTag.startsWith("V"))
-				{
-					sr.isArg1Constant = true;
-					//Ñ¡Ôñ×÷Îª¡±³£Á¿type¡°£¬Ôòpreferred relation = <type1>
-					double largerScore = 1000;
-					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
-						largerScore = sr.predicateMappings.get(0).score * 2;
-					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
-					sr.predicateMappings.add(0,nPredicate);
-					
-					//×÷Îª³£Á¿µÄtypeÓ¦¸Ã·ÅÔÚºóÃæ
-					sr.preferredSubj = sr.arg2Word;
-				}
-				//ÓÖÊÇtypeÓÖÊÇentµÄÇé¿ö£¬»¹ÊÇÒÔtypeÎªÖ÷£¬µ«ÕâÀïÏÈ²»ĞŞ¸ÄmayEnt
-			}
-			//Ö»ÅĞ¶Ï³öent£¬ÄÇ¾ÍÊÇ³£Á¿ÁË
-			else if(sr.arg1Word.mayEnt)
-			{
-				sr.isArg1Constant = true;
-			}
-			
-//			// Èç¹û°üº¬Ê××ÖÄ¸´óĞ´(·Ç¾äÊ×µ¥´Ê)£¬»òÊÇÃüÃûÊµÌå£¬ÔòÊÓ×÷³£Á¿
-//			if (sr.arg2Word.isNER() != null && !sr.arg2Word.isNER().equals("PERSON")
-//				|| containsUpperCharacter(sr.arg2Word.getFullEntityName(), sr.arg2Word.getNnHead().position)) 
-//			{
-//				sr.isArg2Constant = true;
-//				
-//				//[2015-12-12]Ê××ÖÄ¸´óĞ´²»Ì«¿ÉÄÜÊÇtype£¬ÕâÀïmayTypeĞŞÕıÎªfalse  | [2015-12-13]·´Àı How many countries are there in [exType|Europe]£¬¸ÄÎªÕë¶Ôword sequence
-//				if(sr.arg2Word.baseForm.contains("_"))
-//					sr.arg2Word.mayType = false;
-//			}
-			
-			// extendVariableÓÅÏÈ¼¶×î¸ß£¬ÏÈÅĞ¶Ï¿ÉÄÜÊÇËüµÄÇé¿ö
-			if(sr.arg2Word.mayExtendVariable)
-			{
-				//eg: ¼ÈÊÇextendVariable£º?canadian <birthPlace> <Canada> ÓÖ´æÔÚ<type: canadian>£»ÕâÊ±ÎÒÃÇ·ÅÆútype
-				if(sr.arg2Word.mayType)
-					sr.arg2Word.mayType = false;
-				
-				//¿ÉÄÜÊÇent£¬ĞèÒª½øĞĞ¹æÔòÅĞ¶Ï
-				if(sr.arg2Word.mayEnt)
-				{
-					//rule: [extendVaraible&&ent]+noun,ÔòÈÏÎªÊÇent || Canadian movies -> ent:Canada
-					if(arg2WordPos+1 < words.length && words[arg2WordPos+1].posTag.startsWith("N"))
-					{
-						sr.arg2Word.mayExtendVariable = false;
-						sr.isArg2Constant = true;
-					}
-					//·ñÔòÈÏÎªÊÇ±äÁ¿£¬·ÅÆúmayEnt
-					else
-					{
-						sr.arg2Word.mayEnt = false;
-					}
-				}
-			}
-			// typeÓÅÏÈ¼¶½Ï¸ß£¬ÅĞ¶Ïtype
-			else if(sr.arg2Word.mayType)
-			{
-				//rule£º·Ç¶¯´Ê+in/of [type]£¬ÔòÈÏÎªÊÇ×÷³£Á¿  ||How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
-				if(arg2WordPos >= 2 && (words[arg2WordPos-1].baseForm.equals("in") || words[arg2WordPos-1].baseForm.equals("of")) && !words[arg2WordPos-2].posTag.startsWith("V") )
-				{
-					sr.isArg2Constant = true;
-					//Ñ¡Ôñ×÷Îª¡±³£Á¿type¡°£¬Ôòpreferred relation = <type1>
-					double largerScore = 1000;
-					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
-						largerScore = sr.predicateMappings.get(0).score * 2;
-					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
-					sr.predicateMappings.add(0,nPredicate);
-					
-					//×÷Îª³£Á¿µÄtypeÓ¦¸Ã·ÅÔÚºóÃæ
-					sr.preferredSubj = sr.arg1Word;
-				}
-				//rule: Be ... a type?
-				if(words[0].baseForm.equals("be") && arg2WordPos >=3 && words[arg2WordPos-1].baseForm.equals("a"))
-				{
-					sr.isArg2Constant = true;
-					//Ñ¡Ôñ×÷Îª¡±³£Á¿type¡°£¬Ôòpreferred relation = <type1>
-					double largerScore = 1000;
-					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
-						largerScore = sr.predicateMappings.get(0).score * 2;
-					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
-					sr.predicateMappings.add(0,nPredicate);
-					
-					//×÷Îª³£Á¿µÄtypeÓ¦¸Ã·ÅÔÚºóÃæ
-					sr.preferredSubj = sr.arg1Word;
-				}
-			}
-			else if(sr.arg2Word.mayEnt)
-			{
-				sr.isArg2Constant = true;
-			}
-			
-			if(sr.arg1Word != sr.preferredSubj)
-				sr.swapArg1Arg2();
-		}
-	}
-	private boolean containsUpperCharacter (String str, int beginIdx) {
-		String[] array = str.split(" ");
-		for (String s: array) {
-			if (Character.isUpperCase(s.charAt(0)) && beginIdx!=1) {
-				return true;
-			}
-			beginIdx++;
-		}
-		return false;
-	}
 	
 }
+
 class StringAndDouble {
 	public String str;
 	public double score;

@@ -17,11 +17,8 @@ public class MySQLBPO {
 			Class.forName("com.mysql.jdbc.Driver").newInstance();
 			String useName = "husen";
 			String password = "icstwip";
-			//String url = "jdbc:mysql://172.31.222.76:3307/" + database;
-			//String url = "jdbc:mysql://172.31.222.77:3306/" + database;
 			String url = "jdbc:mysql://localhost:3306/" + database;
 			conn = DriverManager.getConnection(url, useName, password);
-			// &useUnicode=true&characterEncoding=UTF8
 			
 			if(conn == null)
 				System.out.println("Connect mysql error or no database named: "+database);
@@ -31,7 +28,7 @@ public class MySQLBPO {
 		}
 	}	
 	void close() {
-		if(rs != null){ // 关闭记录集
+		if(rs != null){
 			try{
 				rs.close();
 			}catch(SQLException e){
@@ -45,7 +42,7 @@ public class MySQLBPO {
 				e.printStackTrace();
 			}			
 		}
-		if(conn != null){ // 关闭连接对象
+		if(conn != null){
 			try{
 				conn.close();
 			}catch(SQLException e){

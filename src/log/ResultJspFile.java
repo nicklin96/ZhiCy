@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,10 +41,12 @@ public class ResultJspFile
 	}
 	public void saveAnswerText()
 	{
+		
+		FileWriter writer = null;
 		try
 		{
 			File outputFile=new File(localpath+"answerText.txt");
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			int resultCount = qlog.answers.size();
 			
 			for (int i=0;i<resultCount;i++)
@@ -51,11 +54,18 @@ public class ResultJspFile
 				Answer ans = qlog.answers.get(i);
 				writer.write(ans.questionFocusValue+"\n");
 			}
-			writer.close();
+			//writer.close();
 		}
-		catch (Exception e) 
+		catch (IOException e) 
 		{
-			e.printStackTrace();					
+			System.err.println("save answer text error");					
+		}finally {
+			if (writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -68,11 +78,13 @@ public class ResultJspFile
 			|| qlog.sparql == null) {
 			return ;
 		}
+		FileWriter writer = null;
 		try 
 		{	
 			int resultCount = qlog.answers.size();
 			
 			StringBuilder ret = new StringBuilder("");
+
 
 			for (int i = 0; i < resultCount; i ++) 
 			{
@@ -80,7 +92,7 @@ public class ResultJspFile
 				
 				if (i%2 == 0)
 					ret.append("<tr>");
-				if (!Character.isDigit(ans.questionFocusValue.charAt(0)) && !ans.questionFocusValue.equals("false") && !ans.questionFocusValue.equals("true")) // 实体
+				if (!Character.isDigit(ans.questionFocusValue.charAt(0)) && !ans.questionFocusValue.equals("false") && !ans.questionFocusValue.equals("true")) // 脢碌脤氓
 				{
 					String link = null;
 					if (ans.questionFocusValue.startsWith("http")) 
@@ -103,7 +115,7 @@ public class ResultJspFile
 					}
 					ret.append("</td>");
 				}
-				else // 常量值
+				else
 				{
 					ret.append("<td id=\"hit\">");
 					ret.append(ans.questionFocusValue);
@@ -124,13 +136,22 @@ public class ResultJspFile
 			
 			String path = localpath+"ansJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(ret.toString());
-			writer.close();
+			//writer.close();
 			
 			
 		} catch (Exception e) {
-			e.printStackTrace();					
+			//e.printStackTrace();	
+			System.err.println("save NB Answer jsp error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -144,6 +165,7 @@ public class ResultJspFile
 			|| qlog.sparql == null) {
 			return ;
 		}
+		FileWriter writer = null;
 		try {	
 			int resultCount = qlog.answers.size();
 			int pageCount = resultCount/pageSize; if (resultCount%pageSize!=0) pageCount++;
@@ -213,13 +235,20 @@ public class ResultJspFile
 				
 				String path = localpath+"ansJsp\\page_"+curPageNum+".dat";
 				File outputFile = new File(path);
-				FileWriter writer = new FileWriter(outputFile);
+				writer = new FileWriter(outputFile);
 				writer.write(ret.toString());
-				writer.close();
-			}
-			
+				//writer.close();
+			}			
 		} catch (Exception e) {
 			e.printStackTrace();					
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -248,17 +277,27 @@ public class ResultJspFile
 			else ret = qlog.s.dependencyTreeMalt.toString();
 		}
 		
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"DependencyTreeJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(ret.toString());
-			writer.close();
+			//writer.close();
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();					
+			//e.printStackTrace();	
+			System.err.println("save dependency tree error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -283,18 +322,26 @@ public class ResultJspFile
 			}
 			sb.append(" <not covered:"+notCoveredCount + "/" +s.words.length+">");
 		}
-		
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"TextCoverageJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(sb.toString());
-			writer.close();
+			//writer.close();
 		}
 		catch (Exception e) 
 		{
 			e.printStackTrace();					
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -314,18 +361,27 @@ public class ResultJspFile
 				sb.append(", " + ((int)(semRltns.get(key).LongestMatchingScore*1000))/1000.0 + ")\n");
 			}
 		}
-		
+		FileWriter writer =null;
 		try
 		{
 			String path = localpath+"SemanticRelationsJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(sb.toString());
-			writer.close();
+			//writer.close();
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();					
+			//e.printStackTrace();
+			System.err.println("save semantic relations jsp error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -410,18 +466,28 @@ public class ResultJspFile
 			}
 		}
 		
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"MappingJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(sb.toString());
 			writer.close();
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();					
-		}		
+			//e.printStackTrace();	
+			System.err.println("save mapping jsp error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+		}
 	}
 	
 	public void saveCRRJsp () {
@@ -436,34 +502,52 @@ public class ResultJspFile
 				sb.append("\""+w.getFullEntityName() + "\" = \"" + w.crr.getFullEntityName() + "\"");
 			printed.add(w);
 		}
-		
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"CRRJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(sb.toString());
-			writer.close();
+			//writer.close();
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();					
+			//e.printStackTrace();	
+			System.err.println("save CRR jsp error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
 	public void saveSparqlJsp(String spq)
 	{
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"SparqlJsp.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(spq);
-			writer.close();
+			//writer.close();
 		}
 		catch (Exception e) 
 		{
 			e.printStackTrace();					
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -512,17 +596,27 @@ public class ResultJspFile
 		*/
 		String ret = resultCount+"\n"+time+"\n"+time0+"\n"+time1+"\n"+time2+"\n"+time3+"\n"+time5;
 		
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"TimeTable.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(ret);
 			writer.close();
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();					
+			//e.printStackTrace();	
+			System.err.println("save time table error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -537,18 +631,27 @@ public class ResultJspFile
 		String time5 = "0";
 		
 		String ret = resultCount+"\n"+time+"\n"+time1+"\n"+time2+"\n"+time3+"\n"+time4+"\n"+time5;
-		
+		FileWriter writer = null;
 		try
 		{
 			String path = localpath+"TimeTable.dat";
 			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
+			writer = new FileWriter(outputFile);
 			writer.write(ret);
 			writer.close();
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();					
+			//e.printStackTrace();	
+			System.err.println("clearing jsp error");
+		}finally {
+			if(writer!=null)
+				try {
+					writer.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		}
 	}
 	
@@ -556,10 +659,11 @@ public class ResultJspFile
 	public String getSavedJsp(String path)
 	{
 		StringBuilder ret = new StringBuilder();
+		BufferedReader reader = null;
 		try
 		{
 			File inputFile = new File(path);
-			BufferedReader reader = new BufferedReader(new FileReader(inputFile));
+			reader = new BufferedReader(new FileReader(inputFile));
 			
 			String line;
 			while ((line = reader.readLine()) != null)			
@@ -570,6 +674,14 @@ public class ResultJspFile
 		{
 			e.printStackTrace();
 			return "";
-		}	
+		}finally {
+			if(reader!=null)
+				try {
+					reader.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+		}
 	}
 }

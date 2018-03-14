@@ -31,7 +31,7 @@ public class Sentence {
 	{
 		plainText = s;
 		words = Globals.coreNLP.getTaggedWords(plainText);
-		//¼Ì³Ð NodeRecognitionµÄÐÅÏ¢
+		// inherit NodeRecognition's information
 		for(Word word: words)
 		{
 			for(MergedWord mWord: query.mWordList)

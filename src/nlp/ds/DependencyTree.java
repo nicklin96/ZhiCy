@@ -23,9 +23,9 @@ public class DependencyTree {
 	public DependencyTreeNode root = null;
 	public ArrayList<DependencyTreeNode> nodesList = null;
 	
-	public SemanticGraph dependencies = null;	// 第一种建立DependencyTree的方法：通过CoreNLP (现已废弃)
-	public GrammaticalStructure gs = null;		// 第二种建立DependencyTree的方法：通过Stanford Parser
-	public DependencyStructure maltGraph = null;	// 第三种简历DependencyTree的方法：通过MaltParser
+	public SemanticGraph dependencies = null;	// Method 1: CoreNLP (discarded)
+	public GrammaticalStructure gs = null;		// Method 2: Stanford Parser
+	public DependencyStructure maltGraph = null;	// Method 3: MaltParser
 	
 	public HashMap<String, ArrayList<DependencyTreeNode>> wordBaseFormIndex = null;
 	
@@ -41,7 +41,6 @@ public class DependencyTree {
 
 		stack.push(iwRoot);
 		root = this.setRoot(sentence.getWordByIndex(iwRoot.index()));
-		// 注：上面这里用了.toLowerCase()，这是因为转化结果：United --> United，而united --> unite；同理States --> States，而states --> state
 		map.put(iwRoot, root);
 
 		while (!stack.empty())
@@ -71,7 +70,7 @@ public class DependencyTree {
 		nodesList = new ArrayList<DependencyTreeNode>();
 		
 		List<TypedDependency> tdl = gs.typedDependencies(false);
-		// 第一遍先生成所有的结点
+		// 1. generate all nodes.
 	    for (TypedDependency td : tdl) {
 	    	// gov
 	    	if (!map.containsKey(td.gov().index()) && !td.reln().getShortName().equals("root")) {
@@ -88,7 +87,7 @@ public class DependencyTree {
 	    		nodesList.add(newNode);    		
 	    	}
 	    }
-	    // 第二遍将父子关系添加进去
+	    // 2. add edges.
 	    for (TypedDependency td : tdl) {
 	    	if (td.reln().getShortName().equals("root")) {
 	    		this.root = map.get(td.dep().index());
@@ -105,7 +104,7 @@ public class DependencyTree {
 	    	}
 	    }
 	    
-	    // 填levelInTree，对childrenList排序，对nodesList排序
+	    // add levelInTree, sort childrenList & nodesList
 	    Stack<DependencyTreeNode> stack = new Stack<DependencyTreeNode>();
 	    stack.push(this.root);
 	    while (!stack.empty()) {
@@ -124,7 +123,7 @@ public class DependencyTree {
 	    }
 	}
 	
-	public DependencyTree (Sentence sentence, MaltParser maltParser) {
+	public DependencyTree (Sentence sentence, MaltParser maltParser)throws MaltChainedException {
 		try {
 			// the tokens are parsed in the following line
 			DependencyStructure graph = maltParser.getDependencyStructure(sentence);
@@ -136,7 +135,7 @@ public class DependencyTree {
 			Stack<DependencyNode> stack = new Stack<DependencyNode>();
 			DependencyNode nroot = graph.getDependencyRoot();
 			stack.add(nroot);
-			// 第一遍先生成所有的结点
+			// 1. generate all nodes.
 			while (!stack.isEmpty()) {
 				DependencyNode n = stack.pop();
 				DependencyNode sib = n.getRightmostDependent();
@@ -158,7 +157,6 @@ public class DependencyTree {
 				if (n.hasHead() && !map.containsKey(key)) {
 					//String snode = n.toString(); 
 					String sedge = n.getHeadEdge().toString();
-					
 					//System.out.println("[" + snode + "]  <" + sedge + ">");
 
 					/*int position = 0;
@@ -191,7 +189,7 @@ public class DependencyTree {
 					if (dep.equals("null")) {
 						dep = null;
 					}
-					else if (dep.equals("punct")) {// 不考虑标点符号
+					else if (dep.equals("punct")) {// No consider about punctuation
 						continue;
 					}
 					
@@ -203,17 +201,15 @@ public class DependencyTree {
 			}
 			
 			
-		    // 第二遍将父子关系添加进去
+		    // 2. add edges
 		    for (Integer k : map.keySet()) {
 		    	DependencyNode n = graph.getDependencyNode(k);
 		    	DependencyTreeNode dtn = map.get(k);
-		    	// 根节点
 		    	if (dtn.dep_father2child == null) {
 		    		this.setRoot(dtn);
 		    		this.root.levelInTree = 0;
 		    		this.root.dep_father2child = "root";
 		    	}
-		    	// 非根节点找父亲
 		    	else {
 			    	DependencyTreeNode father = map.get(n.getHead().getIndex());
 			    	DependencyTreeNode child = map.get(n.getIndex());
@@ -222,7 +218,7 @@ public class DependencyTree {
 		    	}
 		    }
 		    
-		    // 填levelInTree，对childrenList排序，对nodesList排序
+		    // add levelInTree, sort childrenList & nodesList
 		    for (DependencyTreeNode dtn : list) {
 		    	if (dtn.father != null) {	    	
 			    	dtn.levelInTree = dtn.father.levelInTree + 1;
@@ -236,8 +232,9 @@ public class DependencyTree {
 		    	dtn.linkNN(this);
 		    }
 		} catch (MaltChainedException e) {
-			e.printStackTrace();
-			System.err.println("MaltParser exception: " + e.getMessage());
+			//e.printStackTrace();
+			//System.err.println("MaltParser exception: " + e.getMessage());
+			throw e;
 		}
 	}
 	
@@ -278,9 +275,8 @@ public class DependencyTree {
 		return nodesList;
 	}
 
-	public ArrayList<DependencyTreeNode> getShortestNodePathBetween(DependencyTreeNode n1, DependencyTreeNode n2) {
-
-		// 如果两个节点相同，返回空路径
+	public ArrayList<DependencyTreeNode> getShortestNodePathBetween(DependencyTreeNode n1, DependencyTreeNode n2) 
+	{
 		if(n1 == n2) {
 			return new ArrayList<DependencyTreeNode>();
 		}

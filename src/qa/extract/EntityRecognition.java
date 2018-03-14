@@ -1,14 +1,14 @@
 package qa.extract;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+//import java.io.File;
+//import java.io.FileInputStream;
+//import java.io.FileNotFoundException;
+//import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
+//import java.io.OutputStreamWriter;
+//import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -23,15 +23,16 @@ import rdf.EntityMapping;
 import rdf.NodeSelectedWithScore;
 import rdf.TypeMapping;
 import rdf.MergedWord;
+import utils.FileUtil;
 import addition.*;
 
 /**
- * Ö÷ÒªÎªNode RecognitionÏà¹Ø¹¦ÄÜ
+ * Core class of Node Recognition
  * @author husen
  */
 public class EntityRecognition {
 	public String preLog = "";
-	public String stopEntFile = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
+	public String stopEntFilePath = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
 	
 	double EntAcceptedScore = 26;
 	double TypeAcceptedScore = 0.5;
@@ -43,11 +44,12 @@ public class EntityRecognition {
 	public ArrayList<String> badTagListForEntAndType = null;
 	ArrayList<ArrayList<Integer>> selectedList = null;
 	
+	TypeRecognition tr = null;
 	AddtionalFix af = null;
 	
 	public EntityRecognition() 
 	{
-		// Çå¿ÕÈÕÖ¾
+		// LOG
 		preLog = "";
 		loadStopEntityDict();
 		
@@ -63,13 +65,15 @@ public class EntityRecognition {
 		badTagListForEntAndType.add("VBP");
 		badTagListForEntAndType.add("POS");
 		
-		// Handwrite entity linking; (lower case)
+		// !Handwriting entity linking; (lower case)
 		m2e = new HashMap<String, String>();
 		m2e.put("bipolar_syndrome", "Bipolar_disorder");
 		m2e.put("battle_in_1836_in_san_antonio", "Battle_of_San_Jacinto");
+		m2e.put("federal_minister_of_finance_in_germany", "Federal_Ministry_of_Finance_(Germany)");
 		
-		// additional fix for CATEGORY
+		// Additional fix for CATEGORY (in DBpedia)
 		af = new AddtionalFix();
+		tr = new TypeRecognition();
 		
 		System.out.println("EntityRecognizer Initial : ok!");
 	}
@@ -77,31 +81,23 @@ public class EntityRecognition {
 	public void loadStopEntityDict()
 	{
 		stopEntList = new ArrayList<String>();
-		
 		try 
 		{
-			File file = new File(stopEntFile);
-			InputStreamReader in = new InputStreamReader(new FileInputStream(file), "utf-8");
-			BufferedReader br = new BufferedReader(in);
-
-			String line = null;
-			
-			while ((line = br.readLine())!= null) 
+			List<String> inputs = FileUtil.readFile(stopEntFilePath);
+			for(String line: inputs)
 			{
 				if(line.startsWith("#"))
 					continue;
 				stopEntList.add(line);
 			}	
-			br.close();
-			
-		} catch (Exception e) {
+		} 
+		catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 	
 	public ArrayList<String> process(String question)
 	{
-		TypeRecognition tr = new TypeRecognition();
 		ArrayList<String> fixedQuestionList = new ArrayList<String>();
 		ArrayList<Integer> literalList = new ArrayList<Integer>();
 		HashMap<Integer, Double> entityScores = new HashMap<Integer, Double>();
@@ -117,26 +113,28 @@ public class EntityRecognition {
 		mWordList = new ArrayList<MergedWord>();
 		
 		long t1 = System.currentTimeMillis();
-		//ÕâÀïµÄhitÊÇÖ¸Í¨¹ılucene»òÕßdbpedia lookupÕÒµ½ÁË½á¹û£¬µ«²»±£Ö¤½á¹ûÕıÈ·£¨ÊÂÊµÉÏÓĞºÜ¶àÊ±ºòÊÇ´íÎó½á¹û£¬ÀıÈç than ¶¼ÓĞ¶ÔÓ¦µÄ ÊµÌå£¬ÏÔÈ»ÊÇ²»¶ÔµÄ£© 
-		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0, hitLuceneEntCnt = 0;
+		int checkEntCnt = 0, checkTypeCnt = 0, hitEntCnt = 0, hitTypeCnt = 0, allCnt = 0;
 		boolean needRemoveCommas = false;
 		
-		//check entity & type£¬Ö®ºó¿´Òª²»Òª·Ö¿ª¼ì²â 
-		//×¢ÒâlenÓÉĞ¡µ½´óµÄË³Ğò²»ÄÜ±ä£¬ÒòÎªÒ»Ğ©³¤entÊÇ·ñ±£Áô»òµÃ·Ö²ßÂÔÒÀÀµÓÚ¶ÌentµÄÊ¶±ğÇé¿ö
-		for(int len=1;len<=words.length;len++)
+		// Check entity & type
+		// Notice, ascending order by length
+		StringBuilder tmpOW = new StringBuilder();
+		StringBuilder tmpBW = new StringBuilder();
+		for(int len=1; len<=words.length; len++)
 		{
 			for(int st=0,ed=st+len; ed<=words.length; st++,ed++)
 			{
-				String originalWord = "",baseWord = "", allUpperWord = "", posTagSequence = "";
-				String[] posTagArr = new String[len];
-				for(int j=st;j<ed;j++)
+				String originalWord = "", baseWord = "", allUpperWord = "";
+				//String[] posTagArr = new String[len];
+				for(int j=st; j<ed; j++)
 				{
-					posTagArr[j-st] = words[j].posTag;
-					posTagSequence += words[j].posTag;
-					originalWord += words[j].originalForm;
-					baseWord += words[j].baseForm;
+					//posTagArr[j-st] = words[j].posTag;
+					//originalWord += words[j].originalForm;
+					//baseWord += words[j].baseForm;
+					tmpOW.append(words[j].originalForm);
+					tmpBW.append(words[j].baseForm);
 					String tmp = words[j].originalForm;
-					if(tmp.length()>0 && tmp.charAt(0)>='a' && tmp.charAt(0)<='z')
+					if(tmp.length()>0 && tmp.charAt(0) >='a' && tmp.charAt(0)<='z')
 					{
 						String pre = tmp.substring(0,1).toUpperCase();
 						tmp = pre + tmp.substring(1);
@@ -145,27 +143,32 @@ public class EntityRecognition {
 					
 					if(j < ed-1)
 					{
-						originalWord += "_";
-						baseWord += "_";
-						posTagSequence += " ";
+						//originalWord += "_";
+						//baseWord += "_";
+						tmpOW.append("_");
+						tmpBW.append("_");
 					}
 				}
-				allCnt++;
+				originalWord = tmpOW.toString();
+				baseWord=tmpBW.toString();
+				tmpOW.setLength(0);
+				tmpBW.setLength(0);
 				
+				allCnt++;
 /*
- * ¼ÓÒ»Ğ©¹æÔò¼õÉÙfind´ÎÊı£¬µ«ÊÇÕâĞ©¹æÔò¿ÉÄÜÎşÉüÄ³Ğ©entity 
- * Ò»ÏµÁĞ¾­¹ı²»¶ÏÔö¼ÓºÍĞŞÕıµÄÊÖĞ´¹æÔò
+ * Filters to save time and drop some bad cases.  
 */				
 				boolean entOmit = false, typeOmit = false;
 				int prep_cnt=0;
 				
-				//Èç¹ûÕâÒ»´®word¶¼ÊÇ´óĞ´×ÖÄ¸¿ªÍ·£¨·ûºÅÈç¹ûÔÚÁ½¸öwordÖĞ¼ä£¬ÔòÒ²Ëã×÷´óĞ´£¬eg£º"Melbourne , Florida"£©£¬Ôò±Ø¶¨×ömapping£¬·ñÔò½øĞĞ¹æÔòÅĞ¶ÏÊÇ·ñ×ömapping 
+				// Upper words can pass filter. egï¼š "Melbourne , Florida"
 				int UpperWordCnt = 0;
 				for(int i=st;i<ed;i++)
-					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') || ((words[i].posTag.equals(",") || words[i].originalForm.equals("'")) && i>st && i<ed-1))
+					if((words[i].originalForm.charAt(0)>='A' && words[i].originalForm.charAt(0)<='Z') 
+							|| ((words[i].posTag.equals(",") || words[i].originalForm.equals("'")) && i>st && i<ed-1))
 						UpperWordCnt++;
 				
-				//Èç¹û·ûºÏÒ»Ğ© "»ù±¾²»¿ÉÄÜÓÃ×÷entity"µÄ¹æÔò£¬Ôò²»½øĞĞent¼ì²â 
+				// Filters 
 				if(UpperWordCnt<len || st==0)
 				{
 					if(st==0)
@@ -176,9 +179,7 @@ public class EntityRecognition {
 							typeOmit = true;
 						}
 					}
-					
-					//ÕâĞ©ruleĞèÒªÅĞ¶ÏÉÏÒ»¸ö´Ê£¬ËùÒÔÒªÇóst´óÓÚ0£»×¢ÒâÕâĞ©ruleÖ»Õë¶Ôent 
-					if(st>0)
+					else if(st>0)
 					{
 						Word formerWord = words[st-1];
 						//as princess
@@ -188,7 +189,7 @@ public class EntityRecognition {
 						if(formerWord.baseForm.equals("many"))
 							entOmit = true;
 						
-						//obama's daughter ; your height | 2016.5.2,Ôö¼Ólen=1ÏŞÖÆ£¬ÒòÎªAsimov's Foundation seriesÕâÖÖ»áÊ¶±ğ´í
+						//obama's daughter ; your height | len=1 to avoid: Asimov's Foundation series
 						if(len == 1 && (formerWord.posTag.startsWith("POS") || formerWord.posTag.startsWith("PRP")))
 							entOmit = true;
 						//the father of you
@@ -199,7 +200,7 @@ public class EntityRecognition {
 								entOmit = true;
 						}
 						//the area code of ; the official language of
-						boolean flag1=false,flag2=false;
+						boolean flag1=false, flag2=false;
 						for(int i=0;i<=st;i++)
 							if(words[i].posTag.equals("DT"))
 								flag1 = true;
@@ -208,17 +209,11 @@ public class EntityRecognition {
 								flag2 = true;
 						if(flag1 && flag2)
 							entOmit = true;
-						
-					//	//Èç¹ûÇ°ÃæÒ»¸ö´Ê²»ÊÇ¾äÊ×ÇÒÊÇ´óĞ´£¬¾ÍÈÏÎªÇ°ÃæµÄ´ÊÊÇÒ»¸öÊµÌå£¨»òÊµÌåµÄÇ°×º£©£¬ÄÇÃ´µ±Ç°´ÊÊÇËûµÄºó×º»òÕßËüÖ®ºóµÄ´Ê¡£¶øÎÒÃÇÈÏÎª²»»áÓĞÁ½¸öÊµÌåÍêÈ«ÏàÁÚ£¨µ«ÊÇtype¿ÉÒÔÏàÁÚ£©
-					//	if(formerWord.originalForm.charAt(0)>='A' && formerWord.originalForm.charAt(0)<='Z' && st>1)
-					//		entOmit = true;
 					}
-					
 					if(ed < words.length)
 					{
 						Word nextWord = words[ed];
-						
-						//Èç¹ûºóÃæÒ»¸ö´ÊÊÇ´óĞ´£¬¾ÍÈÏÎªºóÃæµÄ´ÊÊÇÒ»¸öÊµÌå£¨»òÊµÌåµÄºó×º£©£¬ÄÇÃ´µ±Ç°´ÊÊÇËûµÄÇ°×º»òÕßËüÖ®Ç°µÄ´Ê¡£¶øÎÒÃÇÈÏÎª²»»áÓĞÁ½¸öÊµÌåÍêÈ«ÏàÁÚ£¨µ«ÊÇtype¿ÉÒÔÏàÁÚ£©
+						// (lowerCase)+(UpperCase)
 						if(nextWord.originalForm.charAt(0)>='A' && nextWord.originalForm.charAt(0)<='Z')
 							entOmit = true;
 					}
@@ -241,7 +236,7 @@ public class EntityRecognition {
 							entOmit = true;
 							typeOmit = true;
 						}
-						//¶ÔÊ×´ÊµÄÅĞ¶Ï
+						// First word
 						if(i==st)
 						{
 							if(words[i].posTag.startsWith("I") || words[i].posTag.startsWith("EX") || words[i].posTag.startsWith("TO"))
@@ -264,7 +259,7 @@ public class EntityRecognition {
 								typeOmit = true;
 							}
 						}
-						//¶ÔÎ²´ÊµÄÅĞ¶Ï
+						// Last word.
 						if(i==ed-1)
 						{
 							if(words[i].posTag.startsWith("I") || words[i].posTag.startsWith("D") || words[i].posTag.startsWith("TO"))
@@ -278,10 +273,10 @@ public class EntityRecognition {
 								typeOmit = true;
 							}
 						}
-						//´ÊĞòÁĞÖ»ÓĞÒ»¸ö´Ê
+						// Single word.
 						if(len==1)
 						{
-							//TODO: Ö»ÔÊĞí Ãû´Ê ½øĞĞcheck£¬µ«ÊÇ³£ÓĞ Ó¦¸Ã×ö±äÁ¿µÄ¡°Í¨ÓÃÃû´Ê¡±±»¼ì²âÎªent£¬ÈçfatherµÈ
+							//TODO: Omit general noun. eg: father, book ...
 							if(!words[i].posTag.startsWith("N"))
 							{
 								entOmit = true;
@@ -289,7 +284,7 @@ public class EntityRecognition {
 							}
 						}
 					}
-					//´ËĞòÁĞÓĞÌ«¶àµÄ½é´Ê²»Ì«¿ÉÄÜÊÇent
+					// Too many preposition. 
 					if(prep_cnt >= 3)
 					{
 						entOmit = true;
@@ -297,40 +292,10 @@ public class EntityRecognition {
 					}
 				}
 /*
- * ¹ıÂË¹æÔòÍê±Ï
+ * Filter done.
 */
-				
-/*
- * ÊµÑé£ºpos tag pattern ¼ì²â
- * ÓÃpos tag pattern ¼ì²â´úÌæÉÏÊöÊÖĞ´rules£¬·ÖÎö ¡°×¼È·ÂÊ¡± ºÍ  ¡±Ê±¼äĞ§ÂÊ¡° µÄ±ä»¯  2016-2-22 
- * */
-				// use trie search
-//				if(!Globals.pp.entTrie.search(posTagArr))
-//					entOmit = true;
-//				if(!Globals.pp.typeTrie.search(posTagArr))
-//					typeOmit = true;
-				
-				// use arrayList contain
-//				if(!Globals.pp.entPosTagPatternList.contains(posTagSequence))
-//					entOmit = true;
-//				if(!Globals.pp.typePosTagPatternList.contains(posTagSequence))
-//					typeOmit = true;
-/*
- * pos tag pattern ¼ì²âÍê±Ï
- * */
-			
-/*
- * ÊµÑé£ºentity extraction
- * ·ÖÎö²»Í¬µÄ²ßÂÔ¶Ôentity extraction½á¹ûµÄÓ°Ïì
- * */
-				// do not use any rules & stopEntList
-//				typeOmit = false;
-//				entOmit = false;
-//				stopEntList.clear();
-/*
- * ÊµÑé£ºentity extraction Íê±Ï
- * */
-				//search category | ÓÅÏÈ¼¶×î¸ß
+							
+				// Search category | highest priority
 				String category = null;
 				if(af.pattern2category.containsKey(baseWord))
 				{
@@ -339,13 +304,13 @@ public class EntityRecognition {
 					category = af.pattern2category.get(baseWord);
 				}
 				
-				//search type
-				int hitMethod = 0; // 1= dbo(baseWord), 2=dbo(originalWord), 3=yago|extend()
+				// Search type
+				int hitMethod = 0; // 1=dbo(baseWord), 2=dbo(originalWord), 3=yago|extend()
 				ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
 				if(!typeOmit)
 				{
 					System.out.println("Type Check:  "+originalWord);
-					checkTypeCnt++;
+					//checkTypeCnt++;
 					//search standard type  
 					tmList = tr.getTypeIDsAndNamesByStr(baseWord);
 					if(tmList == null || tmList.size() == 0)
@@ -357,7 +322,7 @@ public class EntityRecognition {
 					else
 						hitMethod = 1;
 					
-					//search extend type|ÏÖÔÚÈÏÎªextend typeÓÅÏÈ¼¶¸ü¸ß£¨ÒòÎªÊÖ¶¯Ìí¼ÓµÄÊıÁ¿ÉÙÒ²¸ü¿¿Æ×£©|ÏÖÔÚextend typeÖ÷ÒªÊÇyago typeÁË
+					//Search extend type (YAGO type)
 					if(tmList == null || tmList.size() == 0)
 					{
 						tmList = tr.getExtendTypeByStr(allUpperWord);
@@ -369,14 +334,14 @@ public class EntityRecognition {
 					}
 				}
 				
-				//search entity
+				// Search entity
 				ArrayList<EntityMapping> emList = new ArrayList<EntityMapping>();
 				if(!entOmit && !stopEntList.contains(baseWord))
 				{
 					System.out.println("Ent Check: "+originalWord);
 					checkEntCnt++;
-					//×¢ÒâÕâÀïµÄµÚ¶ş¸ö²ÎÊıÊÇÆôÓÃdblkµÄÌõ¼ş
-					emList = getEntityIDsAndNamesByStr(originalWord,(UpperWordCnt>=len-1 || len==1),len);
+					// Notice, the second parameter is whether use DBpedia Lookup.
+					emList = getEntityIDsAndNamesByStr(originalWord, (UpperWordCnt>=len-1 || len==1),len);
 					if(emList == null || emList.size() == 0)
 					{
 						emList = getEntityIDsAndNamesByStr(baseWord, (UpperWordCnt>=len-1 || len==1), len);
@@ -394,7 +359,7 @@ public class EntityRecognition {
 				
 				MergedWord mWord = new MergedWord(st,ed,originalWord);
 				
-				//add category
+				// Add category
 				if(category != null)
 				{
 					mWord.mayCategory = true;
@@ -403,7 +368,7 @@ public class EntityRecognition {
 					mustSelectedList.add(key);
 				}
 				
-				//add literal
+				// Add literal
 				if(len==1 && checkLiteralWord(words[st]))
 				{
 					mWord.mayLiteral = true;
@@ -411,15 +376,15 @@ public class EntityRecognition {
 					literalList.add(key);
 				}
 				
-				//add type mappings
+				// Add type mappings
 				if(tmList!=null && tmList.size()>0)
 				{
-					//Èç¹û×î¸ß·ÖÌ«µÍ£¬Ö±½ÓÅ×Æú
+					// Drop by score threshold
 					if(tmList.get(0).score < TypeAcceptedScore)
 						typeOmit = true;
 
-					//method=1»ò2Ê±Èç¹û·Ç¾«È·Æ¥Åä£¬Å×Æú£¨Õâ¸ö°æ±¾Ö»½ÓÊÜ¾«È·Æ¥Åä£¬typeµÄÄ£ºıÆ¥Åä»òtaxonomy¸ß²ã½ÚµãÆ¥ÅäÖ®ºóÔÙ³¢ÊÔ£©
-					//method=3ÊÇyago|extend£¬ÊÇÍêÈ«×Ö·û´®Æ¥ÅäµÄ
+					// Only allow EXACT MATCH when method=1|2
+					// TODO: consider approximate match and taxonomy. eg, actor->person
 					String likelyType = tmList.get(0).typeName.toLowerCase();
 					String candidateBase = baseWord.replace("_", ""), candidateOriginal = originalWord.replace("_", "").toLowerCase();
 					if(!candidateBase.equals(likelyType) && hitMethod == 1)
@@ -438,23 +403,23 @@ public class EntityRecognition {
 					}
 				}
 				
-				//add entity mappings
+				// Add entity mappings
 				if(emList!=null && emList.size()>0)
 				{
-					//Èç¹û×î¸ß·ÖÌ«µÍ£¬Ö±½ÓÅ×Æú
+					// Drop by score threshold
 					if(emList.get(0).score < EntAcceptedScore)
 						entOmit = true;
 					
-					//Õë¶ÔĞÎÈç the German Shepherd dogĞÎÊ½£¬·ÀÖ¹the German Shepherd dog¡°±»Ê¶±ğÎªÒ»¸öent
+					// Drop: the [German Shepherd] dog
 					else if(len > 2)
 					{
 						for(int key: entityMappings.keySet())
 						{
-							int te=key%(words.length+1),ts=key/(words.length+1);
-							//´ËĞòÁĞµÄµÚÒ»¸öwordÊÇ¡°ent¡±
+							//int te=key%(words.length+1);
+							int ts=key/(words.length+1);
 							if(ts == st+1 && ts <= ed)
 							{
-								//µÚÒ»¸ö´ÊÊÇDT£¬ÇÒÊÇĞ¡Ğ´ || The Pillars of the Earth»òÕßThe_Storm on the Sea_of_GalileeÓ¦¸ÃÊÇÒ»¸öent£¬theÊ××ÖÄ¸´óĞ´
+								//DT in lowercase (allow uppercase, such as: [The Pillars of the Earth])
 								if(words[st].posTag.startsWith("DT") && !(words[st].originalForm.charAt(0)>='A'&&words[st].originalForm.charAt(0)<='Z'))
 								{
 									entOmit = true;
@@ -463,26 +428,26 @@ public class EntityRecognition {
 						}
 					}
 					
-					//Æ¥ÅäĞÅÏ¢¼ÇÈëmerge word
+					// Record info in merged word
 					if(!entOmit)
 					{
 						mWord.mayEnt = true;
 						mWord.emList = emList;
 					
-						//ÓÃÓÚÖ®ºóµÄremove duplicate and select
+						// use to remove duplicate and select
 						int key = st*(words.length+1) + ed;
 						entityMappings.put(key, emList.get(0).entityID);
 						
-						//ÕâÀï¶ÔentµÄÆÀ·Ö½øĞĞÒ»Ğ©ĞŞÕı | ÊôÓÚconflict resolution
+						// fix entity score | conflict resolution
 						double score = emList.get(0).score;
 						String likelyEnt = emList.get(0).entityName.toLowerCase().replace(" ", "_");
 						String lowerOriginalWord = originalWord.toLowerCase();
-						//Èç¹û×Ö·û´®ÍêÈ«Æ¥Åä£¬ÔòµÃ·Ö³ËÒÔwordµÄÊıÁ¿£»µ¥¸öwordµÄÆÀ·ÖÒÑ¾­ºÜ¸ß²¢ÇÒ¾­³£»á³öÏÖ²»ÏëÒªµÄÇé¿ö£¬ËùÒÔÏàµ±ÓÚÃ»ÓĞÔö¼Óµ¥¸öwordµÃ·Ö
+						// !Award: whole match
 						if(likelyEnt.equals(lowerOriginalWord))
 							score *= len;
-						//Èç¹ûÕâ¸öEnt±»Ò»Ğ©Ğ¡µÄentÍêÈ«¸²¸Ç£¬ÄÇÃ´ËüµÄ¿ÉĞÅ¶ÈÓ¦¸Ã±ÈÕâĞ©Ğ¡µÄentµÄºÍ¸ü¸ß¡£ÀıÈç£ºRobert Kennedy£¬[Robert]ºÍ[Kennedy]¶¼ÄÜÕÒµ½¶ÔÓ¦ent£¬µ«ÏÔÈ»ÕâÀïÓ¦¸ÃÊÇ[Robert Kennedy]
-						//ÏñSocial_Democratic_Party£¬ÕâÈı¸öwordÈÎÒâ×éºÏ¶¼ÊÇent£¬µ¼ÖÂ·½°¸Ì«¶à£»Ïà±È½Ï¡°³åÍ»Ñ¡ÄÄ¸ö¡±£¬¡°Á¬or²»Ó¦¸ÃÁ¬¡±ÏÔµÃ¸üÖØÒª£¨¶øÇÒÊµ¼Ê´íÎó¶àÎªÁ¬»ò²»Á¬µÄ´íÎó£©£¬ËùÒÔÕâÀïÖ±½ÓÅ×Æú±»¸²¸ÇµÄĞ¡ent
-						//ÏñAbraham_Lincoln£¬ÔÚ¡°²»Á¬½Ó¡±µÄ·½°¸ÖĞ£¬»á°ÑËûÃÇÊ¶±ğ³ÉÁ½¸önode£¬×îºóµÃ·Ö³¬¹ıÁËÕıÈ·´ğ°¸µÄµÃ·Ö£»¹Ê¶ÔÓÚÕâÖÖ´ÊÉèÖÃÎª±ØÑ¡
+						// !Award: COVER (eg, Robert Kennedy: [Robert] [Kennedy] [Robert Kennedy])
+						//åƒSocial_Democratic_Partyï¼Œè¿™ä¸‰ä¸ªwordä»»æ„ç»„åˆéƒ½æ˜¯entï¼Œå¯¼è‡´æ–¹æ¡ˆå¤ªå¤šï¼›ç›¸æ¯”è¾ƒâ€œå†²çªé€‰å“ªä¸ªâ€ï¼Œâ€œè¿orä¸åº”è¯¥è¿â€æ˜¾å¾—æ›´é‡è¦ï¼ˆè€Œä¸”å®é™…é”™è¯¯å¤šä¸ºè¿æˆ–ä¸è¿çš„é”™è¯¯ï¼‰ï¼Œæ‰€ä»¥è¿™é‡Œç›´æ¥æŠ›å¼ƒè¢«è¦†ç›–çš„å°ent
+						//åƒAbraham_Lincolnï¼Œåœ¨â€œä¸è¿æ¥â€çš„æ–¹æ¡ˆä¸­ï¼Œä¼šæŠŠä»–ä»¬è¯†åˆ«æˆä¸¤ä¸ªnodeï¼Œæœ€åå¾—åˆ†è¶…è¿‡äº†æ­£ç¡®ç­”æ¡ˆçš„å¾—åˆ†ï¼›æ•…å¯¹äºè¿™ç§è¯è®¾ç½®ä¸ºå¿…é€‰
 						if(len>1)
 						{
 							boolean[] flag = new boolean[words.length+1];
@@ -505,11 +470,11 @@ public class EntityRecognition {
 							for(int i=st;i<ed;i++)
 								if(flag[i])
 									hitCnt++;
-							//½«ÍêÈ«¸²¸ÇµÄÌõ¼ş¸ÄÎª ÍêÈ«¸²¸Ç ||´ó²¿·Ö¸²¸Ç²¢ÇÒ´ó²¿·Ö´óĞ´ || È«²¿´óĞ´
+							// WHOLE match || HIGH match & HIGH upper || WHOLE upper
 							if(hitCnt == len || ((double)hitCnt/(double)len > 0.6 && (double)UpperWordCnt/(double)len > 0.6) || UpperWordCnt == len || len>=4)
 							{
-								//ÈçÖĞ¼äÓĞ¶ººÅ£¬ÔòÒªÇóÁ½±ßµÄ´Ê¶¼ÔÚmappingµÄentityÖĞ³öÏÖ
-								//ÀıÈç Melbourne_,_Florida: Melbourne, Florida ÊÇ±ØĞëÑ¡µÄ£¬¶ø California_,_USA: Malibu, California£¬ÈÏÎª²»Ò»¶¨ÕıÈ·
+								//å¦‚ä¸­é—´æœ‰é€—å·ï¼Œåˆ™è¦æ±‚ä¸¤è¾¹çš„è¯éƒ½åœ¨mappingçš„entityä¸­å‡ºç°
+								//ä¾‹å¦‚ Melbourne_,_Florida: Melbourne, Florida æ˜¯å¿…é¡»é€‰çš„ï¼Œè€Œ California_,_USA: Malibu, Californiaï¼Œè®¤ä¸ºä¸ä¸€å®šæ­£ç¡®
 								boolean commaTotalRight = true;
 								if(originalWord.contains(","))
 								{
@@ -523,7 +488,6 @@ public class EntityRecognition {
 										needRemoveCommas = true;
 									}
 								}
-									
 								if(commaTotalRight)
 								{
 									mustSelectedList.add(key);
@@ -537,9 +501,8 @@ public class EntityRecognition {
 								}
 							}
 						}
-						
+						//NOTICE: score in mWord have no changes. we only change the score in entityScores.
 						entityScores.put(key,score);
-						//×¢ÒâmWordÖĞµÄscore²¢Ã»ÓĞ¸Ä£¬ÒòÎª»¹Ã»¿¼ÂÇºÃÕâÀïµÄÆÀ·ÖÊÇ·ñÓ¦¸Ã´øÈëºóÃæµÄ»·½Ú
 					}
 				}
 				
@@ -548,7 +511,7 @@ public class EntityRecognition {
 			}
 		}
 		
-		/*Êä³öËùÓĞºòÑ¡Æ¥Åä£¬×¢ÒâÕâÀïÊä³öµÄÆÀ·ÖÊÇÉÏÊöĞŞÕı¹ıµÄÆÀ·Ö£¬²¢²»ÊÇÕæÕı´æÔÚmWordÀïµÄÆÀ·Ö*/
+		/* Print all candidates (use fixed score).*/
 		System.out.println("------- Result ------");
 		for(MergedWord mWord: mWordList)
 		{
@@ -560,16 +523,20 @@ public class EntityRecognition {
 			}
 			if(mWord.mayEnt)
 			{
-				System.out.println("Detect entity mapping: "+mWord.name+": "+mWord.emList.get(0).entityName +" score:"+entityScores.get(key));
+				System.out.println("Detect entity mapping: "+mWord.name+": [");
+				for(EntityMapping em: mWord.emList)
+					System.out.print(em.entityName + ", ");
+				System.out.println("]");
 	        	preLog += "++++ Entity detect: "+mWord.name+": "+mWord.emList.get(0).entityName+" score:"+entityScores.get(key)+"\n";
-	        	//Í³¼Æhit
 				hitEntCnt++;
 			}
 			if(mWord.mayType)
 			{
-				System.out.println("Detect type mapping: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key));
+				System.out.println("Detect type mapping: "+mWord.name+": [");
+				for(TypeMapping tm: mWord.tmList)
+					System.out.print(tm.typeName + ", ");
+				System.out.println("]");
 	    		preLog += "++++ Type detect: "+mWord.name+": "+mWord.tmList.get(0).typeName +" score:"+typeScores.get(key)+"\n";
-	    		//Í³¼Æhit
 				hitTypeCnt++;
 			}
 			if(mWord.mayLiteral)
@@ -580,18 +547,11 @@ public class EntityRecognition {
 		}
 		
 		/*
-		 * sort by score and remove duplicate
-		 * <"video_game" "ent:Video game" "50.0"> <"a_video_game" "ent:Video game" "45.0">, Ôò×éºÏ³É¶àÖÖ·½°¸£¬Ã¿¸ö·½°¸ÄÚ²¿²»³åÍ»¡£
-		 * °´ÕÕµÃ·Ö×î¸ßµÄ¶ÔÓ¦ÊµÌåµÄµÃ·ÖÅÅĞò£¬¿³µôÖØ¸´µÄµÍ·Ö¡£×¢ÒâÊµ¼ÊÉÏ²¢Ã»ÓĞÔÚmWordListÖĞÉ¾³ıÈÎºÎĞÅÏ¢¡£
-		 * typeµÄÅĞ¶Ï½ÏÑÏ£¬ÈÏÎª²»»á³öÏÖÕâÖÖÇé¿ö°¡
-		 * 
-		 * 2015-11-28
-		 * ¶ÔÓÚÃ¿Ò»¸öĞèÒªÁ¬ÏÂ»¬ÏßµÄ´ÊĞòÁĞ£¨¼´Node£©£¬Ñ¡ÔñÁ¬Ïß£¨½«ËûÃÇµÄÊ¶±ğĞÅÏ¢±£ÁôÏÂÈ¥£©»ò²»Á¬Ïß£¨·ÅÆúÕâ¸ö´ÊĞòÁĞµÄÊ¶±ğĞÅÏ¢£©
-		 * ÒòÎªtypeÊÇÈ«Æ¥Åä¶øÇÒºÜÉÙÓĞÔëÒô£¬ËùÒÔÊ¶±ğ³ötypeµÄÄÇ¸öwordÊÇ±ØÑ¡µÄ£»
-		 * ÒòÎªliteralÖ»Ê¶±ğ´¿Êı×Ö£¬ËùÒÔÊ¶±ğ³öliteralµÄÄÇ¸öwordÒ²ÊÇ±ØÑ¡µÄ£»
-		 * KBÖĞÍ¬Ò»ent¶ÔÓ¦queryÖĞ²»Í¬mergedWordµÄ£¬È¡µÃ·Ö¸ßµÄ
-		*/
-		// KBÖĞÍ¬Ò»ent¶ÔÓ¦queryÖĞ²»Í¬mergedWordµÄ£¬È¡µÃ·Ö¸ßµÄ
+		 * Sort by score and remove duplicate.
+		 * eg, <"video_game" "ent:Video game" "50.0"> <"a_video_game" "ent:Video game" "45.0">.
+		 * Notice, reserve all information in mWordList.
+		 */
+		// one ENT maps different mergedWord in query, reserve the higher score.
 		ByValueComparator bvc = new ByValueComparator(entityScores,words.length+1);
 		List<Integer> keys = new ArrayList<Integer>(entityMappings.keySet());
         Collections.sort(keys, bvc);
@@ -603,25 +563,23 @@ public class EntityRecognition {
         		entityMappings.remove(key);
         }
         
-        // 2015-11-28 Ã¶¾Ù²»³åÍ»µÄ²ßÂÔ
         selectedList = new ArrayList<ArrayList<Integer>>();
         ArrayList<Integer> selected = new ArrayList<Integer>();
         
-        // ÏÈ·ÅÈë¿Ï¶¨ÒªÑ¡µÄkey
+        // Some phrases must be selected.
         selected.addAll(mustSelectedList);
         for(Integer key: typeMappings.keySet())
         {
-        	//ÒòÎªtypeÊÇÈ«Æ¥Åä¶øÇÒºÜÉÙÓĞÔëÒô£¬ËùÒÔÊ¶±ğ³ötypeµÄÄÇ¸öword»ù±¾ÊÇ±ØÑ¡µÄ£»
-        	//×¢ÒâÕâÖ»Õë¶Ôword sequence£¬µ¥wordµÄtype¿ÉÄÜºÍÆäËûÃû´Ê×é³ÉÒ»¸öEnt£¬ÀıÈç¡°Brooklyn Bridge¡±£¬ÕâÀïtype:Bridge¾ÍÓ¦¸Ã±»Å×Æú£»
+        	// !type(len>1) (Omit len=1 because: [Brooklyn Bridge] is a entity.
         	int ed = key%(words.length+1), st = key/(words.length+1);
         	if(st+1 < ed)
         	{
         		boolean beCovered = false;
-        		//[prime_minister of Spain],Ò»¸öentÍêÈ«¸²¸ÇÁËÕâ¸ötype£¬ÕâÊ±¿ÉÄÜ»áÈ¡ent
+        		//Entity cover type, eg:[prime_minister of Spain]
 				for(int preKey: entityMappings.keySet())
 				{
 					int te=preKey%(words.length+1),ts=preKey/(words.length+1);
-					//ent±ØĞëÒª±ÈÕâ¸ötype³¤²ÅËã¸²¸Ç
+					//Entiy should longer than type
 					if(ts <= st && te >= ed && ed-st < te-ts)
 					{
 						beCovered = true;
@@ -632,27 +590,11 @@ public class EntityRecognition {
 					selected.add(key);
         	}
         }
-//        for(Integer key: literalList)
-//        {
-//        	//ÒòÎªliteralÖ»Ê¶±ğ´¿Êı×Ö£¬ËùÒÔÊ¶±ğ³öliteralµÄÄÇ¸öwordÒ²ÊÇ±ØÑ¡µÄ£»
-//        	//ÓĞÒ»Ğ©ÊµÌåÊÇ°üº¬Êı×ÖµÄ£¬ÀıÈç Chile Route 68£¬ËùÒÔliteral²»ÄÜÌáÇ°¹Ì¶¨
-//        	selected.add(key);
-//        }
         
- /*
-  * ÊµÑé£ºconflict resolution
-  * ²»Í¬³åÍ»´¦Àí²ßÂÔ¶Ô×îÖÕnode Recognition½á¹ûµÄÓ°Ïì
-  * */
-        //1,longest entity principle 2,shortest entity principle
-//        selected.addAll(keys);
-/*
- * ÊµÑé£ºconflict resolution
- * */       
-        
-        //ÓÉÓÚÖ®Ç°µÄ²ßÂÔÎÊÌâ£¬±ØÑ¡Çø¶ÎÓĞ¿ÉÄÜ³åÍ»£¬ÕâÀï°´×î³¤Ô­ÔòÏû³ı³åÍ»
+        // Conflict resolution
         ArrayList<Integer> noConflictSelected = new ArrayList<Integer>();
     	
-		//select longer one when conflict  || 2015-11-28 ¡±×î³¤Ô­Ôò¡° ±»  ¡±ÔÊĞí¶àÖÖ²ßÂÔ¡° Ìæ»»  || 2015-12-13 ÔÚ¶àÖÖ²ßÂÔ»ù´¡ÉÏ½øĞĞ×î³¤Ô­Ôò
+		//select longer one when conflict
 		boolean[] flag = new boolean[words.length];
 		ByLenComparator blc = new ByLenComparator(words.length+1);
 		Collections.sort(selected,blc);
@@ -676,9 +618,8 @@ public class EntityRecognition {
 		  	noConflictSelected.add(key);
 		}
 		
-//scoring and ranking --> top-k decision
+		// Scoring and ranking --> top-k decision
         dfs(keys,0,noConflictSelected,words.length+1);
-        // get score and sort
         ArrayList<NodeSelectedWithScore> nodeSelectedWithScoreList = new ArrayList<NodeSelectedWithScore>();
         for(ArrayList<Integer> select: selectedList)
         {
@@ -695,8 +636,7 @@ public class EntityRecognition {
         }
         Collections.sort(nodeSelectedWithScoreList);
         
-        
-        //replace
+        // Replace
         int cnt = 0;
         for(int k=0; k<nodeSelectedWithScoreList.size(); k++)
         {
@@ -752,13 +692,13 @@ public class EntityRecognition {
 	        preLog += "plan "+cnt+": "+res+"\n";
 	        fixedQuestionList.add(res);
 	        cnt++;
-	        if(cnt >= 3)
+	        if(cnt >= 3)	// top-3
 	        	break;
         }
         long t2 = System.currentTimeMillis();
-        preLog += "Total hit/check/all ent num: "+hitEntCnt+" / "+checkEntCnt+" / "+allCnt+"\n";
-        preLog += "Total hit/check/all type num: "+hitTypeCnt+" / "+checkTypeCnt+" / "+allCnt+"\n";
-        preLog += "Total Node Recognition time: "+ (t2-t1) + "ms\n";
+//        preLog += "Total hit/check/all ent num: "+hitEntCnt+" / "+checkEntCnt+" / "+allCnt+"\n";
+//        preLog += "Total hit/check/all type num: "+hitTypeCnt+" / "+checkTypeCnt+" / "+allCnt+"\n";
+        preLog += "Node Recognition time: "+ (t2-t1) + "ms\n";
 		System.out.println("Total check time: "+ (t2-t1) + "ms");
 		System.out.println("--------- pre entity/type recognition end ---------");
 		
@@ -774,9 +714,9 @@ public class EntityRecognition {
 		}
 		else
 		{
-			//off µÚdep¸ömWord
+			//off: dep-th mWord
 			dfs(keys,dep+1,selected,size);
-			//²»³åÍ»Ôòon
+			//on: no conflict
 			boolean conflict = false;
 			for(int preKey: selected)
 			{
@@ -801,19 +741,19 @@ public class EntityRecognition {
 		String n = entity;
 		ArrayList<EntityMapping> ret= new ArrayList<EntityMapping>();
 		
-		//Ê×ÏÈ¿´handwrite 
+		//1. Handwriting 
 		if(m2e.containsKey(entity))
 		{
 			String eName = m2e.get(entity);
 			EntityMapping em = new EntityMapping(EntityFragmentFields.entityName2Id.get(eName), eName, 1000);
 			ret.add(em);
-			return ret; //Ä¿Ç°ÈÏÎªhandwriteÒ»¶¨¶Ô£¬Ö±½Ó·µ»Ø
+			return ret; //handwriting is always correct
 		}
 		
-		//Ö÷ÒªÒÀ¾İLucene£¬ÒòÎªÔëÒôºÜĞ¡¡£´ó¶àÊıÇé¿ö¿ÉÒÔ¸ø³öÕıÈ·½á¹û¡£
+		//2. Lucene index
 		ret.addAll(EntityFragment.getEntityMappingList(n));
 		
-		//ÔÚÒ»Ğ©Çé¿öÏÂ£¬Ò²Ê¹ÓÃDBpediaLookup½øĞĞ²¹³ä
+		//3. DBpedia Lookup (some cases)
 		if (useDblk) 
 		{ 
 			ret.addAll(Globals.dblk.getEntityMappings(n, null));
@@ -828,7 +768,6 @@ public class EntityRecognition {
 	public int preferDBpediaLookupOrLucene(String entityName)
 	{
 		int cntUpperCase = 0;
-		int cntLowerCase = 0;
 		int cntSpace = 0;
 		int cntPoint = 0;
 		int length = entityName.length();
@@ -839,8 +778,6 @@ public class EntityRecognition {
 				cntSpace++;
 			else if (c=='.')
 				cntPoint++;
-			else if (c>='a' && c<='z')
-				cntLowerCase++;
 			else if (c>='A' && c<='Z')
 				cntUpperCase++;
 		}
@@ -920,10 +857,10 @@ public class EntityRecognition {
 		return false;
 	}
 	
+	//TODO: other literal words.
 	public boolean checkLiteralWord(Word word)
 	{
 		boolean ok = false;
-		//Ä¿Ç°¾ÍÖ»ÈÏÎª ÊıÖµ ÊÇliteral
 		if(word.posTag.equals("CD"))
 			ok = true;
 		return ok;
@@ -938,7 +875,7 @@ public class EntityRecognition {
 			BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 			while (true) 
 			{	
-				System.out.print("Please input the question: ");
+				System.out.println("Please input the question: ");
 				String question = br.readLine();
 				
 				er.process(question);
@@ -960,7 +897,7 @@ public class EntityRecognition {
 //					question = strArray[1];
 //					id = strArray[0];
 //				}
-//				//È¥µô¾äÎ²·ûºÅ£¬ÁíÍâ×¢Òâ"?"»áµ¼ÖÂlucene/dbpedia lookup±¨´í
+//				//Notice "?" may leads lucene/dbpedia lookup error
 //				if(question.length()>1 && question.charAt(question.length()-1)=='.' || question.charAt(question.length()-1)=='?')
 //					question = question.substring(0,question.length()-1);
 //				if(question.isEmpty())

@@ -26,12 +26,12 @@ public class TypeFragment extends Fragment {
 	public HashSet<Integer> entSet = new HashSet<Integer>();
 	
 	/*
-	 * （1）影响结构，产生错误：
-【ent】amazon、earth、the_hunger_game、sparkling_wine
-【type】type、
-【realtion】flow、owner、series、shot、part、care、
-【可能会错误】peace、vice
-*/
+	 * Eliminate some bad YAGO Types which conflict with:
+	 * 1, ENT: amazon銆乪arth銆乼he_hunger_game銆乻parkling_wine
+	 * 2, TYPE: type
+	 * 3, RELATION: flow銆乷wner銆乻eries銆乻hot銆乸art銆乧are
+	 * 4, others: peace銆乿ice
+	 */
 	public static ArrayList<String> stopYagoTypeList = null;
 	static void loadStopYagoTypeList()
 	{
@@ -97,9 +97,8 @@ public class TypeFragment extends Fragment {
 		}
 	}
 	
-	public static void load() throws Exception {
-		
-//String filename = Globals.localPath+"data/DBpedia3.9/fragments/class_RDF_fragment/class_fragment.txt"; 
+	public static void load() throws Exception 
+	{	
 		String filename = Globals.localPath+"data/DBpedia2014/fragments/class_RDF_fragment/type_fragment.txt"; 
 		
 		File file = new File(filename);
@@ -122,18 +121,14 @@ public class TypeFragment extends Fragment {
 		
 		br.close();
 		
-		// fix some data
-		
-	
+		// can fix some data there
 		// load Type Id
 		loadId();
 		System.out.println("Load "+typeId2ShortName.size()+" basic types and "+yagoTypeList.size()+" yago types.");
 	}
 	
-	public static void loadId() throws IOException {
-
-//String filename = Globals.localPath+"data/DBpedia3.9/fragments/id_mappings/DBpedia3.9_fragment_types_id.txt";
-		
+	public static void loadId() throws IOException 
+	{
 		String filename = Globals.localPath+"data/DBpedia2014/fragments/id_mappings/DBpedia2014_types_id.txt";
 		String yagoFileName = Globals.localPath+"data/DBpedia2014/fragments/id_mappings/yagoTypeList_sortedByFrequency_clean&primary.txt";
 
@@ -147,12 +142,8 @@ public class TypeFragment extends Fragment {
 		String line;
 		while((line = br.readLine()) != null) {			
 			String[] lines = line.split("\t");
-			
-//String typeShortName = lines[0].substring(lines[0].lastIndexOf('/')+1, lines[0].length()-1);
-//String typeShortName = lines[0].substring(1, lines[0].length()-1);
-			
 			String typeShortName = lines[0];
-			// 保留typeShortName大小写
+			// reserve typeShortName's capitalization
 			if (!typeShortName2IdList.containsKey(typeShortName)) {
 				typeShortName2IdList.put(typeShortName, new ArrayList<Integer>());
 			}
@@ -167,7 +158,7 @@ public class TypeFragment extends Fragment {
 		
 		br.close();
 		
-		//load yago types
+		//load YAGO types
 		in = new InputStreamReader(new FileInputStream(yagoFileName),"utf-8");
 		br = new BufferedReader(in);
 		yagoTypeList = new HashSet<String>();
@@ -178,7 +169,6 @@ public class TypeFragment extends Fragment {
 			yagoTypeList.add(typeName);
 		}
 		
-		//TODO:删除一些会产生错误的yago type
 		loadStopYagoTypeList();
 		yagoTypeList.removeAll(stopYagoTypeList);
 	}

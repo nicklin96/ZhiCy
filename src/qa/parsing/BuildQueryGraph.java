@@ -1,10 +1,11 @@
 package qa.parsing;
 
-import java.io.IOException;
+//import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.PriorityQueue;
 import java.util.Queue;
 
 import fgmt.EntityFragment;
@@ -13,20 +14,18 @@ import log.QueryLogger;
 import nlp.ds.*;
 import nlp.ds.Sentence.SentenceType;
 import qa.Globals;
-import qa.evaluation.BottomUp;
 import qa.extract.*;
 import qa.mapping.SemanticItemMapping;
 import rdf.PredicateMapping;
+import rdf.SemanticQueryGraph;
 import rdf.Triple;
 import rdf.SemanticRelation;
 import rdf.SimpleRelation;
 import rdf.SemanticUnit;
-import paradict.ParaphraseDictionary;
+//import paradict.ParaphraseDictionary;
 
 /*
- * aggregation type:
- * 1: how many
- * 2: latest/first/...
+ * The core class to build query graph, i.e, to generate SPARQL queries.
  * */
 public class BuildQueryGraph 
 {
@@ -37,7 +36,7 @@ public class BuildQueryGraph
 	public HashSet<DependencyTreeNode> visited = new HashSet<DependencyTreeNode>();
 	public HashMap<Integer, SemanticRelation> matchedSemanticRelations = new HashMap<Integer, SemanticRelation>();
 	
-	public int aggregationType = -1;
+	public int aggregationType = -1; // 1:how many  2:latest/first...
 	
 	public BuildQueryGraph()
 	{
@@ -49,7 +48,7 @@ public class BuildQueryGraph
 		whList.add("how");
 		whList.add("where");
 		
-		//base form
+		// Bad words for NODE. (base form)
 		stopNodeList.add("list");
 		stopNodeList.add("give");
 		stopNodeList.add("show");
@@ -59,11 +58,17 @@ public class BuildQueryGraph
 		stopNodeList.add("independence");
 		stopNodeList.add("office");
 		stopNodeList.add("year");
+		stopNodeList.add("work");
 	}
 	
-	public void fixStopWord(QueryLogger qlog)
+	public void fixStopWord(QueryLogger qlog, DependencyTree ds)
 	{
-		String qStr = qlog.s.plainText;
+		String qStr = qlog.s.plainText.toLowerCase();
+		
+		//... [which] 
+		for(int i=2;i<qlog.s.words.length;i++)
+			if(qlog.s.words[i].baseForm.equals("which"))
+				stopNodeList.add(qlog.s.words[i].baseForm);
 		
 		//take [place]
 		if(qStr.contains("take place") || qStr.contains("took place"))
@@ -76,14 +81,42 @@ public class BuildQueryGraph
 		//what form of government is found in ...
 		if(qStr.contains("form of government"))
 			stopNodeList.add("government");
+		
+		//alma mater of the chancellor
+		if(qStr.contains("alma mater of the chancellor"))
+		{
+			stopNodeList.add("chancellor");
+		}
+		//How large is the area of UK?
+		if(qStr.contains("the area of") || qStr.contains("how big"))
+		{
+			stopNodeList.add("area");
+		}
+		//how much is the total population of  european union?
+		if(qStr.contains("how much"))
+		{
+			stopNodeList.add("population");
+			stopNodeList.add("elevation");
+		}
+		//when was the founding date of french fifth republic
+		if(qStr.contains("when was the"))
+		{
+			stopNodeList.add("founding");
+			stopNodeList.add("date");
+			stopNodeList.add("death");
+			stopNodeList.add("episode");
+		}
+		if(qStr.contains("what other book"))
+		{
+			stopNodeList.add("book");
+		}
+		//Is [Michelle Obama] the [wife] of Barack Obama?
+		if(qlog.s.words[0].baseForm.equals("be") && isNode(ds.getNodeByIndex(2)) && ds.getNodeByIndex(3).dep_father2child.equals("det") 
+				&& isNode(ds.getNodeByIndex(4)) && qlog.s.words[4].baseForm.equals("of"))
+			stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);
 	}
 
-	/*
-	 * evaluationMethod:
-	 * 1. baselineÎÈ¶¨°æ£¬´Óquestion focus³ö·¢Éú³ÉÈ·¶¨µÄquery graph½á¹¹£¬¡°ÏÈµ½ÏÈµÃ¡±²ßÂÔ£¬²»ÔÊĞíÓĞ»·£»×ãÒÔÓ¦¸¶¾ø´ó¶àÊıcase£¬Êµ¼ÊÍÆ¼öÊ¹ÓÃ±¾·½·¨
-	 * 2. hyper query graph + top-down·½·¨£¬¼´Éú³ÉµÄhyper query graph°üº¬ËùÓĞ¿ÉÄÜ±ß£¬ÔÊĞíÓĞ»·£»Ö´ĞĞÊ±×ÜÌåºÍ1Ò»ÖÂ£¬Ö»ÊÇĞèÒªÏÈÃ¶¾Ù½á¹¹£»
-	 * 3. hyper query graph + bottom-up·½·¨£¬Óë2²»Í¬Ö®´¦ÔÚÓÚ²»Éú³ÉSPARQL£¬Ö±½ÓÔÚhyper query graph»ù´¡ÉÏ½øĞĞgraph exploration£¬Ö»¹©ÊµÑé£¬Êµ¼Ê·Ç³£²»ÍÆ¼ö
-	 * */
+	// Semantic Parsing for DBpedia.
 	public ArrayList<SemanticUnit> process(QueryLogger qlog)
 	{
 		try 
@@ -96,24 +129,25 @@ public class BuildQueryGraph
 			
 			long t = System.currentTimeMillis();
 		
-/*ÔÚbuild query graphÇ°µÄÒ»Ğ©×¼±¸£¬°üÀ¨£º  
- * 0)¸ù¾İ´Ê×éÌØĞÔÑ¡Ôñ¼ÓÈëÒ»Ğ©¿ÉÄÜµÄstop node
- * 1)È·¶¨´ÓÄÄ¸öµãÈëÊÖ½¨Í¼£»£¨ÒòÎª´Ó²»Í¬µÄµã¿ªÊ¼»á¶ÔÍ¼½á¹¹ÓĞÓ°Ïì£©
- * 2)¹²Ö¸Ïû½â£» 
- * 3)È·¶¨ÄÄĞ©´ÊÊÇÖĞĞÄ´Ê(semantic unitµÄºËĞÄ£¬³öÏÖÔÚ»ù±¾µÄÍ¼¿ò¼ÜÖĞ)£¬ÄÄĞ©´ÊÊÇĞŞÊÎ´Ê£¨ĞŞÊÎÖĞĞÄ´ÊµÄent/type/adj£¬²»³öÏÖÔÚ»ù±¾Í¼¼Ü¹¹ÖĞ£¬µ«¿ÉÄÜ»á×÷Îª²¹³äĞÅÏ¢¼ÓÈëquery;ĞŞÊÎ´Ê¼´Ê¹ÊÇent£¬Ò²Ö»»á³öÏÖÔÚÍ¼µÄ±ßÔµ£©
+/* Prepare for building query graph:  
+ * 0)Fix stop nodes.
+ * 1)Detect modified node(the center of semantic unit, compose the basic structure of query graph);
+ *   Detect modifier (include ent/type/adj, NOT appear in basic structure, may be SUPPLEMNT info of query graph, degree always be 1).
+ * 2)Detect the target, also the start node to build query graph.
+ * 3)Coreference resolution.
  * */		
 			//0) Fix stop words
-			fixStopWord(qlog);
+			fixStopWord(qlog, ds);
 			
 			//1) Detect Modifier/Modified
-			//ĞŞÊÎ´ÊÊ¶±ğ£¬ÒÀ¾İsentence¶ø²»ÊÇdependency tree
-			//Í¬Ê±»á×öÒ»Ğ©ĞŞÕı£¬Èç ent+noun(noType&&noEnt)ĞÎÊ½µÄnoun±»ÉèÎªomitNode
+			//rely on sentence (rather than dependency tree)
+			//with some ADJUSTMENT (eg, ent+noun(noType&&noEnt) -> noun.omitNode=TRUE)
 			for(Word word: qlog.s.words)
-				getTheModifiedWordBySentence(qlog.s, word);	//µİ¹éÕÒÁ¬ĞøĞÍmodifier
+				getTheModifiedWordBySentence(qlog.s, word);	//Find continuous modifier
 			for(Word word: qlog.s.words)
-				getDiscreteModifiedWordBySentence(qlog.s, word); //·Çµİ¹éÕÒÀëÉ¢ĞÍmodifier
+				getDiscreteModifiedWordBySentence(qlog.s, word); //Find discrete modifier
 			for(Word word: qlog.s.words)
-				if(word.modifiedWord == null)	//ºóĞøÓÃµ½´Ë¸ÅÄîÊ±£¬Ï£ÍûÈÎºÎwordÖÁÉÙĞŞÊÎËü±¾Éí£¬ËùÒÔÕâÀïĞŞÕıÒ»ÏÂ |×¢Òâ±ØĞëÔÚµ÷ÓÃÉÏÃæÁ½¸öº¯ÊıÊ¶±ğ³öËùÓĞmodifier¹ØÏµºó²ÅÄÜ×ö´ËĞŞÕı
+				if(word.modifiedWord == null)	//Other words modify themselves. NOTICE: only can be called after detecting all modifier.
 					word.modifiedWord = word;
 			
 			//print log
@@ -123,46 +157,31 @@ public class BuildQueryGraph
 				{
 					modifierList.add(word);
 					qlog.SQGlog += "++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n";
-					if(qlog.fw != null)
-						qlog.fw.write("++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n");
 				}
 			}
 			
-			//step1:Ê¶±ğquery target£¬²¿·Ö¹²Ö¸Ïû½â | ÏÖÔÚÕâ¸ötargetÖ»ÆğbfsÈë¿Ú×÷ÓÃÁË£¬ÔÚÉú³Ésparqlºó»áÔÙÈ·¶¨Ò»±éÕæÕıµÄquestion focus¡£     
+			//2) Detect target & 3) Coreference resolution 
 			DependencyTreeNode target = detectTarget(ds,qlog); 
 			qlog.SQGlog += "++++ Target detect: "+target+"\n";
-			
-			if(qlog.fw != null)
-				qlog.fw.write("++++ Target detect: "+target+"\n"); 
 			
 			if(target == null)
 				return null;
 			
 			qlog.target = target.word;
-			//ÈÏÎªtarget²»ÄÜÊÇent£¬Ò»°ãÒÉÎÊ¾ä³ıÍâ  | which [city] has most people?
+			// !target can NOT be entity. (except general question)| which [city] has most people?
 			if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
 			{
-				//·´Àı£ºGive me all Seven_Wonders_of_the_Ancient_World | Êµ¼ÊÉÏ ²»ÊÇent£¬ÊÇcategory£¬ÒªÊä³ö ?x subject Seve...
+				//Counter exampleï¼šGive me all Seven_Wonders_of_the_Ancient_World | (in fact, it not ENT, but CATEGORY, ?x subject Seve...)
 				target.word.mayEnt = false;
 				target.word.emList.clear();
 			}
 			
-			//¹²Ö¸Ïû½â£¬crÖĞÓĞÒ»ÏµÁĞ¹æÔò£»ÒòÎª¹²Ö¸·ÖÎªºÃ¼¸ÖÖÇé¿öĞèÒª²»Í¬µÄ´¦Àí·½Ê½£¬²»ÄÜ¼òµ¥µÄÉ¾µôÆäÖĞÒ»¸ö£¬ËùÒÔÒªÈ·¶¨Í¼½á¹¹ºóÔÙ´¦Àí
-			//ganswerÒÔ¹ØÏµÎªºËĞÄ£¬È·¶¨Ã¿Ò»×é¡±¹ØÏµ¼ÓÁ½¶Ë±äÁ¿¡°ºó×öÖ¸´úÏû½â£¬ÓÃÆäÖĞÒ»¸öÌæ»»µôËùÓĞ¹²Ö¸µÄ±äÁ¿¾Í¿ÉÒÔ  
+			//3) Coreference resolution, now we just OMIT the represented one.
+			//TODO: In some cases, the two node should be MERGED, instead of OMITTING directly. 
 			CorefResolution cr = new CorefResolution();
 			
-			//ÕâÀïËæÊÖ¼ÓÒ»¸öÖ¸´úÏû½â£¬Ö®ºóÓ¦¸ÃÔÚ½á¹¹ÇåÎúµÄµØ·½Í³Ò»½øĞĞÖ¸´úÏû½â¡£
-			//ÏÖÔÚÊÇ¡°Ö»ÔÚdetect target¡±Ê±½øĞĞÁË²¿·ÖÖ¸´úÏû½â£¬ÏÂÃæÕâĞĞÊÇ´¦ÀíĞÎÈç¡°Is Michelle Obama the wife of Barack Obama?¡±
-			//Îª¼ò±ã£¬Ö±½Ó½«ÒªÏû³ıµÄ´Ê¼ÓÈëstopNodeList¡£ÒòÎªrepresentÓĞÊ±ĞèÒª¸´ÖÆ±»Ö¸´ú´ÊµÄĞÅÏ¢£¬Ò²¿ÉÄÜÓ°Ïì½á¹¹£¬»¹Ã»¸ãÇå³ş
-			if(qlog.s.words[0].baseForm.equals("be") && isNode(ds.getNodeByIndex(2)) && ds.getNodeByIndex(3).dep_father2child.equals("det") && isNode(ds.getNodeByIndex(4)) && qlog.s.words[4].baseForm.equals("of"))
-				stopNodeList.add(ds.getNodeByIndex(4).word.baseForm);	
-			//whichÔÚ¾äÖĞµÄÊ±ºò£¬Í¨³£²»×÷Îªnode
-			for(int i=2;i<qlog.s.words.length;i++)
-				if(qlog.s.words[i].baseForm.equals("which"))
-					stopNodeList.add(qlog.s.words[i].baseForm);
-			
 			qlog.timeTable.put("BQG_prepare", (int)(System.currentTimeMillis()-t));
-/*×¼±¸Íê±Ï*/		
+/* Prepare Done */		
 			
 			t = System.currentTimeMillis();
 			DependencyTreeNode curCenterNode = target;
@@ -173,23 +192,18 @@ public class BuildQueryGraph
 			expandedNodes.add(target);
 			visited.clear();
 			
-			//step2:ºËĞÄ£¬Ò»²½²½À©Õ¹²éÑ¯Í¼     
-			while((curCenterNode=queue.poll())!=null)
+			//step1: build the structure of query graph | notice, we allow CIRCLE and WRONG edge (for evaluation method 2)
+			while((curCenterNode = queue.poll()) != null)
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null )
 				{
-					//[2017-1-7]Èç¹ûtarget¾Í±»represent£¬continue¾ÍÖ±½ÓÍË³öÁË£¬semanticUnitList=null£¬³¢ÊÔ¼ÓÈë¹æÔò·Å¹ıwho£»ÖÎ±ê²»ÖÎ±¾£¬»¹ÊÇÓĞ¿Õ×ö¸ù±¾¸Ä¶¯£¬ÔÚÈ·¶¨½á¹¹ºóÔÙ¹²Ö¸Ïû½â
-					//if(curCenterNode != target)
-					//±»À©Õ¹SU±»ÆäËûSU´ú±í£¬ÔòÖ±½ÓÂÔ¹ı´Ë´ÎÀ©Õ¹; TODO: ¹²Ö¸Ïû½âÓ¦¸ÃÔÚ½á¹¹È·¶¨ºó×ö£¬Ö±½ÓÅ×Æú¿ÉÄÜ»á¶ªÊ§²¿·Ö±ßĞÅÏ¢
-					//[2015-12-13]ÕâÑùÏàµ±ÓÚ¶ªÊ§ÁËÕâ¸ö·½Ïò£¬ÑØ¸ÃSU¼ÌĞø×ß±¾À´ÄÜÕÒµ½ÆäËûµã£¬µ«Ö±½Ócontinue¾Í¶Ï¾øÁËÕÒµ½ÕâĞ©µãµÄÏ£Íû; Ö®ËùÒÔÒ»Ö±Ã»ÓĞ·¢ÏÖÎÊÌâÊÇÒòÎª¾ø´ó¶àÊıÇé¿ö±»´ú±íµÄSU¶¼ÔÚquery graphµÄ±ßÔµ£¬¼´²»»áÖĞ¶ÏÌ½Ë÷
-					//[2015-12-13]¸É´àÏÈ°ş¶áËûÃÇÔÚdfsÖĞ±»Ì½Ë÷µ½µÄÈ¨Àû£¬¼´ÔÚisNodeÖĞ¾Ü¾ørepresent£¬×¢ÒâÏÈÖ»Õë¶Ô represent;  
+					//if(curCenterNode != target) // if target be represented, continue will get empty semantic unit list.
+					//TODO: it may lose other nodes when prune the represent/coref nodes, the better way is do coref resolution after structure construction.
 						continue;
 				}					
 				
-				/* 2016-12-10
-				×¢Òâ£º ÔÚÕâÀïclear£¬ÒâÎ¶Éú³ÉµÄÊÇ hyper query graph£¬¼´¡°ËùÓĞ¿ÉÄÜ±ß¡±£¬ÔÊĞí´ø»·; 
-					·ñÔò£¬ÔòÊÇ¡°ÏÈµ½ÏÈµÃ¡°£¬¼´¡±ÎŞ»·¡°£¬Á½¸öUNITÖ®¼äÖ»ÊÇµ¥Ïò±ß£¬·½Ïò¾ÍÊÇÌ½Ë÷À©Õ¹µÄ·½Ïò¡£
-				 */
+				//Notice, the following codes guarantee all possible edges (allow CIRCLE).
+				//Otherwise, NO CIRCLE, and the structure may be different by changing target.
 				if(Globals.evaluationMethod > 1)
 				{
 					visited.clear();
@@ -197,8 +211,8 @@ public class BuildQueryGraph
 				
 				SemanticUnit curSU = new SemanticUnit(curCenterNode.word,true);
 				expandNodeList = new ArrayList<DependencyTreeNode>();
-				dfs(curCenterNode, curCenterNode, expandNodeList);	// dfsÕÒµ±Ç°nodeµÄÁÚ¾Ónodes
-				// ¼ÓÈë´ıÀ©Õ¹µÄnode£¬±£Ö¤ËùÓĞ node Ö»¼ÓÈëÒ»´Î¶ÓÁĞ
+				dfs(curCenterNode, curCenterNode, expandNodeList);	// search neighbors of current node
+				// expand nodes
 				for(DependencyTreeNode expandNode: expandNodeList)
 				{
 					if(!expandedNodes.contains(expandNode))
@@ -208,71 +222,47 @@ public class BuildQueryGraph
 					}
 				}
 				
-				
 				semanticUnitList.add(curSU);
 				for(DependencyTreeNode expandNode: expandNodeList)
 				{	
 					String subj = curCenterNode.word.getBaseFormEntityName();
 					String obj = expandNode.word.getBaseFormEntityName();
 					
-					//ÂÔÈ¥´Ê×éÄÚ²¿¹ØÏµ
+					//omit inner relation
 					if(subj.equals(obj))
 						continue;
 					
-					//TODO:ÂÔÈ¥¹²Ö¸¹ØÏµ£¬ÕâÀï»¹ÔÙ¸Ä
+					//we just omit represented nodes now.
+					//TODO: Co-refernce (continue may not suitable in some cases)
 					if(expandNode.word.represent != null)
 						continue;
 					
-					//expandNode×÷ÎªÒ»¸öĞÂµÄSemanticUnit
+					//expandNode is a new SemanticUnit
 					SemanticUnit expandSU = new SemanticUnit(expandNode.word,false);
-					
-					//expandUnit¼ÓÈëµ±Ç°unitµÄÁÚ¾ÓÁĞ±í
+					//expandUnit is the neighbor of current unit
 					curSU.neighborUnitList.add(expandSU);
 				}
 			}
 			qlog.timeTable.put("BQG_structure", (int)(System.currentTimeMillis()-t));
 			
-			//step3: ÕÒ³ö¸÷nodeÖ®¼ä¿ÉÄÜµÄrelation£¬×ª»¯³É semantic relations (×¢ÒâÕâÊ±ÈÏÎªÒÑ¾­´¦ÀíÁË "Ö¸´úÏû½â")
+			//step2: Find relations (Notice, we regard that the coreference have been resolved now)
 			t = System.currentTimeMillis();
 			qlog.semanticUnitList = new ArrayList<SemanticUnit>();
-			extractRelation(semanticUnitList, qlog); // ¶ÔÏàÁ¬µÄÁ½node£¬³¢ÊÔÊ¶±ğrelation£¬×ª»¯³Ésemantic relations
-			matchRelation(semanticUnitList, qlog);	// Å×ÆúÁ½¶Ë±äÁ¿ÕÒ²»µ½¶ÔÓ¦Æ¥ÅänodeµÄsemantic relation£»Å×ÆúÎŞ·¨×ª»»³Ésemantic relationµÄnode£¨´ÓsemanticUnitListÖĞÌŞ³ı£©
+			extractRelation(semanticUnitList, qlog); // RE for each two connected nodes
+			matchRelation(semanticUnitList, qlog);	// Drop the nodes who cannot find relations (except implicit relation)
 			qlog.timeTable.put("BQG_relation", (int)(System.currentTimeMillis()-t));
+		
+			//Prepare for item mapping
+			TypeRecognition.AddTypesOfWhwords(qlog.semanticRelations); // Type supplementary
+			TypeRecognition.constantVariableRecognition(qlog.semanticRelations, qlog); // Constant or Variable, embedded triples
 			
-//			//TODO£ºstep4: [Õâ²½Ã»ÓĞÊµ¼Ê×÷ÓÃ]ÕÒÃ¿¸öunitµÄÃèÊö´Ê£¬´¦Àídescribe£¬°üÀ¨¾Û¼¯º¯Êı¡¢ĞÎÈİ´Ê£¬×ª»¯³Ésemantic relationĞÎÊ½¼ÓÈëmatchedSR½øĞĞitem mapping.
-			
-			//item mappingÇ°µÄ×¼±¸£¬Ê¶±ğ ¡°³£Á¿¡± ºÍ ¡°±äÁ¿¡± 
-			TypeRecognition tr = new TypeRecognition();	
-			//ÕâÒ»²½ÊÇ¼ÓÈë who¡¢whereµÄtypeĞÅÏ¢¡¾ÆäÊµÃ»Ê²Ã´ÓÃ£¬»¹¾­³£ÒòÎª¶à³ötype¶øÕÒ²»µ½´ğ°¸¡¿
-			tr.AddTypesOfWhwords(qlog.semanticRelations); 
-			//TODO Õâ¸öº¯ÊıÒª¸Ä½ø£¬½«step0µÃµ½µÄĞÅÏ¢¿¼ÂÇ½øÀ´£¬²¢¿¼ÂÇextend variable£»³£Á¿¡¢±äÁ¿ĞÅÏ¢ÊÇ·ñÓ¦¸Ã´æ´¢ÔÚWORDÖĞ¶ø²»ÊÇSRÖĞ£¿
-			ExtractRelation er = new ExtractRelation();
-			er.constantVariableRecognition(qlog.semanticRelations,qlog,tr);
-			
-			// Êä³ö²éÑ¯Í¼µÄ½á¹¹£¬ÕâÊÇ²»½øĞĞfragment checkµÄÔ­Ê¼Í¼£¬ÓÃÓÚ¹Û²ìÍ¼½á¹¹ 
-			printTriples_SUList(semanticUnitList, qlog);
-	
-// EXP: hyper query graph + graph explore (evaluationMethod = 3)
-//			if(Globals.evaluationMethod == 3)
-//			{
-//				t = System.currentTimeMillis();
-//				
-//				BottomUp bottomUp = new BottomUp();
-//				bottomUp.evaluation(qlog);
-//				
-//				System.out.println("graphExplore: " + (int)(System.currentTimeMillis()-t) + "ms.");
-//				qlog.timeTable.put("graphExplore", (int)(System.currentTimeMillis()-t));
-//				return null;
-//			}
-			
-			
-			//step5: item mappping & top-k join
+			//(just for display)
+			recordOriginalTriples(semanticUnitList, qlog);
+				
+			//step3: item mapping & top-k join
 			t = System.currentTimeMillis();
 			SemanticItemMapping step5 = new SemanticItemMapping();
-			if(Globals.evaluationMethod == 3)
-				step5.process_bottomUp(qlog, qlog.semanticRelations);
-			else
-				step5.process_topDown(qlog, qlog.semanticRelations);	//top-k join£¬disambiguation
+			step5.process(qlog, qlog.semanticRelations);	//top-k join (generate SPARQL queries), disambiguation
 			qlog.timeTable.put("BQG_topkjoin", (int)(System.currentTimeMillis()-t));
 			
 			//step6: implicit relation [modify word]
@@ -280,9 +270,196 @@ public class BuildQueryGraph
 			ExtractImplicitRelation step6 = new ExtractImplicitRelation();
 			step6.supplementTriplesByModifyWord(qlog);
 			qlog.timeTable.put("BQG_implicit", (int)(System.currentTimeMillis()-t));
+				
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	
+		return semanticUnitList;
+	}
+	
+	/*
+	 * For experiment.
+	 */
+	public ArrayList<SemanticUnit> getNodeList(QueryLogger qlog, DependencyTree ds)
+	{
+		semanticUnitList = new ArrayList<SemanticUnit>();
+						
+		// For ComplexQuestions or WebQuestions, only consider wh-word and at most two entities.
+		if(Globals.runningBenchmark.equals("CQ") || Globals.runningBenchmark.equals("WQ"))
+		{
+//			DependencyTreeNode target = ds.nodesList.get(0);
+//			if(Globals.runningBenchmark.equals("CQ"))
+//				target = detectTargetForCQ(ds, qlog);
+//			qlog.target = target.word;
+//			qlog.SQGlog += "++++ Target detect: "+target+"\n";
+//			
+//			detectTopicConstraint(qlog); 
+//			semanticUnitList.add(new SemanticUnit(qlog.target, false)); //Set variable to object 
+//			if(topicEnt != null)
+//			{
+//				semanticUnitList.add(new SemanticUnit(topicEnt, true)); //Set entity to subject
+//			}
+//			if(constraintEnt != null)
+//			{
+//				semanticUnitList.add(new SemanticUnit(constraintEnt, true)); //Set entity to subject
+//			}
+		}
+		// For general cases (e.g, QALD), consider internal variables.
+		else
+		{
+			for(DependencyTreeNode dtn: ds.nodesList)
+			{
+				if(isNode(dtn))
+				{
+					semanticUnitList.add(new SemanticUnit(dtn.word, true)); //No prefer subject (default is true)
+				}
+			}
+		}
+		return semanticUnitList;
+	}
+	
+	/*
+	 * (For Experiment) Build query graph using STATE TRANSITION method based on 4 operations (with 4 conditions).
+	 * 1. Condition for Connect operation: do and must do | no other nodes on simple path in DS tree.
+	 * 2. Condition for Merge operation: do and must do | heuristic rules of CoReference Resolution.
+	 * 3. Condition for Fold operation: do or not do | no matches of low confidence of an edge.
+	 * 4. Condition for Expand operation: do and must do | has corresponding information.
+	 * */
+	public ArrayList<SemanticUnit> processEXP(QueryLogger qlog)
+	{
+		//0) Fix stop words
+		DependencyTree ds = qlog.s.dependencyTreeStanford;
+		if(qlog.isMaltParserUsed)
+			ds = qlog.s.dependencyTreeMalt;
+		fixStopWord(qlog, ds);
+		
+		//1) Detect Modifier/Modified
+		//rely on sentence (rather than dependency tree)
+		//with some ADJUSTMENT (eg, ent+noun(noType&&noEnt) -> noun.omitNode=TRUE)
+		for(Word word: qlog.s.words)
+			getTheModifiedWordBySentence(qlog.s, word);	//Find continuous modifier
+		for(Word word: qlog.s.words)
+			getDiscreteModifiedWordBySentence(qlog.s, word); //Find discrete modifier
+		for(Word word: qlog.s.words)
+			if(word.modifiedWord == null)	//Other words modify themselves. NOTICE: only can be called after detecting all modifier.
+				word.modifiedWord = word;
+		
+		//print log
+		for(Word word: qlog.s.words) 
+		{
+			if(word.modifiedWord != null && word.modifiedWord != word)
+			{
+				modifierList.add(word);
+				qlog.SQGlog += "++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n";
+			}
+		}
+		
+		//2) Detect target & 3) Coreference resolution 
+		DependencyTreeNode target = detectTarget(ds,qlog); 
+		qlog.SQGlog += "++++ Target detect: "+target+"\n";
+		
+		if(target == null)
+			return null;
+		
+		qlog.target = target.word;
+		// !target can NOT be entity. (except general question)| which [city] has most people?
+		if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
+		{
+			//Counter exampleï¼šGive me all Seven_Wonders_of_the_Ancient_World | (in fact, it not ENT, but CATEGORY, ?x subject Seve...)
+			target.word.mayEnt = false;
+			target.word.emList.clear();
+		}
+		
+		try 
+		{	
+			// step1: get node list
+			semanticUnitList = getNodeList(qlog, ds);
+			if(semanticUnitList == null || semanticUnitList.isEmpty())
+			{
+				qlog.SQGlog += "ERROR: no nodes found.";
+				return null;
+			}
 			
+			// step2: extract all potential relations
+			long t = System.currentTimeMillis();
+			System.out.println("Potential Relation Extraction start ...");
+			extractPotentialSemanticRelations(semanticUnitList, qlog);
+			qlog.timeTable.put("BQG_relation", (int)(System.currentTimeMillis()-t));
+				
+			// setp3: build query graph structure by 4 operations
+			t = System.currentTimeMillis();
+			SemanticQueryGraph bestSQG = null;
+			if(Globals.usingOperationCondition)
+			{
+				//TODO: use operation condition
+			}
+			else
+			{
+				// for experiment, do not use conditions.
+				PriorityQueue<SemanticQueryGraph> QGs = new PriorityQueue<SemanticQueryGraph>();
+				HashSet<SemanticQueryGraph> visited = new HashSet<>();
+				//Initial state: all nodes isolated.
+				SemanticQueryGraph head = new SemanticQueryGraph(semanticUnitList);
+				QGs.add(head);
+				
+				while(!QGs.isEmpty())
+				{
+					head = QGs.poll();
+					visited.add(head);
+					
+					//Judge: is it a final state?
+					if(head.isFinalState())
+					{
+						bestSQG = head;
+						break;	// now we just find the top-1 SQG
+					}
+					
+					//SQG generation
+					//Connect (enumerate)
+					for(SemanticUnit u: head.semanticUnitList)
+						for(SemanticUnit v: head.semanticUnitList)
+							if(!u.equals(v) && !u.neighborUnitList.contains(v) && !v.neighborUnitList.contains(u))
+							{
+								SemanticQueryGraph tail = new SemanticQueryGraph(head);
+								tail.connect(u, v);
+								if(!QGs.contains(tail) && !visited.contains(tail))
+								{
+									tail.calculateScore(qlog.potentialSemanticRelations);
+									QGs.add(tail);
+								}
+							}
+				}
+			}
+			qlog.timeTable.put("BQG_structure", (int)(System.currentTimeMillis()-t));
 			
-		} catch (IOException e) {
+			//Relation Extraction by potentialSR
+			qlog.semanticUnitList = new ArrayList<SemanticUnit>();
+			qlog.semanticRelations = bestSQG.semanticRelations;
+			semanticUnitList = bestSQG.semanticUnitList;
+			matchRelation(semanticUnitList, qlog);
+			
+			//Prepare for item mapping
+			TypeRecognition.AddTypesOfWhwords(qlog.semanticRelations); // Type supplementary
+			TypeRecognition.constantVariableRecognition(qlog.semanticRelations, qlog); // Constant or Variable, embedded triples
+			
+			//(just for display)
+			recordOriginalTriples(semanticUnitList, qlog);
+				
+			//step3: item mapping & top-k join
+			t = System.currentTimeMillis();
+			SemanticItemMapping step5 = new SemanticItemMapping();
+			step5.process(qlog, qlog.semanticRelations);	//top-k join (generate SPARQL queries), disambiguation
+			qlog.timeTable.put("BQG_topkjoin", (int)(System.currentTimeMillis()-t));
+			
+			//step6: implicit relation [modify word]
+			t = System.currentTimeMillis();
+			ExtractImplicitRelation step6 = new ExtractImplicitRelation();
+			step6.supplementTriplesByModifyWord(qlog);
+			qlog.timeTable.put("BQG_implicit", (int)(System.currentTimeMillis()-t));		
+			
+		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
@@ -290,29 +467,28 @@ public class BuildQueryGraph
 		return semanticUnitList;
 	}
 	
-	public void extractRelation(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
+	public void extractPotentialSemanticRelations(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
 	{
 		ExtractRelation er = new ExtractRelation();
 		ArrayList<SimpleRelation> simpleRelations = new ArrayList<SimpleRelation>();
 		for(SemanticUnit curSU: semanticUnitList)
 		{
-			for(SemanticUnit expandSU: curSU.neighborUnitList)
+			for(SemanticUnit expandSU: semanticUnitList)
 			{
-				//È¥ÖØ | ·½·¨1Ö»²úÉúµ¥Ïò±ßÔò²»ĞèÒªÈ¥ÖØ  
-				if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
+				//Deduplicate
+				if(curSU.centerWord.position > expandSU.centerWord.position)
 					continue;
 				
 				ArrayList<SimpleRelation> tmpRelations = null;
-				//get simple relations
-				//ÏÈÓÃganswer·½·¨Çó
+				//get simple relations by PARAPHRASE
 				tmpRelations = er.findRelationsBetweenTwoUnit(curSU, expandSU, qlog);
 				if(tmpRelations!=null && tmpRelations.size()>0)
 					simpleRelations.addAll(tmpRelations);
-				//Ã»ÕÒµ½½â
 				else
 				{
 					tmpRelations = new ArrayList<SimpleRelation>();
-					//´¦Àí¡°and¡±£¬ÀıÈç¡°In which films did Julia_Roberts and Richard_Gere play?¡±£¬¸´ÖÆÒ»·İsr
+					//Copy relations (for 'and', 'as soon as'...) |eg, In which films did Julia_Roberts and Richard_Gere play?
+					//TODO: judge by dependency tree | other way to supplement relations
 					if(curSU.centerWord.position + 2 == expandSU.centerWord.position && qlog.s.words[curSU.centerWord.position].baseForm.equals("and"))
 					{
 						for(SimpleRelation sr: simpleRelations)
@@ -340,11 +516,72 @@ public class BuildQueryGraph
 		//get semantic relations
 		HashMap<Integer, SemanticRelation> semanticRelations = er.groupSimpleRelationsByArgsAndMapPredicate(simpleRelations);
 		
-		//ÈôÉú³ÉµÄÊÇhyper query graph£¬¼´¿ÉÄÜ°üº¬»·£¬ĞèÒªÃ¶¾Ù½á¹¹£¬ÔòÔÚpredicate mappingÖĞ¼ÓÈënull£¬µ±top-kÊ±¸Ã±ßÃ¶¾Ùµ½nullÊ±¼´ÈÏÎªÅ×Æú¸Ã±ß
 		if(Globals.evaluationMethod > 1)
 		{
-			//TODO: ÕâÀïÓ¦¸ÃÖ»¶Ô possible edge£¨È¥µôºóÍ¼ÒÀÈ»ÁªÍ¨£© ½øĞĞ±ê¼Ç£¬´ËÊ±ÏÈÍµÀÁ£¬ÓĞ»·µÄÔò¶¼±êÉÏ
-			if(semanticRelations.size() >= semanticUnitList.size())
+			//TODO: recognize unsteady edge by judging connectivity (now we just recognize all edges are unsteady when it has circle)
+			if(semanticRelations.size() >= semanticUnitList.size())	// has CIRCLE
+				for(SemanticRelation sr: semanticRelations.values())
+				{
+					sr.isSteadyEdge = false;
+				}
+		}
+		
+		qlog.potentialSemanticRelations = semanticRelations;
+	}
+	
+	public void extractRelation(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
+	{
+		ExtractRelation er = new ExtractRelation();
+		ArrayList<SimpleRelation> simpleRelations = new ArrayList<SimpleRelation>();
+		for(SemanticUnit curSU: semanticUnitList)
+		{
+			for(SemanticUnit expandSU: curSU.neighborUnitList)
+			{
+				//Deduplicate | method 1 only can generate DIRECTED edge 
+				if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
+					continue;
+				
+				ArrayList<SimpleRelation> tmpRelations = null;
+				//get simple relations by PARAPHRASE
+				tmpRelations = er.findRelationsBetweenTwoUnit(curSU, expandSU, qlog);
+				if(tmpRelations!=null && tmpRelations.size()>0)
+					simpleRelations.addAll(tmpRelations);
+				else
+				{
+					tmpRelations = new ArrayList<SimpleRelation>();
+					//Copy relations (for 'and', 'as soon as'...) |eg, In which films did Julia_Roberts and Richard_Gere play?
+					//TODO: judge by dependency tree | other way to supplement relations
+					if(curSU.centerWord.position + 2 == expandSU.centerWord.position && qlog.s.words[curSU.centerWord.position].baseForm.equals("and"))
+					{
+						for(SimpleRelation sr: simpleRelations)
+						{
+							if(sr.arg1Word == curSU.centerWord)
+							{
+								SimpleRelation tsr = new SimpleRelation(sr);
+								tsr.arg1Word = expandSU.centerWord;
+								tmpRelations.add(tsr);
+							}
+							else if (sr.arg2Word == curSU.centerWord)
+							{
+								SimpleRelation tsr = new SimpleRelation(sr);
+								tsr.arg2Word = expandSU.centerWord;
+								tmpRelations.add(tsr);
+							}
+						}
+						if(tmpRelations.size() > 0)
+							simpleRelations.addAll(tmpRelations);
+					}
+				}
+			}
+		}
+		
+		//get semantic relations
+		HashMap<Integer, SemanticRelation> semanticRelations = er.groupSimpleRelationsByArgsAndMapPredicate(simpleRelations);
+		
+		if(Globals.evaluationMethod > 1)
+		{
+			//TODO: recognize unsteady edge by judging connectivity (now we just recognize all edges are unsteady when it has circle)
+			if(semanticRelations.size() >= semanticUnitList.size())	// has CIRCLE
 				for(SemanticRelation sr: semanticRelations.values())
 				{
 					sr.isSteadyEdge = false;
@@ -356,9 +593,7 @@ public class BuildQueryGraph
 	
 	public void matchRelation(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog) 
 	{
-		//step1: °ÑÓÃgAnswerµÄrelation extraction·½·¨ÕÒµ½µÄrelations¼°¶ÔÓ¦predicatesÌîÈë
-		//ÕâÀïÊ¹ÓÃÎ´¾­de-overlapµÄÔ­Ê¼semantic relations
-		//²¢ÇÒÎª semantic unit ÌîÈë prefer type ĞÅÏ¢
+		//Drop the nodes who cannot find relations (except [modifier] implicit relation)
 		for(int relKey: qlog.semanticRelations.keySet())
 		{
 			boolean matched = false;
@@ -367,7 +602,7 @@ public class BuildQueryGraph
 			{
 				for(SemanticUnit expandSU: curSU.neighborUnitList)
 				{
-					//È¥ÖØ | ·½·¨1Ö»²úÉúµ¥Ïò±ßÔò²»ĞèÒªÈ¥ÖØ  
+					//Deduplicate | method 1 only can generate DIRECTED edge 
 					if(Globals.evaluationMethod > 1 && curSU.centerWord.position > expandSU.centerWord.position)
 						continue;
 					
@@ -383,44 +618,23 @@ public class BuildQueryGraph
 						
 						curSU.RelationList.put(expandSU.centerWord, sr);
 						expandSU.RelationList.put(curSU.centerWord, sr);
-					
-						if(sr.arg1Word.getBaseFormEntityName().equals(curSU.centerWord.getBaseFormEntityName()))
-						{
-							if(sr.arg1Word.tmList!=null && sr.arg1Word.tmList.size()>0)
-								curSU.prefferdType = sr.arg1Word.tmList.get(0).typeID;
-						}
-						if(sr.arg2Word.getBaseFormEntityName().equals(curSU.centerWord.getBaseFormEntityName()))
-						{
-							if(sr.arg2Word.tmList!=null && sr.arg2Word.tmList.size()>0)
-								curSU.prefferdType = sr.arg2Word.tmList.get(0).typeID;
-						}
 					}
 				}
 			}
 			if(!matched)
 			{
-				try 
-				{
-					qlog.SQGlog += "sr not found: "+sr+"\n";
-					if(qlog.fw != null)
-						qlog.fw.write("sr not found: "+sr+"\n");
-				} 
-				catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				qlog.SQGlog += "sr not found: "+sr+"\n";
 			}
 		}
 		if(qlog.semanticUnitList.size() == 0)
 			qlog.semanticUnitList = semanticUnitList;
 		
-		//step2: ½«Ã»ÓĞÈ·¶¨relationµÄ±ß°´ÕÕganswer relation extractµÄ·½Ê½³éÒ»±éĞÅÏ¢£¬Èç¹ûÃ»³éµ½£¬ÔòÔÙ¸ù¾İ¹æÔò³¢ÊÔÒ»ÏÂ¡£Ö®ºó×ª»¯³É semantic relationĞÎÊ½£¬·½±ãºóÃæ½øĞĞitem mapping¡£
-		//ÏÖÔÚÈÏÎª Ö»ÔÊĞí modified word£¨²»×÷Îªnode¿´´ı£© ³õÊ¼³éÈ¡²»µ½ relation£¬½«ÔÚ item mappingÉú³ÉsparqlÖ®ºó²¹È« modified word Ïà¹Ørelation
-		//¶ÔÓÚÆäËûnode£¬Èô²»ÄÜ³éÈ¡µ½ relation£¨ÎŞ·¨×ª»»³Ésemantic relation£©£¬ÔòÅ×Æú£¨´ÓsemanticUnitListÖĞÌŞ³ı£©
-
+		// Now we regard that ONLY modified word can have implicit relations, they will be supplemented later.
+		// TODO: Maybe some other reasons lead to relation extraction FAILED between two nodes. (eg, .. and .. | .. in ..) 
 	}
 
-	public void printTriples_SUList(ArrayList<SemanticUnit> SUList, QueryLogger qlog)
+	// Print original structure of query graph. Notice, the relations have not been decided.
+	public void recordOriginalTriples(ArrayList<SemanticUnit> SUList, QueryLogger qlog)
 	{
 		SemanticUnit curSU = null;
 		SemanticUnit neighborSU = null;
@@ -429,95 +643,67 @@ public class BuildQueryGraph
 		String obj = null;
 		int rel = 0;
 	
-		try 
+		for(int i=0;i<SUList.size();i++)
 		{
-			for(int i=0;i<SUList.size();i++)
+			curSU = SUList.get(i);
+			subj = curSU.centerWord.getFullEntityName();
+			
+			for(int j=0;j<curSU.neighborUnitList.size();j++)
 			{
-				curSU = SUList.get(i);
-				subj = curSU.centerWord.getFullEntityName();
+				neighborSU = curSU.neighborUnitList.get(j);
 				
-				for(int j=0;j<curSU.neighborUnitList.size();j++)
-				{
-					neighborSU = curSU.neighborUnitList.get(j);
-					
-					//È¥ÖØ | ·½·¨1Ö»²úÉúµ¥Ïò±ßÔò²»ĞèÒªÈ¥ÖØ  
-					if(Globals.evaluationMethod > 1 && curSU.centerWord.position > neighborSU.centerWord.position)
-						continue;
-	
-					obj = neighborSU.centerWord.getFullEntityName();
-					sr = curSU.RelationList.get(neighborSU.centerWord);
-					rel = 0;
-					if(sr != null && sr.predicateMappings.size()>0)
-					{
-						PredicateMapping pm = sr.predicateMappings.get(0);
-						rel = pm.pid;
-						if(sr.preferredSubj != null)
-						{
-							if(sr.arg1Word == sr.preferredSubj)
-							{
-								subj = sr.arg1Word.getFullEntityName();
-								obj = sr.arg2Word.getFullEntityName();						
-								if(sr.isArg1Constant == false)
-									subj = "?"+subj;
-								if(sr.isArg2Constant == false)
-									obj = "?"+obj;
-							}
-							else
-							{
-								subj = sr.arg2Word.getFullEntityName();
-								obj = sr.arg1Word.getFullEntityName();
-								if(sr.isArg2Constant == false)
-									subj = "?"+subj;
-								if(sr.isArg1Constant == false)
-									obj = "?"+obj;
-							}
-						}
+				// Deduplicate
+				if(Globals.evaluationMethod > 1 && curSU.centerWord.position > neighborSU.centerWord.position)
+					continue;
 
+				obj = neighborSU.centerWord.getFullEntityName();
+				sr = curSU.RelationList.get(neighborSU.centerWord);
+				rel = 0;
+				if(sr != null && sr.predicateMappings.size()>0)
+				{
+					PredicateMapping pm = sr.predicateMappings.get(0);
+					rel = pm.pid;
+					if(sr.preferredSubj != null)
+					{
+						if(sr.arg1Word == sr.preferredSubj)
+						{
+							subj = sr.arg1Word.getFullEntityName();
+							obj = sr.arg2Word.getFullEntityName();						
+							if(sr.isArg1Constant == false)
+								subj = "?"+subj;
+							if(sr.isArg2Constant == false)
+								obj = "?"+obj;
+						}
+						else
+						{
+							subj = sr.arg2Word.getFullEntityName();
+							obj = sr.arg1Word.getFullEntityName();
+							if(sr.isArg2Constant == false)
+								subj = "?"+subj;
+							if(sr.isArg1Constant == false)
+								obj = "?"+obj;
+						}
 					}
-						
-					Triple next = new Triple(-1, subj,rel, -1, obj,null,0);
-					if(qlog.fw != null)
-						qlog.fw.write("++++ Triple detect: "+next+"\n");
-					qlog.SQGlog += "++++ Triple detect: "+next+"\n";
 				}
-				// µ±Ç°unitÊÇ·ñÓµÓĞtype
-				if(curSU.prefferdType != null)
-				{
-//					StringBuilder type = new StringBuilder("");				
-//					for (Integer tt : sr.arg2Types) {
-//						type.append(TypeFragment.typeId2ShortName.get(tt));
-//						type.append('|');
-//					}
-					String type = TypeFragment.typeId2ShortName.get(curSU.prefferdType);
-					Triple next = new Triple(-1, curSU.centerWord.getFullEntityName(),Globals.pd.typePredicateID,Triple.TYPE_ROLE_ID, type,null,0);
-					if(qlog.fw != null)
-						qlog.fw.write("++++ Triple detect: "+next+"\n");
-				}
-				// µ±Ç°unitÊÇ·ñÓµÓĞdescribe
-				for(DependencyTreeNode describeNode: curSU.describeNodeList)
-				{
-					if(qlog.fw != null)
-						qlog.fw.write("++++ Describe detect: "+describeNode.dep_father2child+"\t"+describeNode.word+"\t"+curSU.centerWord+"\n");
-				}
+					
+				Triple next = new Triple(-1, subj,rel, -1, obj,null,0);
+				qlog.SQGlog += "++++ Triple detect: "+next+"\n";
 			}
-			//qlog.fw.write("\n");
-		} catch (IOException e) {
-			e.printStackTrace();
+			// current unit's TYPE
+			if(curSU.prefferdType != null)
+			{
+				String type = TypeFragment.typeId2ShortName.get(curSU.prefferdType);
+				Triple next = new Triple(-1, curSU.centerWord.getFullEntityName(),Globals.pd.typePredicateID,Triple.TYPE_ROLE_ID, type,null,0);
+				qlog.SQGlog += "++++ Triple detect: "+next+"\n";
+			}
+			// current unit's describe
+			for(DependencyTreeNode describeNode: curSU.describeNodeList)
+			{
+				qlog.SQGlog += "++++ Describe detect: "+describeNode.dep_father2child+"\t"+describeNode.word+"\t"+curSU.centerWord+"\n";
+			}
 		}
 	}
 	
-/*	public SemanticUnit getSUbyCenterWord(ArrayList<SemanticUnit> SUList, Word centerWord) 
-	{
-		for(int i=0;i<SUList.size();i++)
-		{
-			if(SUList.get(i).centerWord == centerWord)
-				return SUList.get(i);
-		}
-		SemanticUnit newSU = new SemanticUnit(centerWord);
-		return newSU;
-	}*/
-	
-	//´ø»·»á²»»áËÀÑ­»·£¿
 	public void dfs(DependencyTreeNode head, DependencyTreeNode cur, ArrayList<DependencyTreeNode> ret)
 	{
 		if(cur == null)
@@ -542,6 +728,9 @@ public class BuildQueryGraph
 		return;
 	}
 	
+	/*
+	 * Judge nodes strictly.
+	 * */
 	public boolean isNode(DependencyTreeNode cur)
 	{
 		if(stopNodeList.contains(cur.word.baseForm))
@@ -550,28 +739,15 @@ public class BuildQueryGraph
 		if(cur.word.omitNode || cur.word.represent!=null)
 			return false;
 		
-		//ĞŞÊÎ´Ê²»×÷Îªnode£»ÀıÈç Queen Elizabeth IIÖĞ£¬queenÎªĞŞÊÎ´Ê
+		// Modifier can NOT be node (They may be added in query graph in the end) e.g., Queen Elizabeth IIï¼ŒQueen(modifier)
 		if(modifierList.contains(cur.word))
 			return false;
 		
-//		//parserÈÏÎªÕâ¸ö´ÊºÍËüÖ¸ÏòµÄ´Ê¹²Í¬×é³ÉÒ»¸öÕûÌå´Ê£¬µ«ËüÖ¸ÏòµÄ´ÊÒÑ±»Ê¶±ğÎªÒ»¸öent£¬ÄÇÃ´Õâ¸öword¿ÉÄÜÖ»ÊÇĞŞÊÎ×÷ÓÃ£¬²¢²»ÕæµÄºÍËüÖ¸ÏòµÄ´ÊÊÇÒ»¸öÕûÌå´Ê
-//		//ÕâÀïÃ»ÓĞ¼ÓÈëÅĞ¶Ï±ßÊÇ·ñÎªnn£¬ÊÇ·ñĞèÒª¼ÓÈë£¿ | Õâ¸öÌõ¼şÏàµ±ÓÚ²»ÔÊĞíÁ½¸önodeÏàÁ¬£¬Ö®ºó¿ÉÄÜĞèÒªĞŞ¸Ä
-//		if(!cur.word.mayEnt && cur.father!=null && !cur.dep_father2child.startsWith("poss") && (cur.father.word.mayEnt||cur.father.word.mayType))
-//			return false;
-
-//ÒÔÏÂÁ½Àà¿ÉÒÔÓÃ ¡°ĞŞÊÎ´Ê¹æÔò¡± ½â¾ö
-//		//ÕâÊÇÒ»¸öextendType£¬ÇÒÎŞĞè¼ÓÈëtriple | ¡±Queen Elizabeth II¡° ÖĞµÄ queen£¬²¢Ã»ÓĞqueenÕâ¸ötype£¬µ«ÊÇËûµÄº¬ÒåºÍtypeÏàÍ¬
-//		if(cur.word.tmList!=null && cur.word.tmList.size()>0 && cur.word.tmList.get(0).prefferdRelation == -1)
-//			return false;
-//		//ÕâÊÇÒ»¸ötype£¬ÇÒºóÃæ½ÓÒ»¸öent£¬ÀıÈç¡°television show Charmed¡±£¬ÕâÊ±charmedÊÇÕæÕıµÄnode£¬¡±television show¡°ÊÇ¶ÔËûµÄĞŞÊÎ£¬ºöÂÔ
-//		//Êµ¼ÊÉÏ type+ent ÕâÑùµÄĞÎÊ½£¬type¿ÉÒÔÆğµ½Ïû³ıÆçÒå×÷ÓÃ£¬ÕâÀïÎª¼ò±ãÖ±½Ó²»°Ñtype¿´×ö½Úµã£¬µ±½á¹¹µ÷Õû²ßÂÔÇåÎúºó¿ÉÒÔÔÙ×ö¸üºÃµÄ´¦Àí
-//		if(cur.word.mayType && cur.father!=null && cur.father.word.mayEnt)
-//			return false;
-		
+		// NOUN
 		if(cur.word.posTag.startsWith("N"))
 			return true;
 
-//ÒÉÎÊ´ú´ÊÈÏ¿ÉÎªNODE»áÔÚdfsÊ±Óöµ½Ò»Ğ©ÎÊÌâ£¬ÏÈ²âÊÔÒ»ÏÂ
+		// Wh-word
 		if(whList.contains(cur.word.baseForm))
 			return true;
 		
@@ -594,7 +770,7 @@ public class BuildQueryGraph
 				break;
 			}
 		}
-		//ÈôÃ»ÓĞÕÒµ½ÒÉÎÊ´Ê£¬ÔòÕÒÔÚÔ­¾äÖĞ×îÏÈ³öÏÖµÄnode; ×¢ÒâÕâÀïÒıÈëÁË¡±ĞŞÊÎ´Ê¹æÔò¡°£¬ÀıÈç¶Ô was us president obama ..., target=obama¶ø²»ÊÇus
+		// No Wh-Word: use the first node; NOTICE: consider MODIFIER rules. E.g, was us president Obama ..., target=obama (rather us)
 		if(target == null)
 		{
 			for(Word word: words)
@@ -607,11 +783,10 @@ public class BuildQueryGraph
 				}
 			}
 			
-			//»¹ÊÇÃ»ÕÒµ½£¬Ö±½ÓÖ¸ÅÉµÚÒ»¸öword
 			if(target == null)
 				target = ds.nodesList.get(0);
 			
-			/* Are [E|tree_frogs] a type of [E|amphibian] , Óëtype¹²Ö¸
+			/* Are [E|tree_frogs] a type of [E|amphibian] , type
 			*/
 			for(DependencyTreeNode dtn: target.childrenList)
 			{
@@ -623,12 +798,12 @@ public class BuildQueryGraph
 			
 			
 		}
-		//where£¬×¢ÒâÍ¨¹ı wh µ½ NN ±ä»»µÃÀ´µÄ target£¬Ã»ÓĞÅĞ¶Ï NN ÄÜ·ñÍ¨¹ı isNode
+		//where, NOTICE: wh target from NN may not pass the function isNode()
 		if(target.word.baseForm.equals("where"))
 		{
 			int curPos = target.word.position - 1;
 			
-			//rule:Where is the residence of
+			//!Where is the residence of
 			if(words[curPos+1].baseForm.equals("be") && words[curPos+2].posTag.equals("DT"))
 			{
 				for(int i=curPos+4;i<words.length;i++)
@@ -651,11 +826,11 @@ public class BuildQueryGraph
 				Word word1 = words[curPos+1].modifiedWord;
 				if(isNodeCandidate(word1))
 				{
-					// which city ... ÏÈ½«targetÉèÎªcity
+					// which city ... target = city
 					target.word.represent = word1;
 					target = ds.getNodeByIndex(word1.position);
 					int word1Pos = word1.position - 1;
-					// word1 + be + (the) + word2, ÇÒbeÎªroot£¬Ôòword1ºÍword2¿ÉÄÜ¹²Ö¸
+					// word1 + be + (the) + word2, and be is root: word1 & word2 may coreference
 					if(ds.root.word.baseForm.equals("be") && word1Pos+3 < words.length && words[word1Pos+1].baseForm.equals("be"))
 					{
 						// which city is [the] headquarters ...
@@ -665,15 +840,15 @@ public class BuildQueryGraph
 						int word2Pos = word2.position - 1;
 						if(word2Pos+1 < words.length && isNodeCandidate(word2) && words[word2Pos+1].posTag.startsWith("IN"))
 						{
-							//In which city is [the] headquarters of ... ĞŞÕıtargetÎªheadquarters |Êµ¼ÊÉÏcityºÍheadquarters¹²Ö¸£¬µ«Èç¹ûcityÎªtarget£¬½á¹¹»á´íÎó |×¢ÒâÕâÀïÈç¹û°ÑofÌæ»»ÎªÒ»¸ö¶¯´Ê£¬ÔòtargetÓ¦¸ÃÎªcity
-							//In which city was the president of Montenegro born? ×÷ÎªÉÏĞĞµÄ·´Àı£¬¼´cityºÍpresidentÎªÁ½¸önode
+							//In which city is [the] headquarters of ... | target = headquarters, city & headquarters: coreference
+							//In which city was the president of Montenegro born? | COUNTER example, city & president: independent
 							target.word.represent = word2;
 							target = ds.getNodeByIndex(word2.position);
 						}
 					}
 				}
 			}
-			// target»¹ÊÇ which£¬ÔÙÓÃdependency tree¼ì²âÒ»ÏÂ
+			// by dependency tree
 			if(target.word.baseForm.equals("which"))
 			{
 				//Which of <films> had the highest budget
@@ -700,8 +875,8 @@ public class BuildQueryGraph
 		//what
 		else if(target.word.baseForm.equals("what"))
 		{
-			//¼ì²â£ºwhat is [the] sth1 prep. sth2?
-			//what is sth? ÕâÖÖ¾äÊ½ºÜÉÙ³öÏÖ£¬¼´Ê¹³öÏÖ£¬Ò»°ã²»»á´óÓÚ5¸ö´Ê¡£ | 2017-5-5 QALD7testÖĞÕæµÄ³öÏÖÁË what is sth.
+			//Detectï¼šwhat is [the] sth1 prep. sth2?
+			//Omit: what is sth? 
 			if(target.father != null && ds.nodesList.size()>=5)
 			{
 				DependencyTreeNode tmp1 = target.father;
@@ -724,7 +899,7 @@ public class BuildQueryGraph
 				{
 					target.word.represent = tmp1.word;
 					target = tmp1;
-					//Ë³±ãÏû³ı¹²Ö¸
+					// Coreference resolution
 					int curPos = target.word.position - 1;
 					if(curPos+3<words.length && words[curPos+1].baseForm.equals("be")&&words[curPos+3].posTag.startsWith("IN") && words.length > 6)
 					{
@@ -733,11 +908,11 @@ public class BuildQueryGraph
 					
 				}
 			}
-			//ÔÙÓÃsentence¼ì²â£¬ÒòÎªdependenchy treeÓĞÊ±»áÉú³É´íÎó
+			// by sentence
 			if(target.word.baseForm.equals("what"))
 			{
 				int curPos = target.word.position - 1;
-				// what be the [node] ... ? (wordsµÄlengthÊÇËãÉÏ·ûºÅµÄ£¬ºÍnodeList²»Í¬)
+				// what be the [node] ... ? (Notice: words.length CONTAINS symbol(?)ï¼Œdifferent from nodeList)
 				if(words.length > 5 && words[curPos+1].baseForm.equals("be") && words[curPos+2].baseForm.equals("the") && isNodeCandidate(words[curPos+3]))
 				{
 					target.word.represent = words[curPos+3];
@@ -749,9 +924,9 @@ public class BuildQueryGraph
 		//who
 		else if(target.word.baseForm.equals("who"))
 		{
-			//¼ì²â£ºwho is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
-			//ÆäËûÖîÈç who is sth? who do sth? µÄtarget¶¼Îªwho
-			//ĞÎÈç Who is the daughter of Robert_Kennedy married toµÄqueryÔÚstanford treeÖĞ£¬whoºÍis²»ÊÇ¸¸×Ó¹ØÏµ¶øÊÇ²¢ÁĞ£¬ËùÒÔwho»¹ÊÇtarget
+			//Detectï¼šwho is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
+			//Others: who is sth? who do sth?  | target = who
+			//test case: Who is the daughter of Robert_Kennedy married to?
 			if(target.father != null && ds.nodesList.size()>=5)
 			{	//who
 				DependencyTreeNode tmp1 = target.father;
@@ -769,7 +944,7 @@ public class BuildQueryGraph
 								if(grandson.dep_father2child.equals("prep"))
 									hasPrep = true;
 							}
-							//¼ì²â who is the sht1's sth2? ÕâÖÖÇé¿öÔÚparserÖĞ£¬whoºÍsth2¶¼Ö¸Ïòbe
+							//Detect: who is the sht1's sth2?
 							if(hasPrep || qlog.s.plainText.contains(child.word.originalForm + " 's"))
 							{
 								target.word.represent = child.word;
@@ -780,38 +955,22 @@ public class BuildQueryGraph
 					}
 				}
 			}
-			//ÔÙÓÃsentence¼ì²âÒ»ÏÂ
+			// by sentence
 			if(target.word.baseForm.equals("who"))
 			{
 				int curPos = target.word.position - 1;
-				// whoÔÚ¾äÖĞ³öÏÖÒ»°ãÎª¹²Ö¸
+				// who is usually coreference when it not the first word. 
 				if(curPos - 1 >= 0 && isNodeCandidate(words[curPos-1]))
 				{
 					target.word.represent = words[curPos-1];
 					target = ds.getNodeByIndex(words[curPos-1].position);
-				}
-				else
-				{
-					//2016.6.18, ÏÂÀıÎÊÌâÔ¤¼ÆÓÉ¡°¶àÈë¿Ú¿ò¼Ü¡±½â¾ö
-					//2016.5.2, target»¹ÊÇÓÃÀ´±íÊ¾×îÖÕÎÊµÄ¶«Î÷£¬ËùÒÔ×¢ÊÍµôÕâÌõ¹æÔò
-					//Who produced films starring Natalie_Portman£¬targetÉèÎªfilmÍ¼²ÅÕıÈ·£¬·ñÔò¾ÍÊÇwhoºÍNatalieÏàÁ¬ 
-					//×¢ÒâÄ¿Ç° Who produced Goofy? ÕâÖÖ£¬target»¹ÊÇÉèÎª who£¬ÒòÎª ¡°¹æÔò£ºÌØÊâÒÉÎÊ¾äµÄtarget²»Îªent¡±£¬ËùÒÔtarget»¹ÊÇÓÃÀ´´ú±í×îÖÕÒªÎÊµÄÄÇ¸ö¶«Î÷
-					//TODO:ÊÇ·ñÁíÆğÒ»¸ö±ê¼Ç¡°start¡±£¬Ö®ºóÔÚ¿¼ÂÇ£¬ÏÖÔÚÓÃ³¤¶ÈÅĞ¶ÏÀ´Çø·Ö¿ªÒÔÉÏÁ½ÀıÇé¿ö
-//					if(curPos+2<words.length && words[curPos+1].posTag.startsWith("V"))
-//					{
-//						Word modifiedWord = getTheModifiedWordBySentence(qlog.s, words[curPos+2]);
-//						if(isNodeCandidate(modifiedWord) && words.length>=5)
-//						{
-//							target = ds.getNodeByIndex(modifiedWord.position);
-//						}
-//					}
 				}
 			}
 		}
 		//how
 		else if(target.word.baseForm.equals("how"))
 		{	
-			//¼ì²â£ºhow many sth ...  |eg: how many popular Chinese director are there
+			//Detectï¼šhow many sth ...  |eg: how many popular Chinese director are there
 			int curPos = target.word.position-1;
 			if(curPos+2 < words.length && words[curPos+1].baseForm.equals("many"))
 			{
@@ -822,7 +981,7 @@ public class BuildQueryGraph
 					target = ds.getNodeByIndex(modifiedWord.position);
 				}
 			}
-			//¼ì²â how big is [det] (ent)'s (var), how = var
+			//Detect: how big is [det] (ent)'s (var), how = var
 			else if(curPos+6 < words.length && words[curPos+1].baseForm.equals("big"))
 			{
 				if(words[curPos+2].baseForm.equals("be") && words[curPos+3].baseForm.equals("the") && words[curPos+4].mayEnt && words[curPos+5].baseForm.equals("'s"))
@@ -835,7 +994,7 @@ public class BuildQueryGraph
 					}
 				}
 			}
-			//¼ì²â£ºhow much ... 
+			//Detectï¼šhow much ... 
 			else if(curPos+2 < words.length && words[curPos+1].baseForm.equals("much"))
 			{
 				Word modifiedWord = words[curPos+2].modifiedWord;
@@ -845,7 +1004,7 @@ public class BuildQueryGraph
 					target.word.represent = modifiedWord;
 					target = ds.getNodeByIndex(modifiedWord.position);
 				}
-				// How much did Pulp_Fiction cost | ÓÃdependency tree
+				// How much did Pulp_Fiction cost | dependency tree
 				else
 				{
 					if(target.father!=null && isNodeCandidate(target.father.word))
@@ -855,32 +1014,14 @@ public class BuildQueryGraph
 					}
 				}
 			}
-			
-//dependncy treeÓĞÊ±´íÎó£¬ËùÒÔÖ±½ÓÔÚsentenceÖĞ¼ì²â
-//			if(target.father != null)
-//			{
-//				DependencyTreeNode fa1 = target.father;
-//				if(fa1.word.baseForm.equals("many") && fa1.father!=null)
-//				{
-//					DependencyTreeNode fa2 = fa1.father;
-//					if(fa1.dep_father2child.contains("mod"))
-//					{
-//						target.word.represent = fa2.word;
-//						target = fa2;
-//						aggregationType = 1; // "how many"
-//					}
-//				}
-//			}
 		}
 		return target;
 	}
 	
 	/*
-	 * ent + typeÓĞÁ½ÖÖÇé¿ö£º1¡¢Chinese company 2¡¢De_Beer company; 
-	 * ¶ÔÓÚ1Ó¦¸ÃÊÇchineseĞŞÊÎcompany£¬¶ÔÓÚ¶şÓ¦¸ÃÊÇDe_BeerÕâ¸öÊµÌåÊÇ¸öcompany,¼´typeĞŞÊÎent
-	 * return:
-	 * True : entĞŞÊÎtype
-	 * False £º typeĞŞÊÎent
+	 * There are two cases of [ent]+[type]ï¼š1ã€Chinese company 2ã€De_Beer company; 
+	 * For 1, chinese -> companyï¼Œfor 2, De_Beer <- company
+	 * Return: True : ent -> type | False ï¼š type <- ent
 	 * */
 	public boolean checkModifyBetweenEntType(Word entWord, Word typeWord)
 	{
@@ -893,100 +1034,17 @@ public class BuildQueryGraph
 		
 		return false;
 	}
-	
+		
 	/*
-	 * £¡ÀÏ°æ±¾·Çµİ¹é£ºÎŞ·¨´¦Àí [ent1] by (adj) [ent2] µÈ¸´ÔÓÇ¶Ì×µÄÇé¿ö
-	 * ĞŞÊÎµÄ¸ÅÄî£ºÔÚÕıÈ·µÄdependency treeÖĞ£¬Ò»¸öword(ent/type)Ö¸ÏòÁíÒ»¸öword£¬±ßÍ¨³£ÎªmodÏµÁĞ£¬ËüÃÇÖ®¼äÃ»ÓĞÆäËûµã£¬²¢ÇÒÊÇ¶ÀÁ¢µÄÁ½¸öobject
-	 * ÀıÈç£ºChinese teacher --> ChineseĞŞÊÎteacher£»the Chinese teacher Wang Wei --> ChineseºÍteacher¶¼ĞŞÊÎWang Wei£»
-	 * ×¢Òâ£ºthe Television Show Charmed£¬ÒòÎªÊôÓÚÒ»¸öobjectµÄword sequence»á±»ÌáÇ°Ê¶±ğ³öÀ´²¢ÓÃÏÂ»®ÏßÁ¬½ÓÎªÒ»¸öword£¬ËùÒÔTelevision_ShowĞŞÊÎCharmed
-	 * ÕÒµ½µ±Ç°wordËùĞŞÊÎµÄÄÇ¸öword£¨Èç¹ûËü²»ĞŞÊÎ±ğÈË£¬·µ»ØËü×Ô¼º£©
-	 * Í¨¹ısentence¶ø²»ÊÇdependency tree (ÒòÎªºóÕß³£Éú³É´íÎó)
-	 * Í¨³£Á¬Ğø³öÏÖµÄnode¶¼ÊÇĞŞÊÎ×îºóÒ»¸önodeµÄ£»ÀıÍâÇé¿öÈçtest case 3
+	 * Modifyï¼šin correct dependency tree, word1(ent/type)--mod-->word2
+	 * eg, Chinese teacher --> Chinese (modify) teacher; the Chinese teacher Wang Wei --> Chinese & teacher (modify) Wang Wei
+	 * Find a word modify which word (modify itself default)
+	 * Trough sentence rather than dependency tree as the latter often incorrect 
+	 * Generally a sequencial nodes always modify the last node, an exception is test case 3. So we apply recursive search method.
 	 * test case:
 	 * 1) the highest Chinese mountain
 	 * 2) the Chinese popular director
-	 * 3) the De_Beers company  (×¢ÒâÕâÀï company[type]ĞŞÊÎ De_Beers[ent])
-	 * */
-	public Word getTheModifiedWordBySentenceNoRecursive(Sentence s, Word modifier)
-	{
-		if(modifier.modifiedWord != null)
-			return modifier.modifiedWord;
-		
-		modifier.modifiedWord = modifier;
-		
-		//¼È²»ÊÇĞÎÈİ´ÊÒ²²»ÊÇnode£¬¾ÍÖ±½Ó·µ»Ø 
-		if(!isNodeCandidate(modifier) && !modifier.posTag.startsWith("JJ") && !modifier.posTag.startsWith("R"))
-			return modifier;
-		
-		//[ent1] 's [ent2], Ôòent1ÊÇent2µÄĞŞÊÎ´Ê£¬ÇÒÍ¨³£²»ĞèÒª³öÏÖÔÚsparqlÖĞ¡£| eg£ºShow me all books in Asimov 's Foundation_series
-		if(modifier.position+1 < s.words.length && modifier.mayEnt && s.words[modifier.position].baseForm.equals("'s") && s.words[modifier.position+1].mayEnt)
-		{
-			modifier.modifiedWord = s.words[modifier.position+1];
-			return modifier.modifiedWord;
-		}
-		
-		//[ent1] by [ent2], Ôòent2ÊÇent1µÄĞŞÊÎ´Ê£¬ÇÒÍ¨³£²»ĞèÒª³öÏÖÔÚsparqlÖĞ¡£ | eg: Which museum exhibits The Scream by Munch?
-		if(modifier.position-3 >=0 && modifier.mayEnt && s.words[modifier.position-2].baseForm.equals("by") && s.words[modifier.position-3].mayEnt)
-		{
-			modifier.modifiedWord = s.words[modifier.position-3];
-			return modifier.modifiedWord;
-		}
-		
-		//¸É´àÈÏÎª ent+noun(·Çtype|ent) µÄĞÎÊ½£¬ent²»ÊÇĞŞÊÎ´Ê²¢ÇÒºóÃæµÄnoun²»ÊÇnode£»eg£ºDoes the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
-		if(modifier.position < s.words.length && modifier.mayEnt && !s.words[modifier.position].mayEnt && !s.words[modifier.position].mayType && !s.words[modifier.position].mayLiteral)
-		{
-			s.words[modifier.position].omitNode = true;
-			return modifier;
-		}
-		
-		//ent + typeÓĞÁ½ÖÖÇé¿ö£º1¡¢Chinese company 2¡¢De_Beer company; ¶ÔÓÚ1Ó¦¸ÃÊÇchineseĞŞÊÎcompany£¬¶ÔÓÚ2Ó¦¸ÃÊÇDe_BeerÕâ¸öÊµÌåÊÇ¸öcompany
-		if(modifier.position < s.words.length && modifier.mayEnt && s.words[modifier.position].mayType)
-		{
-			if(checkModifyBetweenEntType(modifier, s.words[modifier.position])) //Chinese -> company
-			{
-				modifier.modifiedWord = s.words[modifier.position];
-				return modifier.modifiedWord;
-			}
-			else	//De_Beer <- company
-				return modifier;
-		}
-		if(modifier.position-2 >= 0 && modifier.mayType && s.words[modifier.position-2].mayEnt)
-		{
-			if(!checkModifyBetweenEntType(s.words[modifier.position-2], modifier)) //De_Beer <- company
-			{
-				modifier.modifiedWord = s.words[modifier.position-2];
-				return modifier.modifiedWord;
-			}
-		}
-		
-		//×¢ÒâÕâÀïpositionÊÇÏÂ±ê´Ó1¿ªÊ¼£¬ËùÒÔ´ÓmodifierµÄºóÒ»¸ö´Ê¿ªÊ¼É¨Ãè²»ÓÃ¼Ó1
-		for(int i=modifier.position;i<s.words.length;i++)
-		{
-			Word word = s.words[i];
-			if(isNodeCandidate(word))
-			{
-				modifier.modifiedWord = word;
-			}
-			//Ïñ "popular","largest"µÈĞŞÊÎ´Ê£¬²»»á³ÉÎª±»ĞŞÊÎ´Ê£»Èô³öÏÖ¼È²»ÊÇnodeÓÖ²»ÊÇĞÎÈİ´Ê£¬ÔòÍ£Ö¹
-			else if(!word.posTag.startsWith("JJ"))
-			{
-				break;
-			}
-		}
-		return modifier.modifiedWord;
-	}
-	
-	/*
-	 * ĞŞÊÎµÄ¸ÅÄî£ºÔÚÕıÈ·µÄdependency treeÖĞ£¬Ò»¸öword(ent/type)Ö¸ÏòÁíÒ»¸öword£¬±ßÍ¨³£ÎªmodÏµÁĞ£¬ËüÃÇÖ®¼äÃ»ÓĞÆäËûµã£¬²¢ÇÒÊÇ¶ÀÁ¢µÄÁ½¸öobject
-	 * ÀıÈç£ºChinese teacher --> ChineseĞŞÊÎteacher£»the Chinese teacher Wang Wei --> ChineseºÍteacher¶¼ĞŞÊÎWang Wei£»
-	 * ×¢Òâ£ºthe Television Show Charmed£¬ÒòÎªÊôÓÚÒ»¸öobjectµÄword sequence»á±»ÌáÇ°Ê¶±ğ³öÀ´²¢ÓÃÏÂ»®ÏßÁ¬½ÓÎªÒ»¸öword£¬ËùÒÔTelevision_ShowĞŞÊÎCharmed
-	 * ÕÒµ½µ±Ç°wordËùĞŞÊÎµÄÄÇ¸öword£¨Èç¹ûËü²»ĞŞÊÎ±ğÈË£¬·µ»ØËü×Ô¼º£©
-	 * Í¨¹ısentence¶ø²»ÊÇdependency tree (ÒòÎªºóÕß³£Éú³É´íÎó)
-	 * Í¨³£Á¬Ğø³öÏÖµÄnode¶¼ÊÇĞŞÊÎ×îºóÒ»¸önodeµÄ£»ÀıÍâÇé¿öÈçtest case 3£»²ÉÓÃµİ¹éµÄ·½Ê½
-	 * test case:
-	 * 1) the highest Chinese mountain
-	 * 2) the Chinese popular director
-	 * 3) the De_Beers company  (×¢ÒâÕâÀï company[type]ĞŞÊÎ De_Beers[ent])
+	 * 3) the De_Beers company  (company[type]-> De_Beers[ent])
 	 * */
 	public Word getTheModifiedWordBySentence(Sentence s, Word curWord)
 	{
@@ -994,19 +1052,19 @@ public class BuildQueryGraph
 			return null;
 		if(curWord.modifiedWord != null)
 			return curWord.modifiedWord;
-		//¼È²»ÊÇĞÎÈİ´ÊÒ²²»ÊÇnode£¬ÓëĞŞÊÎ¹ØÏµÎŞ¹Ø£¬ÉèÎªnull
+		// return null if it is not NODE or adjective
 		if(!isNodeCandidate(curWord) && !curWord.posTag.startsWith("JJ") && !curWord.posTag.startsWith("R"))
 			return curWord.modifiedWord = null;
 		
-		curWord.modifiedWord = curWord;	//Ä¬ÈÏĞŞÊÎ×Ô¼º£¬ĞŞÊÎ×Ô¼ºµÄword²»Ëã×ömodifier
+		curWord.modifiedWord = curWord;	//default, modify itself
 		Word preWord = null, nextWord = null;
-		int curPos = curWord.position - 1; //wordµÄposition´Ó1¿ªÊ¼£¬ËùÒÔ¼õÒ»
+		int curPos = curWord.position - 1; //word's position from 1, so need -1
 		if(curPos-1 >= 0)	preWord = s.words[curPos-1];
 		if(curPos+1 < s.words.length)	nextWord = s.words[curPos+1];
 		Word nextModifiedWord = getTheModifiedWordBySentence(s, nextWord);
 		
-		//External rule: ÈÏÎª ent+noun(·Çtype|ent)µÄĞÎÊ½£¬ent²»ÊÇĞŞÊÎ´Ê²¢ÇÒºóÃæµÄnoun²»ÊÇnode£»
-		//eg£ºDoes the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
+		//External rule: ent+noun(no type|ent), then ent is not modifier and noun is not node
+		//egï¼šDoes the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
 		if(curWord.mayEnt && nextWord != null && !nextWord.mayEnt && !nextWord.mayType && !nextWord.mayLiteral)
 		{
 			nextWord.omitNode = true;
@@ -1014,43 +1072,43 @@ public class BuildQueryGraph
 				return curWord.modifiedWord = curWord;
 		}
 		
-		//ĞŞÊÎ×ó±ß: ent + type(cur) : De_Beer company
+		//modify LEFT: ent + type(cur) : De_Beer company
 		if(preWord != null && curWord.mayType && preWord.mayEnt) //ent + type(cur)
 		{
-			if(!checkModifyBetweenEntType(preWord, curWord)) //De_Beer <- company, ×¢Òâ´ËÊ±¼´Ê¹typeºóÃæ»¹Á¬×Ånode£¬Ò²²»Àí»áÁË
+			if(!checkModifyBetweenEntType(preWord, curWord)) //De_Beer <- company, æ³¨æ„æ­¤æ—¶å³ä½¿typeåé¢è¿˜è¿ç€nodeï¼Œä¹Ÿä¸ç†ä¼šäº†
 				return curWord.modifiedWord = preWord;
 		}
 		
-		//ĞŞÊÎ×Ô¼º: ent(cur) + type : De_Beer company
+		//modify itself: ent(cur) + type : De_Beer company
 		if(nextModifiedWord != null && curWord.mayEnt && nextModifiedWord.mayType)
 		{
 			if(!checkModifyBetweenEntType(curWord, nextModifiedWord))
 				return curWord.modifiedWord = curWord;
 		}
 		
-		//ÅÅ³ıÌØÊâÇé¿öºó£¬Í¨³£Çé¿ö¶¼ÊÇĞŞÊÎÓÒ±ß
+		//generally, modify RIGHT
 		if(nextModifiedWord != null)
 			return curWord.modifiedWord = nextModifiedWord;
 		
-		//ÓÒ±ßÃ»ÓĞnodeÁË£¬Ö»ÄÜĞŞÊÎ×Ô¼º
+		//modify itself
 		return curWord.modifiedWord;
 	}
 	
 	/*
-	 * Ê¶±ğ²»Á¬Ğø´ÊÖ®¼äµÄmodifier/modified¹ØÏµ£¬Èç£º
-	 * 1¡¢[ent1] 's [ent2]
-	 * 2¡¢[ent1] by [ent2]
-	 * ×¢Òâ£ºĞèÏÈÔËĞĞgetTheModifiedWordBySentence
+	 * recognize modifier/modified relation in DISCRETE nodes
+	 * 1ã€[ent1] 's [ent2]
+	 * 2ã€[ent1] by [ent2]
+	 * Notice: run "getTheModifiedWordBySentence" first!
 	 * */
 	public Word getDiscreteModifiedWordBySentence(Sentence s, Word curWord)
 	{	
-		int curPos = curWord.position - 1; //wordµÄposition´Ó1¿ªÊ¼£¬ËùÒÔ¼õÒ»
+		int curPos = curWord.position - 1;
 		
-		//[ent1](cur) 's [ent2], Ôòent1ÊÇent2µÄĞŞÊÎ´Ê£¬ÇÒÍ¨³£²»ĞèÒª³öÏÖÔÚsparqlÖĞ¡£| eg£ºShow me all books in Asimov 's Foundation_series
+		//[ent1](cur) 's [ent2], ent1->ent2, usually do NOT appear in SPARQL | egï¼šShow me all books in Asimov 's Foundation_series
 		if(curPos+2 < s.words.length && curWord.mayEnt && s.words[curPos+1].baseForm.equals("'s") && s.words[curPos+2].mayEnt)
 			return curWord.modifiedWord = s.words[curPos+2];
 		
-		//[ent1] by [ent2](cur), Ôòent2ÊÇent1µÄĞŞÊÎ´Ê£¬ÇÒÍ¨³£²»ĞèÒª³öÏÖÔÚsparqlÖĞ¡£ | eg: Which museum exhibits The Scream by Munch?
+		//[ent1] by [ent2](cur), ent2->ent1, usually do NOT appear in SPARQL | eg: Which museum exhibits The Scream by Munch?
 		if(curPos-2 >=0 && curWord.mayEnt && s.words[curPos-1].baseForm.equals("by") && s.words[curPos-2].mayEnt)
 			return curWord.modifiedWord = s.words[curPos-2];
 		
@@ -1058,7 +1116,7 @@ public class BuildQueryGraph
 	}
 	
 	/*
-	 * NodeCandidate£ºÓĞ×Ê¸ñ³ÉÎªNode£¬µ«²»Ò»¶¨Òª·ÅÈëquery graphÖĞ
+	 * Judge nodes unstrictly.
 	 * */
 	public boolean isNodeCandidate(Word word)
 	{

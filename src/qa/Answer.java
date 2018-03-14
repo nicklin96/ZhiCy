@@ -64,7 +64,7 @@ public class Answer implements Comparable<Answer>{
 			}
 		}
 		
-		//处理GStore返回值中questionFocusKey乱码的bug
+		// Sove BUG: GStore return messy code in questionFocusKey
 		if (questionFocusKey==null || questionFocusValue==null)
 		{
 			questionFocusKey  = qf;

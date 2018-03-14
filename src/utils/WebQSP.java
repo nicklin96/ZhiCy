@@ -227,9 +227,9 @@ public class WebQSP {
 				{
 					JSONObject parse = questionsParseArray.getJSONObject(j);
 					String spqStr = parse.getString("Sparql");
-					String topicMention = parse.getString("PotentialTopicEntityMention");
-					String topicEntity = parse.getString("TopicEntityName");
-					String topicId = parse.getString("TopicEntityMid");
+					//String topicMention = parse.getString("PotentialTopicEntityMention");
+					//String topicEntity = parse.getString("TopicEntityName");
+					//String topicId = parse.getString("TopicEntityMid");
 
 					if(spqStr != null && spqStr.length() > 0)
 					{
@@ -283,15 +283,15 @@ public class WebQSP {
 		if(triples.size() == 1)
 		{
 			String[] ts = triples.get(0).split("\t");
-			String s = ts[0], p = ts[1], o = ts[2];
+			String s = ts[0], o = ts[2];
 			if(s.startsWith("ns:") && o.startsWith("?x"))
 				type = 1;
 		}
 		else if(triples.size() == 2)
 		{
 			String[] ts1 = triples.get(0).split("\t"), ts2 = triples.get(1).split("\t");
-			String s1 = ts1[0], p1 = ts1[1], o1 = ts1[2];
-			String s2 = ts2[0], p2 = ts2[1], o2 = ts2[2];
+			String s1 = ts1[0], o1 = ts1[2];
+			String s2 = ts2[0], o2 = ts2[2];
 			if(s1.startsWith("ns:") && o1.startsWith("?x") && s2.startsWith("?x") && o2.startsWith("ns:"))
 				type = 2;
 			else if(s1.startsWith("ns:") && o1.startsWith("?y") && s2.startsWith("?y") && o2.startsWith("?x"))
@@ -300,9 +300,9 @@ public class WebQSP {
 		else if(triples.size() == 3)
 		{
 			String[] ts1 = triples.get(0).split("\t"), ts2 = triples.get(1).split("\t"), ts3 = triples.get(2).split("\t");
-			String s1 = ts1[0], p1 = ts1[1], o1 = ts1[2];
-			String s2 = ts2[0], p2 = ts2[1], o2 = ts2[2];
-			String s3 = ts3[0], p3 = ts3[1], o3 = ts3[2];
+			String s1 = ts1[0], o1 = ts1[2];
+			String s2 = ts2[0], o2 = ts2[2];
+			String s3 = ts3[0], o3 = ts3[2];
 			if(s1.startsWith("ns:") && o1.startsWith("?y") && s2.startsWith("?y") && o2.startsWith("?x"))
 			{
 				if(s3.startsWith("?y") && o3.startsWith("ns:"))

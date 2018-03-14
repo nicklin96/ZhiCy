@@ -20,21 +20,21 @@ import utils.HttpRequest;
 
 public class StandardSparqlGeneration 
 {
-	File dboFile = new File(Globals.localPath + "data/DBpedia2014/parapharse/DBpedia2014_dbo_predicates.txt");
+	String dboFilePath = Globals.localPath + "data/DBpedia2014/parapharse/DBpedia2014_dbo_predicates.txt";
+	String zcyFilePath = Globals.localPath + "/data/QALD7/testin.txt";
+	String jsonOutputFilePath = Globals.localPath + "/data/QALD7/JsonAnswers.json";
+	String answersFilePath = Globals.localPath + "/data/QALD7/Answers.txt";
+	String sparqlsFilePath = Globals.localPath + "/data/QALD7/Sparqls.txt";
+	String handwriteFilePath = Globals.localPath + "/data/QALD7/handwriteSpqs";
+	String notResponseFilePath = Globals.localPath + "/data/QALD7/notResponse";
 	
-	File zcyFile = new File(Globals.localPath + "/data/QALD7/testin.txt");
-	File jsonOutputFile = new File(Globals.localPath + "/data/QALD7/JsonAnswers.json");
 	//File jsonOutputFile = new File("./data/ganswer_qald7test_jsonAnswers.json");
-	File answersFile = new File(Globals.localPath + "/data/QALD7/Answers.txt");
 	//File answersFile = new File("./data/ganswer_qald7test_Answers.txt");
-	File sparqlsFile = new File(Globals.localPath + "/data/QALD7/Sparqls.txt");
 	//File sparqlsFile = new File("./data/ganswer_qald7test_Sparqls.txt");
-	File handwriteFile = new File(Globals.localPath + "/data/QALD7/handwriteSpqs");
-	File notResponseFile = new File(Globals.localPath + "/data/QALD7/notResponse");
 	
 	ArrayList<QuestionResult> qrList = new  ArrayList<QuestionResult>();
 	HashSet<String> dboPredicates = new HashSet<String>();
-	HashSet<String> dbp_dboPredicates = new HashSet<String>();	//Í¬ÃûÎ½´ÊÓÐµÄÊµÌåÒªdboÓÐµÄÊµÌåÓÐÖ»ÓÐdbp£»ÀýÈçdbo:author |dbp:author
+	HashSet<String> dbp_dboPredicates = new HashSet<String>();	//Sometimes need union different prefix, dbo:author | dbp:author
 	
 	HashMap<Integer, String> handwriteSpqs = new HashMap<Integer, String>();
 	HashSet<Integer> outOfScopes = new HashSet<Integer>();
@@ -62,7 +62,7 @@ public class StandardSparqlGeneration
 		
 		// notice to change the IDs which need appoint to specific SPQ of all SPQ candidates.
 // qald6-test
-//		selectTop2SPQs.add(16);
+		selectTop2SPQs.add(6);
 //		selectTop2SPQs.add(39);
 //		
 //		selectTop3SPQs.add(59);
@@ -74,6 +74,7 @@ public class StandardSparqlGeneration
 		
 		try 
 		{	
+			File handwriteFile = new File(handwriteFilePath);
 			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(handwriteFile),"utf-8"));
 			String input = "";
 			int id = -1;
@@ -95,6 +96,7 @@ public class StandardSparqlGeneration
 			}
 			br.close();
 			
+			File notResponseFile = new File(notResponseFilePath);
 			br = new BufferedReader(new InputStreamReader(new FileInputStream(notResponseFile),"utf-8"));
 			while((input = br.readLine())!=null)
 			{
@@ -105,7 +107,7 @@ public class StandardSparqlGeneration
 				}
 			}
 			
-			// If allow "not response"¡¡or "handwriteSpq", then delete following two lines.
+			// If allow "not response"ï¿½ï¿½or "handwriteSpq", then delete following two lines.
 			handwriteSpqs.clear();
 			notResponses.clear();
 			
@@ -118,6 +120,7 @@ public class StandardSparqlGeneration
 	{
 		try 
 		{
+			File dboFile = new File(dboFilePath);
 			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(dboFile),"utf-8"));
 			String input = "";
 			while((input = br.readLine())!=null)
@@ -136,6 +139,7 @@ public class StandardSparqlGeneration
 			dbp_dboPredicates.add("governor");
 			dbp_dboPredicates.add("leaderParty");
 			dbp_dboPredicates.add("residence");
+			dbp_dboPredicates.add("species");
 		} 
 		catch (Exception e) {
 			// TODO: handle exception
@@ -146,6 +150,7 @@ public class StandardSparqlGeneration
 	{
 		try 
 		{
+			File zcyFile = new File(zcyFilePath);
 			BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(zcyFile), "utf-8"));
 			String input = "";
 			QuestionResult qr = new QuestionResult();
@@ -217,7 +222,7 @@ OFFSET 0 LIMIT 1
 		
 		sparql = nspq.triples.get(0);
 		sparql += " {";
-		boolean hasDboType = false;
+		boolean hasDboType = false, hasFilter = false, hasTwoVarTriple = false;
 		boolean endMarket = false;
 		boolean needUnionDboDbp = false;
 		for(int i = 1; i<nspq.triples.size(); i++)
@@ -268,7 +273,7 @@ OFFSET 0 LIMIT 1
 							hasDboType = true;
 						}
 						else
-							o = o.replace("yago:", "yago:Wikicat");	// ÐÂ°æyagoÐí¶àtypeµÄÃüÃû·½Ê½¸Ä±ä | ÊÊÓÃÓÚhttp://dbpedia.org/sparql | ¾É°æÊÊÓÃÓÚhttp://live.dbpedia.org/sparql
+							o = o.replace("yago:", "yago:Wikicat");	// ï¿½Â°ï¿½yagoï¿½ï¿½ï¿½typeï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ï¿½Ä±ï¿½ | ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½http://dbpedia.org/sparql | ï¿½É°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½http://live.dbpedia.org/sparql
 					}
 					else
 					{
@@ -284,6 +289,9 @@ OFFSET 0 LIMIT 1
 				{
 					o = o.substring(0,o.length()-1);
 				}
+				
+				if(s.startsWith("?") && o.startsWith("?"))
+					hasTwoVarTriple = true;
 				
 				String triple = s+" "+p+" "+o+".";
 				if(needUnionDboDbp)
@@ -306,6 +314,7 @@ OFFSET 0 LIMIT 1
 			else if (str.startsWith("FILTER"))
 			{
 				sparql += " "+str;
+				hasFilter = true;
 			}
 			else
 			{
@@ -315,16 +324,21 @@ OFFSET 0 LIMIT 1
 					endMarket = true;
 				}
 				if(str.startsWith("ORDER") || str.startsWith("OFFSET") || str.startsWith("GROUP") || str.startsWith("HAVING"))
+				{
 					sparql += " " + str;
+					hasFilter = true;
+				}
 				else
+				{
 					sparql += " "+str+".";
+				}
 			}
 		}
 		if(!endMarket)
 			sparql += " }";
 		
 		// (nspq.triples.size == 2) == (one triple) 
-		if(nspq.triples.size() == 2 && hasDboType == true)
+		if( ((nspq.triples.size() == 2 && hasDboType == true) || hasTwoVarTriple) && (sparql.contains("select")||sparql.contains("SELECT")) && !hasFilter && !sparql.contains("COUNT"))
 		{
 			sparql += " LIMIT 100";
 		}
@@ -370,9 +384,9 @@ OFFSET 0 LIMIT 1
 		String result = "";
 		try 
 		{
-			//·¢ËÍ POST ÇëÇó
+			//ï¿½ï¿½ï¿½ï¿½ POST ï¿½ï¿½ï¿½ï¿½
 			String uSparql;
-			uSparql = URLEncoder.encode(sparql,"gbk");
+			uSparql = URLEncoder.encode(sparql,"utf-8");
 			result = HttpRequest.sendPost("http://dbpedia.org/sparql", "default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+uSparql+"&format=application%2Fsparql-results%2Bjson&CXML_redir_for_subjs=121&CXML_redir_for_hrefs=&timeout=30000&debug=on");
 	     
 		} 
@@ -393,7 +407,7 @@ OFFSET 0 LIMIT 1
 			{
 				String result = getAnswersFromVirtuoso(spq);
 				
-				//Ñ¡ÔñµÚÒ»¸ö²éµ½½á¹ûµÄ spq£¬×÷Îª×îÖÕspq
+				//Ñ¡ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½éµ½ï¿½ï¿½ï¿½ï¿½ï¿½ spqï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½spq
 				if(qr.firstJsonAnswer == null && !result.contains("\"bindings\": [ ]"))
 					qr.firstJsonAnswer = result;
 				
@@ -408,7 +422,8 @@ OFFSET 0 LIMIT 1
 		String res = "";
 		try 
 		{
-			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(jsonOutputFile),"utf-8");
+//			File jsonOutputFile = new File(jsonOutputFilePath);
+//			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(jsonOutputFile),"utf-8");
 			JSONObject rootJson = new JSONObject();
 			JSONObject dataSetJsonObject = new JSONObject();
 			JSONArray questionsJsonArray = new JSONArray();
@@ -417,8 +432,8 @@ OFFSET 0 LIMIT 1
 			rootJson.put("questions", questionsJsonArray);
 			for(QuestionResult qr: qrList)
 			{
-				if(notResponses.contains(qr.qId))
-					continue;
+//				if(notResponses.contains(qr.qId))
+//					continue;
 					
 				JSONObject resultJsonObject = new JSONObject();
 				JSONArray answersJsonArray = new JSONArray();
@@ -433,8 +448,14 @@ OFFSET 0 LIMIT 1
 				resultJsonObject.put("answers", answersJsonArray);
 				
 				String selectedAnswerStr = qr.getSelectedJsonAnswer(selectTop2SPQs, selectTop3SPQs);
-				if(outOfScopes.contains(qr.qId) || selectedAnswerStr==null || selectedAnswerStr.equals(""))
-					continue;
+//				if(outOfScopes.contains(qr.qId) || selectedAnswerStr==null || selectedAnswerStr.equals(""))
+//					continue;
+				
+				if(selectedAnswerStr == null || selectedAnswerStr == "")
+				{
+//					fw.close();
+					return res;
+				}
 				
 				JSONObject answerJsonObject = new JSONObject(selectedAnswerStr);
 				
@@ -449,8 +470,9 @@ OFFSET 0 LIMIT 1
 			}
 			
 			res = rootJson.toString();
-			fw.write(rootJson.toString());
-			fw.close();
+			
+//			fw.write(rootJson.toString());
+//			fw.close();
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -492,6 +514,7 @@ OFFSET 0 LIMIT 1
 	{
 		try 
 		{
+			File answersFile = new File(answersFilePath);
 			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(answersFile),"utf-8");
 			
 			for(QuestionResult qr: qrList)
@@ -521,6 +544,7 @@ OFFSET 0 LIMIT 1
 	{
 		try 
 		{
+			File sparqlsFile = new File(sparqlsFilePath);
 			OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(sparqlsFile),"utf-8");
 			for(QuestionResult qr: qrList)
 			{
@@ -544,10 +568,10 @@ OFFSET 0 LIMIT 1
 	public static void main(String[] args) 
 	{
 		/*
-		 * ÔËÐÐÇ°×¢Òâ£º
-		 * 1¡¢ÐÞ¸ÄÎÄ¼þÂ·¾¶
-		 * 2¡¢×¢Òâ handwrite¡¢outOfscope¡¢noResponse µÄÊ¹ÓÃÓë·ñ¡£
-		 * 3¡¢×¢ÒâÐÞ¸Ä QuestionResult->getSelectedJsonAnswer()ÖÐ£¬¶ÔÓÚÒ»Ð©¹Ì¶¨IDµÄÑ¡Ôñ²ßÂÔ¡£
+		 * Notice:
+		 * 1. File path
+		 * 2. use/not use handwrite, outOfscope, noResponse
+		 * 3. QuestionResult->getSelectedJsonAnswer(), how to choose final SPQ
 		 * */
 		
 		StandardSparqlGeneration ssg = new StandardSparqlGeneration();

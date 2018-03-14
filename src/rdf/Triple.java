@@ -4,19 +4,19 @@ import nlp.ds.Word;
 import qa.Globals;
 
 public class Triple implements Comparable<Triple>{
-	public String subject = null;	// 经过变量分配、映射后的、能够最终输出的subject/object
+	public String subject = null;	// subject/object after disambiguation.
 	public String object = null;
 	
 	static public int TYPE_ROLE_ID = -5;
 	static public int VAR_ROLE_ID = -2;
-	static public int CAT_ROLE_ID = -8;	//Category
+	static public int CAT_ROLE_ID = -8;	// Category
 	static public String VAR_NAME = "?xxx";
 	
-	//注意，这里的subjId和objId实际值存储entity id，如果subject为type或var，对应id为TYPE_ROLE_ID或VAR_ROLE_ID
+	// subjId/objId: entity id | TYPE_ROLE_ID | VAR_ROLE_ID
 	public int subjId = -1;
 	public int objId = -1;
 	public int predicateID = -1;
-	public Word subjWord = null;
+	public Word subjWord = null;	// only be used when semRltn == null
 	public Word objWord = null;
 	
 	public SemanticRelation semRltn = null;
@@ -39,6 +39,7 @@ public class Triple implements Comparable<Triple>{
 		isSubjObjOrderPrefered = t.isSubjObjOrderPrefered;
 	}
 	
+	// A final triple (subject/object order will not changed), does not rely on semantic relation (sr == null), from one word (type variable | embedded info) 
 	public Triple (int sId, String s, int p, int oId, String o, SemanticRelation sr, double sco) {
 		subjId = sId;
 		objId = oId;
@@ -47,11 +48,10 @@ public class Triple implements Comparable<Triple>{
 		object = o;
 		semRltn = sr;
 		score = sco;
-
 	}
 
-	public Triple (int sId, String s, int p, int oId, String o,
-			SemanticRelation sr, double sco,boolean isSwap) {
+	// A triple translated from a semantic relation (subject/object order can be changed in later)
+	public Triple (int sId, String s, int p, int oId, String o, SemanticRelation sr, double sco, boolean isSwap) {
 		subjId = sId;
 		objId = oId;
 		subject = s;
@@ -62,9 +62,8 @@ public class Triple implements Comparable<Triple>{
 		isSubjObjOrderSameWithSemRltn = isSwap;
 	}
 	
-	public Triple(int sId, String s, int p, int oId, String o,
-			SemanticRelation sr, double sco, Word subj, Word obj) 
-	{
+	// A final triple (subject/object order will not changed), does not rely on semantic relation (sr == null), from two word (implicit relations of modifier)
+	public Triple(int sId, String s, int p, int oId, String o, SemanticRelation sr, double sco, Word subj, Word obj) {
 		subjId = sId;
 		objId = oId;
 		subject = s;
@@ -171,13 +170,13 @@ public class Triple implements Comparable<Triple>{
 			return !subject.startsWith("?");
 		}
 		else {
-			// 这是正统抽取得到的triple，从semantic relation得来
+			// Triple from semantic (obvious) relation 
 			if(semRltn != null)
 			{
 				if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg1Constant;
 				else return semRltn.isArg2Constant;
 			}
-			// 这是implicit relation得来，没有semantic relation；由implicit relation出来就已经是最终版triple，即已经定好顺序
+			// Triple from implicit relation (no semantic relation), it is final triple
 			else
 			{
 				if(subjId != Triple.VAR_ROLE_ID && subjId != Triple.TYPE_ROLE_ID)
@@ -193,13 +192,11 @@ public class Triple implements Comparable<Triple>{
 			return !object.startsWith("?");
 		}
 		else {
-			// 这是正统抽取得到的triple，从semantic relation得来
 			if(semRltn != null)
 			{
 				if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg2Constant;
 				else return semRltn.isArg1Constant;
 			}
-			// 这是implicit relation得来，没有semantic relation；由implicit relation出来就已经是最终版triple，即已经定好顺序
 			else
 			{
 				if(objId != Triple.VAR_ROLE_ID && objId != Triple.TYPE_ROLE_ID)
@@ -210,9 +207,32 @@ public class Triple implements Comparable<Triple>{
 		}
 	}
 	
-	public int compareTo(Triple o) {
-		// TODO Auto-generated method stub
-		return 0;
+	public int compareTo(Triple o) 
+	{
+		//Order: Type, Ent&Ent, Ent&Var, Var&Var
+		if(this.predicateID == Globals.pd.typePredicateID)
+		{
+			if(o.predicateID == Globals.pd.typePredicateID)
+				return 0;
+			else
+				return -1;
+		}
+		int cnt1 = 0, cnt2 = 0;
+		if(!this.subject.startsWith("?"))
+			cnt1++;
+		if(!this.object.startsWith("?"))
+			cnt1++;
+		if(!o.subject.startsWith("?"))
+			cnt2++;
+		if(!o.object.startsWith("?"))
+			cnt2++;
+		
+		if(cnt1 == cnt2)
+			return 0;
+		else if(cnt1 > cnt2)
+			return -1;
+		else
+			return 1;
 	}
 	
 	public void swapSubjObjOrder() {		

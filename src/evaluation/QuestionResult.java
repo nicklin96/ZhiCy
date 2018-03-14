@@ -26,7 +26,7 @@ public class QuestionResult
 		if(jsonAnswerList.size() == 0)
 			return null;
 		
-		if(jsonAnswerList.size() > 1 && selectTop2SPQs.contains(qId))
+		if(jsonAnswerList.size() > 1 && (selectTop2SPQs.contains(qId) || question.toLowerCase().contains("how many awards")))
 			return jsonAnswerList.get(1);
 	
 		if(jsonAnswerList.size() > 2 && selectTop3SPQs.contains(qId))

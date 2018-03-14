@@ -15,10 +15,8 @@ import fgmt.TypeFragment;
 import fgmt.VariableFragment;
 
 /**
- * ×¢Òâ£ºÒ»¸öcompatiblityCheckerÖ»ÄÜÓÃÀ´checkÒ»¸ösparql£¬²»ÒªÖØ¸´Ê¹ÓÃ£¡£¡
- * 
+ * Notice: one compatiblityChecker can be only used once to check a SPARQL.
  * @author husen
- *
  */
 public class CompatibilityChecker {
 	
@@ -31,215 +29,11 @@ public class CompatibilityChecker {
 		variable_fragment = new HashMap<String, VariableFragment>();
 	}
 
-	// Õâ¸öº¯ÊıÊµ¼ÊÃ»ÓĞ±»µ÷ÓÃ  ¡ª¡ª ºúÉ­
-	// TODO: sparqlÖĞÖ»ÒªÓĞ³¬¹ı80%µÄtripleÊÇcompatibleµÄ¼´¿É£¬²»compatibleµÄtriple¿ÉÒÔÉ¾³ı
-	public boolean isSparqlCompatible (Sparql spq) {
-		boolean[] swapped = new boolean[spq.tripleList.size()];	// ¼ÇÂ¼Ä³¸ötripleµÄsubjectºÍobjectË³ĞòÊÇ·ñ½»»»¹ı£¬Èç¹û½»»»¹ı£¬Ôò²»ÄÜ½»»»µÚ¶ş´Î£¨ÎÒÒ²²»ÖªµÀÕâÑù×ö¶Ô²»¶Ô¡£¡£¡££©
-		boolean[] isFixed = new boolean[spq.tripleList.size()];	// ¼ÇÂ¼Ä³¸ötripleµÄcompatibilityÊÇ·ñÒÑ¾­¹Ì¶¨²»±ä£¬²»ĞèÒªÖØĞÂ¼ì²é
-		for (int i = 0; i < spq.tripleList.size(); i ++) {
-			swapped[i] = isFixed[i] = false;
-		}
-
-		Iterator<Triple> it;
-		boolean shouldContinue = true;
-		while (shouldContinue) {
-			shouldContinue = false;
-			it = spq.tripleList.iterator();
-			int t_cnt = 0;
-			while (it.hasNext()) {
-				Triple t = it.next();
-				switch (getTripleType(t)) {
-				case 1:	// (1) E1, P, E2
-					if (!isFixed[t_cnt]) {
-						int ret = check1_E1PE2(t);
-						if (ret == 0) {
-							isFixed[t_cnt] = true;
-						}
-						else if (ret == 5 && !swapped[t_cnt]) {
-							swapTriple(t);
-							swapped[t_cnt] = true;
-							//shouldContinue = true;
-							ret = check1_E1PE2(t);
-							if (ret == 0) {
-								isFixed[t_cnt] = true;								
-							}
-							else {
-								return false;
-							}
-						}
-					}
-					break;
-				case 2:	// (2) E,  P, V
-					int ret = check2_EPV(t);
-					if (ret == 5 && !swapped[t_cnt]) {
-						variable_fragment.remove(t.object);
-						swapTriple(t);
-						swapped[t_cnt] = true;
-						shouldContinue = true;
-						ret = check4_VPE(t);
-						if (ret == 5) return false;
-					}
-					else if (ret == 1) {
-						shouldContinue = true;
-					}
-					break;
-				case 3:	// (3) E,  <type1>, T
-					if (!isFixed[t_cnt]) {
-						ret = check3_Etype1T(t);
-						if (ret == -2) return false;
-						if (ret == 0) isFixed[t_cnt] = true;
-					}
-					break;
-				case 4:	// (4) V,  P, E
-					ret = check4_VPE(t);
-					if (ret == 5 && !swapped[t_cnt]) {
-						variable_fragment.remove(t.subject);
-						swapTriple(t);
-						swapped[t_cnt] = true;
-						shouldContinue = true;
-						ret = check2_EPV(t);
-						if (ret == 5) return false;
-					}
-					else if (ret == 1) {
-						shouldContinue = true;
-					}
-					break;
-				case 5:	// (5) V1, P, V2
-					ret = check5_V1PV2(t);
-					if (ret == 5 && !swapped[t_cnt]) {
-						variable_fragment.remove(t.subject);
-						variable_fragment.remove(t.object);
-						swapTriple(t);
-						swapped[t_cnt] = true;
-						shouldContinue = true;
-						ret = check5_V1PV2(t);
-						if (ret == 5) return false;						
-					}
-					else if (ret == 1) {
-						shouldContinue = true;
-					}
-					break;
-				case 6:	// (6) V,  <type1>, T
-					ret = check6_Vtype1T(t);
-					if (ret == -2) return false;
-					if (ret == 0) isFixed[t_cnt] = true;
-					break;
-				case 7:
-					// do nothing
-					break;
-
-				default:
-					break;
-				}
-				t_cnt ++;
-			}
-		}
-		return true;
-	}
-	
-	// ÔËĞĞÕâ¸öº¯ÊıÊ±£¬ÒÑ¾­Í¨¹ıÁËµÚÒ»²½ËéÆ¬¼ìÑé£¨¼´single triple check£¬¡±³öÈë±ß¼ìÑé¡°£© ¡ª¡ª husen
-	// ÔÚÕâÀïÃæ£¬²»»á¸Ä±äspq£¬Ò²¾ÍÊÇËµ£¬Èç¹ûspqµÄÖ÷±öË³Ğò²»¶Ô£¬ÕâÀïÃæÊÇ²»¹ÜµÄ£¬·µ»Øfalse½»¸øÍâÃæ
-	// multi-triple check£¬´ËÊ±¹Ì¶¨entityºÍpredicate£»varible fragmentÊÇtypes¼¯ºÏ£¨¶ø²»ÊÇentity¼¯ºÏ£©£»
-	// Õâ¸öº¯ÊıÕ¼ÁËtop-k joinµÄ99%µÄÊ±¼ä
-	public boolean isSparqlCompatible2 (Sparql spq) {
-		boolean[] isFixed = new boolean[spq.tripleList.size()];	// ¼ÇÂ¼Ä³¸ötripleµÄcompatibilityÊÇ·ñÒÑ¾­¹Ì¶¨²»±ä£¬²»ĞèÒªÖØĞÂ¼ì²é
-		for (int i = 0; i < spq.tripleList.size(); i ++) {
-			isFixed[i] = false;
-		}
-		
-		//System.out.println("tripleList size="+spq.tripleList.size());
-		Iterator<Triple> it;
-		boolean shouldContinue = true;
-		// shouldContinueÊµ¼ÊÊÇÔÚÅĞ¶ÏÄ³Ò»¸ö´øvariableµÄtripleÊ±£¬¸üĞÂÁËvariable fragment£¬¼´¸üĞÂÁË[Ä³¸öÒÑ¾­¹ı¼ì²âµÄvar]µÄ¿ÉÄÜtypes£¬ÕâÑùĞèÒª°´ÕÕĞÂµÄvf´ÓÍ·¼ìÑésparql  
-		while (shouldContinue) {
-			shouldContinue = false;
-			it = spq.tripleList.iterator();
-			int t_cnt = 0;
-			while (it.hasNext()) {
-				Triple t = it.next();
-				
-				//debug..
-				//System.out.println("tripleType:"+t+" "+getTripleType(t));
-				
-				switch (getTripleType(t)) {	
-				//Ã»ÒâÒå£¬ÀïÃæÊÇÅĞ¶Ï¡±e1³ö±ßÓĞp¡°ºÍ¡±e2Èë±ßÓĞp¡°ºÍ¡±PµÄ³öÈëtypes¼¯ºÏÓëE1E2µÄtypes¼¯ºÏÍêÈ«ÏàµÈ¡°¡£¶¼Âú×ãÊÇ0£¬·ñÔòÊÇ5¡£ĞÂ°æ±¾Ö±½Ó¼ì²âE1Ò»²½ÁÚ¾Ó¼´¿É¡£ 
-				case 1:	// (1) E1, P, E2	
-					if (!isFixed[t_cnt]) {
-						int ret = check1_E1PE2(t);
-						if (ret == 0) {
-							isFixed[t_cnt] = true;
-						}
-						else if (ret == 5) {
-							return false;
-						}
-					}
-					break;
-				case 2:	// (2) E,  P, V
-					int ret = check2_EPV(t);
-					if (ret == 5) {
-						return false;
-					}
-					else if (ret == 1) {
-						shouldContinue = true;
-					}
-					break;
-				case 3:	// (3) E,  <type1>, T
-					if (!isFixed[t_cnt]) {
-						ret = check3_Etype1T(t);
-						if (ret == -2) return false;
-						if (ret == 0) isFixed[t_cnt] = true;
-					}
-					break;
-				case 4:	// (4) V,  P, E 
-					ret = check4_VPE(t);					
-					if (ret == 5) {
-						return false;
-					}
-					else if (ret == 1) {
-						shouldContinue = true;
-					}
-					break;
-				case 5:	// (5) V1, P, V2
-					ret = check5_V1PV2(t);
-					if (ret == 5) {
-						return false;						
-					}
-					else if (ret == 1) {
-						shouldContinue = true;
-					}
-					break;
-				case 6:	// (6) V,  <type1>, T
-					if (!isFixed[t_cnt]) {
-						ret = check6_Vtype1T(t);
-						if (ret == -2) return false;
-						if (ret == 0) isFixed[t_cnt] = true;
-						//ÕâÀïshouldContinue=1ÊÇVµÄtypeĞÅÏ¢¸üĞÂ¿ÉÄÜÓ°ÏìÆäËûtripleµÄÅĞ¶Ï£»fixed=1ÊÇÒòÎª V type TµÄtripleÖ»ĞèÒª¼ì²âÒ»±é
-						if (ret == 1) {
-							isFixed[t_cnt] = true;
-							shouldContinue = true;
-						}
-					}
-					break;
-				case 7:
-					// do nothing
-					break;
-				case 8:
-				default:
-					return false;
-				}
-				t_cnt ++;
-			}
-		}
-		return true;
-	}
-
-
-	// ÔËĞĞÕâ¸öº¯ÊıÊ±£¬ÒÑ¾­Í¨¹ıÁËµÚÒ»²½ËéÆ¬¼ìÑé£¨¼´single triple check£¬¡±³öÈë±ß¼ìÑé¡°£© ¡ª¡ª husen
-	// ÒòÎªisSparqlCompatible2¶ÔÓÚ3ÌõtripleµÄ´¦ÀíÂıµ½1·ÖÖÓÒÔÉÏ£¬ËùÒÔÖØĞÂÊµÏÖ
-	// variable ½«ÂäÊµµ½ entity£¬ÒÀÀµÓÚ½«entity¼°ÁÚ¾Ó±àÂë·ÅÈëÄÚ´æ£»×¢Òâ variable ÎªliteralÊ±µÄÇé¿ö
+	// Run this check function after pass "single triple check" (recoded)
+	// Recoded: variable will find suitable entities, depend on the inMemory INDEX. Notice when variable = literal
 	public boolean isSparqlCompatible3 (Sparql spq) 
 	{
-		boolean[] isFixed = new boolean[spq.tripleList.size()];	// ¼ÇÂ¼Ä³¸ötripleµÄcompatibilityÊÇ·ñÒÑ¾­¹Ì¶¨²»±ä£¬²»ĞèÒªÖØĞÂ¼ì²é
+		boolean[] isFixed = new boolean[spq.tripleList.size()];	// record triple's compatibility whether need check
 		for (int i = 0; i < spq.tripleList.size(); i ++) {
 			isFixed[i] = false;
 		}
@@ -247,8 +41,7 @@ public class CompatibilityChecker {
 		//System.out.println("tripleList size="+spq.tripleList.size());
 		Iterator<Triple> it;
 		boolean shouldContinue = true;
-		// shouldContinueÊµ¼ÊÊÇÔÚÅĞ¶ÏÄ³Ò»¸ö´øvariableµÄtripleÊ±£¬¸üĞÂÁËvariable fragment£¬¼´¸üĞÂÁË[Ä³¸öÒÑ¾­¹ı¼ì²âµÄvar]µÄ¿ÉÄÜtypes£¬ÕâÑùĞèÒª°´ÕÕĞÂµÄvf´ÓÍ·¼ìÑésparql  
-		// ÎªÉ¶ĞèÒªÖØĞÂ¼ìÑé°¡£¿Ã¿´Îjoin²»ÊÇÈÃºòÑ¡¼¯ºÏ¼õÉÙµÄÂğ£¬ºÃÏñÒ»ÂÖ¾Í¹»ÁË°É£»ÏÖÔÚtestÒ»ÂÖ²»ÖØĞÂ¼ìÑéµÄĞ§¹û
+		// shouldContinue when: triple with variables updates variable fragment, then use updated variable fragment check the previous triples
 		while (shouldContinue) 
 		{
 			shouldContinue = false;
@@ -257,11 +50,7 @@ public class CompatibilityChecker {
 			while (it.hasNext()) {
 				Triple t = it.next();
 				
-				//debug..
-				//System.out.println("tripleType:"+t+" "+getTripleType(t));
-				
 				switch (getTripleType(t)) {	
-				//Ã»ÒâÒå£¬ÀïÃæÊÇÅĞ¶Ï¡±e1³ö±ßÓĞp¡°ºÍ¡±e2Èë±ßÓĞp¡°ºÍ¡±PµÄ³öÈëtypes¼¯ºÏÓëE1E2µÄtypes¼¯ºÏÍêÈ«ÏàµÈ¡°¡£¶¼Âú×ãÊÇ0£¬·ñÔòÊÇ5¡£ĞÂ°æ±¾Ö±½Ó¼ì²âE1Ò»²½ÁÚ¾Ó¼´¿É¡£ 
 				case 1:	// (1) E1, P, E2	
 					if (!isFixed[t_cnt]) 
 					{
@@ -280,7 +69,7 @@ public class CompatibilityChecker {
 							return false;
 						else 
 						{
-							isFixed[t_cnt] = true;	// ´ËÊ± V ÒÑÈ·¶¨ entities »ò literal£¬×¢Òâ È·¶¨µÄEºÍPµÃµ½µÄV ²»Ò»¶¨Î¨Ò»£¬Èç ¡±xxµÄstarring¡°ÓĞºÜ¶à 
+							isFixed[t_cnt] = true;	// Now V has set entities or literal; notice E/P->V maybe not unique, eg, xx's starring 
 							if (ret == 1) 
 								shouldContinue = true;
 						}
@@ -302,21 +91,21 @@ public class CompatibilityChecker {
 							return false;
 						else 
 						{
-							isFixed[t_cnt] = true;	// ´ËÊ± V ÒÑÈ·¶¨ entities »ò literal£¬×¢Òâ È·¶¨µÄEºÍPµÃµ½µÄV ²»Ò»¶¨Î¨Ò»£¬Èç ¡±xxµÄstarring¡°ÓĞºÜ¶à 
+							isFixed[t_cnt] = true; // Now V has set entities or literal; notice E/P->V maybe not unique, eg, xx's starring 
 							if (ret == 1) 
 								shouldContinue = true;
 						}
 					}
 					break;
-				case 5:	// (5) V1, P, V2	(×îÖØÒª£¬×îºÄÊ±)
+				case 5:	// (5) V1, P, V2 (The most important and time consuming)
 					if(!isFixed[t_cnt])
 					{
-						int ret = hs_check5_V1PV2(t);
+						int ret = hs_check5_V1PV2(t); 
 						if (ret == 5)
 							return false;
 						else 
 						{
-							isFixed[t_cnt] = true;	// ÔİÈÏÎª V1 ºÍ V2 Ò»´Î¼´¿ÉÈ·¶¨cands£¬²»ÔÙÖØ¸´
+							isFixed[t_cnt] = true;	// Just set once and no re-check 
 							if (ret == 1) 
 								shouldContinue = true;
 						}
@@ -349,18 +138,18 @@ public class CompatibilityChecker {
 	}
 	
 	/**
-	 * »ñÈ¡TripleÀàĞÍ£¬¶Ô²»Í¬ÀàĞÍµÄtriple·ÖÀàÌÖÂÛ
+	 * Get Triple's category
 	 * (1) E1, P, E2
 	 * (2) E,  P, V
-	 * (3) E,  <type1>, T
+	 * (3) E,  <type>, T
 	 * (4) V,  P, E
 	 * (5) V1, P, V2
-	 * (6) V,  <type1>, T
-	 * (7) E,  <type1>, V
+	 * (6) V,  <type>, T
+	 * (7) E,  <type>, V
 	 * (8) error
 	 * 
 	 * E: Entity
-	 * P: Predicate (³ı<type1>ÒÔÍâ)
+	 * P: Predicate (exclude <type>)
 	 * V: Variable
 	 * T: Type
 	 * 
@@ -392,17 +181,17 @@ public class CompatibilityChecker {
 		EntityFragment E1 = efd.getEntityFragmentByEid(t.subjId);
 		EntityFragment E2 = efd.getEntityFragmentByEid(t.objId);
 		
-		// P ¡Ê E1.outEdges
+		// P âˆˆ E1.outEdges
 		if (Collections.disjoint(pidList, E1.outEdges)) {
 			return 5;
 		}
 		
-		// P ¡Ê E2.inEdges
+		// P âˆˆ E2.inEdges
 		if (Collections.disjoint(pidList, E2.inEdges)) {
 			return 5;
 		}
 
-		// E1ºÍE2µÄtypes, »¹ÒªÓëPµÄÒ»¸öFragmentÁ½¶ËµÄtypes¡°Í¬Ê±¡±ÏàµÈ
+		// E1 & E2 's types, equal types with one of p's fragment's nodes
 		Iterator<Integer> it_int = pidList.iterator();
 		while (it_int.hasNext()) {
 			Integer i = it_int.next();
@@ -411,7 +200,7 @@ public class CompatibilityChecker {
 			while (it_rln.hasNext()) {
 				RelationFragment rf = it_rln.next();
 				if (rf.inTypes.containsAll(E1.types) && E1.types.containsAll(rf.inTypes) 
-						&& rf.outTypes.containsAll(E2.types) && E2.types.containsAll(rf.outTypes)) {	// Ğ¡ĞÄÕâÀïÊÇcontainsAllÀ´ÅĞ¶Ï¼¯ºÏÏàµÈ
+						&& rf.outTypes.containsAll(E2.types) && E2.types.containsAll(rf.outTypes)) {	// containsAll judge set equality
 					return 0;
 				}
 			}
@@ -426,7 +215,7 @@ public class CompatibilityChecker {
 		EntityFragment E1 = efd.getEntityFragmentByEid(t.subjId);
 		EntityFragment E2 = efd.getEntityFragmentByEid(t.objId);
 
-		// E2 ÊÇ E1 µÄÒ»²½ÁÚ¾Ó£¬²¢ÇÒ¾­¹ı Î½´Êp
+		// E2 is E1's one depth neighbor, connected with predicate "p"
 		if(E1.outEntMap.containsKey(E2.eId))
 		{
 			ArrayList<Integer> pList = E1.outEntMap.get(E2.eId);
@@ -443,14 +232,14 @@ public class CompatibilityChecker {
 		EntityFragment E = efd.getEntityFragmentByEid(t.subjId);
 		VariableFragment V = variable_fragment.get(t.object);
 		
-		// P ¡Ê E.outEdges
+		// P âˆˆ E.outEdges
 		if (Collections.disjoint(pidList, E.outEdges)) {
 			return 5;
 		}
 
-		// P ¡Ê V.inEdges // ²»ĞèÒª¼ì²é£¬ÒòÎªËüµÈ¼ÛÓÚÏÂÃæÒ»²½µÄ¼ì²é
+		// P âˆˆ V.inEdges // just equivalent with the following checking
 
-		// EºÍVµÄtypes, ÒªÓëPµÄÒ»¸öFragmentÁ½¶ËµÄtypes¡°Í¬Ê±¡±ÏàµÈ
+		// E1 & E2 's types, equal types with one of p's fragment's nodes
 		Iterator<Integer> it_int = pidList.iterator();
 		ArrayList<HashSet<Integer>> newCandTypes = new ArrayList<HashSet<Integer>>();
 		while (it_int.hasNext()) {
@@ -494,12 +283,12 @@ public class CompatibilityChecker {
 		EntityFragment E = efd.getEntityFragmentByEid(t.subjId);
 		VariableFragment V = variable_fragment.get(t.object);
 		
-		// P ¡Ê E.outEdges
+		// P âˆˆ E.outEdges
 		if (!E.outEdges.contains(pid)) {
 			return 5;
 		}
 
-		// È·¶¨ V £¬×¢Òâ¿ÉÄÜÊÇ literal
+		// Set V, notice maybe literal
 		if(V == null)
 		{
 			variable_fragment.put(t.object, new VariableFragment());
@@ -511,7 +300,7 @@ public class CompatibilityChecker {
 					V.candEntities.add(vid);
 				}
 			}
-			// EµÄoutEdgesÖĞÓĞp£¬µ«ÊÇÍ¨¹ıpÕÒ²»µ½ÁÚ¾Óent£¬ÄÇÃ´V¿ÉÄÜÊÇliteral
+			// E's outEdges contain p, but cannot find neighbor ENT by pï¼Œ then V maybe literal
 			if(V.candEntities.size() == 0)
 			{
 				V.mayLiteral = true;
@@ -520,11 +309,11 @@ public class CompatibilityChecker {
 		}
 		else	
 		{
-			//Èç¹û V ÊÇliteral£¬Ö±½ÓÈÏÎª¿ÉĞĞ£¬ÒòÎªfragmentÖĞÎ´´æ´¢literalĞÅÏ¢¶øÎŞ·¨½øÒ»²½ÅĞ¶Ï
+			// just okay if V is literal, because fragment has not stored the literal information
 			if(V.mayLiteral)
 				return 0;
 			
-			// Í¨¹ıµ±Ç°EµÄÁÚ¾Óent¸üĞÂVµÄbinding£¬¾¡Á¿Ìá¸ßĞ§ÂÊ
+			// Update V's binding by current neighbor of E
 			HashSet<Integer> newCandEntities = new HashSet<Integer>();
 			if(V.candEntities.size() > 0 && V.candEntities.size() < E.outEntMap.size())
 			{
@@ -556,7 +345,7 @@ public class CompatibilityChecker {
 	}
 	
 	public int check3_Etype1T(Triple t) {
-		String[] T = t.object.split("\\|");	// ×¢Òâ"|"ĞèÒª×ªÒå
+		String[] T = t.object.split("\\|");	// ×¢ï¿½ï¿½"|"ï¿½ï¿½Òª×ªï¿½ï¿½
 		EntityFragment E = efd.getEntityFragmentByEid(t.subjId);
 
 		String newTypeString = "";
@@ -590,14 +379,14 @@ public class CompatibilityChecker {
 		VariableFragment V = variable_fragment.get(t.subject);
 		EntityFragment E = efd.getEntityFragmentByEid(t.objId);
 		
-		// P ¡Ê E.inEdges 
+		// P âˆˆ E.inEdges 
 		if (Collections.disjoint(pidList, E.inEdges)) {
 			return 5;
 		}
 
-		// P ¡Ê V.outEdges // ²»ĞèÒª¼ì²é£¬ÒòÎªËüµÈ¼ÛÓÚÏÂÃæÒ»²½µÄ¼ì²é   // ºÜºÃÆæÔõÃ´¼ì²é ±äÁ¿ µÄ³ö±ß by husen
+		// P âˆˆ V.outEdges
 
-		// VºÍEµÄtypes, ÒªÓëPµÄÒ»¸öFragmentÁ½¶ËµÄtypes¡°Í¬Ê±¡±ÏàµÈ   
+		// V & E 's types, equal types with one of p's fragment's nodes
 		Iterator<Integer> it_int = pidList.iterator();
 		ArrayList<HashSet<Integer>> newCandTypes = new ArrayList<HashSet<Integer>>();
 		while (it_int.hasNext()) {
@@ -639,25 +428,27 @@ public class CompatibilityChecker {
 		int pid = t.predicateID;
 		EntityFragment E = efd.getEntityFragmentByEid(t.objId);
 		VariableFragment V = variable_fragment.get(t.subject);
-		
-		// P ¡Ê E.inEdges
+		TypeFragment subjTf = SemanticItemMapping.getTypeFragmentByWord(t.getSubjectWord());
+				
+		// P âˆˆ E.inEdges
 		if (!E.inEdges.contains(pid)) {
 			return 5;
 		}
 
-		// È·¶¨ V £¬×¢Òâ V ²»¿ÉÄÜÊÇ literal£¬ÒòÎª´ËÊ± V ÊÇsubject
+		// Set V, notice V cannot be literal, because now V is subject
 		if(V == null)
 		{
 			variable_fragment.put(t.subject, new VariableFragment());
 			V = variable_fragment.get(t.subject);
+			
 			for(int vid: E.inEntMap.keySet())
 			{
-				if(E.inEntMap.get(vid).contains(pid))
+				if(E.inEntMap.get(vid).contains(pid) && (subjTf == null || subjTf.entSet.contains(vid)))
 				{
 					V.candEntities.add(vid);
 				}
 			}
-			// EµÄinEdgesÖĞÓĞp£¬µ«ÊÇÍ¨¹ıpÕÒ²»µ½ÁÚ¾Óent£¬´ËÊ±VÊÇsubject²»¿ÉÄÜÊÇliteral£¬ËùÒÔÆ¥ÅäÊ§°Ü
+			// E's inEdges contain p, but cannot find neighbor ENT by p, now V is subject and cannot be literal, so match fail
 			if(V.candEntities.size() == 0)
 			{
 				return 5;
@@ -665,11 +456,11 @@ public class CompatibilityChecker {
 		}
 		else	
 		{
-			//Èç¹û V ÊÇliteral£¬Ö±½ÓÈÏÎª´íÎó£¬ÒòÎªsubject ²»¿ÉÄÜÎª literal
+			// if V is literal, fail because subject cannot be literal
 			if(V.mayLiteral)
 				return 5;
 			
-			// Í¨¹ıµ±Ç°EµÄÁÚ¾Óent¸üĞÂVµÄbinding£¬¾¡Á¿Ìá¸ßĞ§ÂÊ
+			// update V's binding by current E's neighbors
 			HashSet<Integer> newCandEntities = new HashSet<Integer>();
 			if(V.candEntities.size() > 0 && V.candEntities.size() < E.inEntMap.size())
 			{
@@ -706,7 +497,7 @@ public class CompatibilityChecker {
 		VariableFragment V1 = variable_fragment.get(t.subject);
 		VariableFragment V2 = variable_fragment.get(t.object);
 		
-		// V1ºÍV2µÄtypes, ÒªÓëPµÄÒ»¸öFragmentÁ½¶ËµÄtypes¡°Í¬Ê±¡±ÏàµÈ
+		// V1 & V2's types, equal with types of one fragment of P
 		Iterator<Integer> it_int = pidList.iterator();
 		ArrayList<HashSet<Integer>> newCandTypes1 = new ArrayList<HashSet<Integer>>();
 		ArrayList<HashSet<Integer>> newCandTypes2 = new ArrayList<HashSet<Integer>>();
@@ -741,7 +532,6 @@ public class CompatibilityChecker {
 				}
 			}
 		}		
-
 		
 		if (newCandTypes1.size() > 0 && newCandTypes2.size() > 0) {
 			if (V1 == null && V2 == null) {
@@ -790,16 +580,14 @@ public class CompatibilityChecker {
 		VariableFragment V1 = variable_fragment.get(t.subject);
 		VariableFragment V2 = variable_fragment.get(t.object);
 		
-		if(V1 == null && V2 == null)	// ×îÔã¸âµÄÇé¿ö£¬µ±Ç°relation fragmentÃ»ÓĞ¼ÇÂ¼Á½¶Ëentities£¬Èô²»ÒÀÀµtypesÔòÎŞ·¨check£»ËùÒÔÓ¦µ±°Ñ´ËÀàtriple·ÅÔÚ×îºó
+		if(V1 == null && V2 == null)	// The WORST case, current relation fragment has no records of two target entities, cannot check without types, so we should put this triple in the end
 		{
-			return 0;	//Êµ¼ÊÓ¦¸Ã·µ»Ø1£¬ÆÚ´ı¸Ã´Îµü´úºóĞøµÄtripleÎªV1,V2Ìá¹©cands£¬ÏÂÒ»ÂÖÊ±¸Ãtriple¼´¿ÉÆğµ½check×÷ÓÃ
+			return 0;	// in fact should return 1, just expect the unchecked triples can provide candidates of V1,V2 then can check in the next turn 
 		}
 		else if(V2 == null)
 		{
 			if(V1.mayLiteral)
 				return 5;
-			if(RelationFragment.isLiteral(pid))
-				return 0;
 			
 			variable_fragment.put(t.object, new VariableFragment());
 			V2 = variable_fragment.get(t.object);
@@ -814,6 +602,7 @@ public class CompatibilityChecker {
 				EntityFragment E = efd.getEntityFragmentByEid(v1id);
 				if(E != null && E.outEdges.contains(pid))
 				{
+					newV1cands.add(v1id);
 					for(int v2id: E.outEntMap.keySet())
 					{
 						if(E.outEntMap.get(v2id).contains(pid))
@@ -855,7 +644,7 @@ public class CompatibilityChecker {
 		{
 			if(V1.mayLiteral)
 				return 5;
-			if(V2.mayLiteral || RelationFragment.isLiteral(pid))	//Õâ¸öÆäÊµ²»Ò»¶¨£¬Èç¹ûV1²»·ûºÏ³ö±ßcheck£¬Ò²Ó¦¸Ã·µ»Ø5£¬ÍµÀÁ
+			if(V2.mayLiteral)
 				return 0;
 			
 			HashSet<Integer> newV1cands = new HashSet<Integer>();
@@ -901,7 +690,7 @@ public class CompatibilityChecker {
 	
 	public int check6_Vtype1T(Triple t) {
 		
-		String[] T = t.object.split("\\|");	// ×¢Òâ"|"ĞèÒª×ªÒå
+		String[] T = t.object.split("\\|");	// notice "|" need "\\|"
 		VariableFragment V = variable_fragment.get(t.subject);
 
 		String newTypeString = "";
@@ -915,14 +704,14 @@ public class CompatibilityChecker {
 		{
 			contained = false;
 			
-			//yago typeµÈÎ´±àºÅµÄtype£¬Åöµ½ºóÖ±½ÓÍË³ö£¬²»È»ºóÃæ»áÒì³£ |ÕâÀï·µ»Ø0ÊÇ±£ÁôÕâÌõtypeÈıÔª×é£¬·µ»Ø-2ÊÇÉ¾³ı husen
+			//YAGO type (uncoded types), just return because we have no INDEX to check it
 			if(!TypeFragment.typeShortName2IdList.containsKey(s))
 				return 0;
 			
 			for (Integer i : TypeFragment.typeShortName2IdList.get(s)) 
 			{
 				if (V == null) {
-					// Í¨¹ıÓÃ»§¸ø¶¨µÄtypeĞÅÏ¢À´ÏŞÖÆV,ÓÉÓÚVµÄtype²»Ò»¶¨ÍêÈ«,Òò´Ë²ÉÓÃÌØÊâ¼ÇºÅ±ê¼Ç
+					// constraint V by user given types, flag it due to possible incomplete type
 					HashSet<Integer> set = new HashSet<Integer>();
 					set.add(i);
 					set.add(VariableFragment.magic_number);
@@ -952,7 +741,7 @@ public class CompatibilityChecker {
 			while(it.hasNext()) {
 				HashSet<Integer> set = it.next();
 				boolean isCandTypeOkay = false;
-				//v Í¨¹ıÆäËûtripleµÃÀ´µÄ nÖÖ¡¾ÏŞÖÆtypes¡¿ ÖĞ£¬ÖÁÉÙ°üº¬Ò»¸öTÖĞtypeµÄ¡¾ÏŞÖÆtypes¡¿¿ÉÒÔ±£Áô£¬·ñÔòÉ¾È¥¸Ã¡¾ÏŞÖÆtypes¡¿
+				//v get [constraint types] through other triples, at least one type can reserve, otherwise delete the [constriant types]
 				for (String s : T) 
 				{
 					for (Integer i : TypeFragment.typeShortName2IdList.get(s)) {
@@ -988,13 +777,12 @@ public class CompatibilityChecker {
 
 	public int hs_check6_Vtype1T(Triple t) 
 	{
-		String[] tList = t.object.split("\\|");	// ×¢Òâ"|"ĞèÒª×ªÒå
+		String[] tList = t.object.split("\\|");	// ×¢ï¿½ï¿½"|"ï¿½ï¿½Òª×ªï¿½ï¿½
 		VariableFragment V = variable_fragment.get(t.subject);
 
 		if (tList.length == 0) return -2;
 		
-		// ¼ò»¯£¬Ö»¿¼ÂÇµÚÒ»¸ötype
-		// yago typeµÈÎ´±àºÅµÄtype£¬Åöµ½ºóÖ±½ÓÍË³ö£¬²»È»ºóÃæ»áÒì³£ |ÕâÀï·µ»Ø0ÊÇ±£ÁôÕâÌõtypeÈıÔª×é£¬·µ»Ø-2ÊÇÉ¾³ı husen
+		// Simplify, only consider the first one
 		if(!TypeFragment.typeShortName2IdList.containsKey(tList[0]))
 			return 0;
 		
@@ -1008,7 +796,7 @@ public class CompatibilityChecker {
 		}
 		else
 		{
-			if(V.mayLiteral)	//literal×ösubjectÓÖÓĞtype£¬Õ¦¿ÉÄÜ
+			if(V.mayLiteral)	//literal cannot be subject
 				return -2;
 			
 			HashSet<Integer> newVcands = new HashSet<Integer>();

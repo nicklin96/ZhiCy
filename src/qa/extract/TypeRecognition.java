@@ -8,44 +8,40 @@ import java.util.HashMap;
 
 import nlp.ds.Word;
 import nlp.tool.StopWordsList;
-import fgmt.RelationFragment;
+//import fgmt.RelationFragment;
 import fgmt.TypeFragment;
 import lcn.SearchInTypeShortName;
 import log.QueryLogger;
 import qa.Globals;
+import rdf.PredicateMapping;
 import rdf.SemanticRelation;
 import rdf.Triple;
 import rdf.TypeMapping;
 
 /*
  * 2016-6-17
- * 1、识别type，包括yago type；
- * 2、手动添加一些type对应，如“USState"-"yago:StatesOfTheUnitedStates"；
- * 3、开始加入一些extend variable，即【自带type的变量】的general版本，【自带triple的变量】；目前主要为形如  ?canadian <birthPlace> <Canada>
+ * 1. Recognize types (include YAGO type)
+ * 2銆丄dd some type mapping manually, eg, "US State"-"yago:StatesOfTheUnitedStates"
+ * 3銆丄dd some extend variable, (generalization of [variable with inherit type] -> [variable with inherit triples]) eg, ?canadian <birthPlace> <Canada>
  * */
 public class TypeRecognition {
-	// dbpedia3.9
-//	public static final int[] type_Person = {19,20,21};
-//	public static final int[] type_Place = {43,45};
-//	public static final int[] type_Organisation = {2,12};	
-	
 	// dbpedia 2014
 	public static final int[] type_Person = {180,279};
 	public static final int[] type_Place = {49,228};
 	public static final int[] type_Organisation = {419,53};
 	
-	public HashMap<String, String> extendTypeMap = null; 
-	public HashMap<String, Triple> extendVariableMap = null;
+	public static HashMap<String, String> extendTypeMap = null; 
+	public static HashMap<String, Triple> extendVariableMap = null;
 	
 	SearchInTypeShortName st = new SearchInTypeShortName();
 	
-	public TypeRecognition()
+	static
 	{
 		extendTypeMap = new HashMap<String, String>();
 		extendVariableMap = new HashMap<String, Triple>();
 		Triple triple = null;
 		
-		//一些形式上变换的type
+		//!Handwriting for convenience | TODO: approximate/semantic match of type
 		extendTypeMap.put("NonprofitOrganizations", "dbo:Non-ProfitOrganisation");
 		extendTypeMap.put("GivenNames", "dbo:GivenName");
 		extendTypeMap.put("JamesBondMovies","yago:JamesBondFilms");
@@ -55,21 +51,21 @@ public class TypeRecognition {
 		extendTypeMap.put("Europe", "yago:EuropeanCountries");
 		extendTypeMap.put("Africa", "yago:AfricanCountries");
 		
-		//！！！以下pid，eid基于dbpedia2014，如更换数据集或更新id mapping，需要更新下面ID
-		//一些extend variable，即“自带triples的变量”，如：[?E|surfers]-?uri dbo:occupation res:Surfing；canadians：<?canadian>	<birthPlace>	<Canada>
-		//1) <?canadians>	<birthPlace>	<Canada> | <xx国人> <birthPlace|1639> <xx国>
+		//!The following IDs are based on DBpedia 2014.
+		//!extend variable (embedded triples) | eg, [?E|surfers]-?uri dbo:occupation res:Surfing | canadians锟斤拷<?canadian>	<birthPlace>	<Canada>
+		//1) <?canadians>	<birthPlace>	<Canada> | [country people] <birthPlace|1639> [country]
 		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 1639, 2112902, "Canada", null, 100);
 		extendVariableMap.put("canadian", triple);
 		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 1639, 883747, "Germany", null, 100);
 		extendVariableMap.put("german", triple);
-		//2) ?bandleader	<occupation |　6690>	<Bandleader>
+		//2) ?bandleader <occupation|6690> <Bandleader>
 		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 6690, 5436853, "Bandleader", null, 100);
 		extendVariableMap.put("bandleader", triple);
 		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 6690, 5436854, "Surfing>", null, 100);
 		extendVariableMap.put("surfer", triple);
 	}
 	
-	public void recognizeExtendVariable(Word w)
+	public static void recognizeExtendVariable(Word w)
 	{
 		String key = w.baseForm;
 		if(extendVariableMap.containsKey(key))
@@ -88,14 +84,14 @@ public class TypeRecognition {
 	{
 		ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
 		
-		//因为单word的yago type总是很多余，加上后反而查不到结果，例如：Battle, War, Daughter 什么的
+		//Do not consider SINGLE-word type (most are useless) | eg, Battle, War, Daughter
 		if(allUpperFormWord.length() > 1 && allUpperFormWord.substring(1).equals(allUpperFormWord.substring(1).toLowerCase()))
 			return null;
 		
-		//search in yago type
+		//search in YAGO type
 		if(TypeFragment.yagoTypeList.contains(allUpperFormWord))
 		{
-			//yago前缀标记
+			//YAGO prefix
 			String typeName = "yago:"+allUpperFormWord;
 			TypeMapping tm = new TypeMapping(-1,typeName,Globals.pd.typePredicateID,1);
 			tmList.add(tm);
@@ -153,23 +149,11 @@ public class TypeRecognition {
 		}		
 	}
 
-	/*
-	 * 2015-12-04，这个函数在NodeRecognition后，SemanticRelation生成后，topK检验前执行，
-	 * 作用是：将 ?who、?where的type信息加入tmList
-	 * TODO:
-	 * type一旦识别成功，有两种情况：
-	 * （1）认为该word为变量，并加一条该word的type三元组。
-	 * 例如：Which books by Kerouac were published by Viking Press? 中的“books”。
-	 * （2）认为该word为常量。它被用来修饰其他word。
-	 * 例如：Are tree frogs a type of amphibian? 中的“amphibian”。
-	 * 这两种情况的分别处理在ExtractRelation -> constantVariableRecognition；本函数现只用来添加疑问词的type信息
-	 * */
-	public void AddTypesOfWhwords (HashMap<Integer, SemanticRelation> semanticRelations) {
+	public static void AddTypesOfWhwords (HashMap<Integer, SemanticRelation> semanticRelations) {
 		ArrayList<TypeMapping> ret = null;
 		for (Integer it : semanticRelations.keySet()) 
 		{
 			SemanticRelation sr = semanticRelations.get(it);
-			//对非type节点识别疑问词的type信息
 			if(!sr.arg1Word.mayType) 
 			{
 				ret = recognizeSpecial(sr.arg1Word.baseForm);
@@ -189,7 +173,7 @@ public class TypeRecognition {
 		}	
 	}
 	
-	public ArrayList<TypeMapping> recognizeSpecial (String wordSpecial) 
+	public static ArrayList<TypeMapping> recognizeSpecial (String wordSpecial) 
 	{
 		ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
 		if (wordSpecial.toLowerCase().equals("who")) 
@@ -217,15 +201,133 @@ public class TypeRecognition {
 			}
 			return tmList;
 		}
-		/*
-		else if (wordSpecial.toLowerCase().equals("when")) {
-			ArrayList<Integer> ret = new ArrayList<Integer>();
-			ret.add(RelationFragment.literalTypeId);
-			return ret;
-		}
-		*/
-		
+		//TODO: When ...
 		return null;
+	}
+	
+	/*
+	 * 1. Priority: mayEnt(Uppercase)>mayType>mayEnt
+	 * 2. mayEnt=1: Constant
+	 * 3. mayType=1:
+	 * (1)Variable, a triple will be added when evaluation. | eg, Which [books] by Kerouac were published by Viking Press?
+	 * (2)Constant, it modify other words. | eg, Are tree frogs a type of [amphibian]?
+	 * 4銆乪xtend variable (a variable embedded triples)
+	 * */
+	public static void constantVariableRecognition(HashMap<Integer, SemanticRelation> semanticRelations, QueryLogger qlog) 
+	{
+		Word[] words = qlog.s.words;
+		//NOTICE: modifiers(implicit relation) have not been considered.
+		for (Integer it : semanticRelations.keySet()) 
+		{
+			SemanticRelation sr = semanticRelations.get(it);
+			int arg1WordPos = sr.arg1Word.position - 1;
+			int arg2WordPos = sr.arg2Word.position - 1;
+			
+			// extend variable recognition
+			recognizeExtendVariable(sr.arg1Word);
+			recognizeExtendVariable(sr.arg2Word);
+			
+			// constant or variable
+			if(sr.arg1Word.mayExtendVariable)
+			{
+				//eg, ?canadian <birthPlace> <Canada> (both extendVariable & type)
+				if(sr.arg1Word.mayType)
+					sr.arg1Word.mayType = false;
+				
+				if(sr.arg1Word.mayEnt)
+				{
+					//rule: [extendVaraible & ent] + noun -> ent |eg, Canadian movies -> ent:Canada
+					if(arg1WordPos+1 < words.length && words[arg1WordPos+1].posTag.startsWith("N"))
+					{
+						sr.arg1Word.mayExtendVariable = false;
+						sr.isArg1Constant = true;
+					}
+					else
+					{
+						sr.arg1Word.mayEnt = false;
+					}
+				}
+			}
+			// type
+			else if(sr.arg1Word.mayType)
+			{
+				//rule in/of [type] -> constant  |eg, How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
+				if(arg1WordPos >= 2 && (words[arg1WordPos-1].baseForm.equals("in") || words[arg1WordPos-1].baseForm.equals("of"))  
+						&& !words[arg1WordPos-2].posTag.startsWith("V"))
+				{
+					sr.isArg1Constant = true;
+					double largerScore = 1000;
+					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
+						largerScore = sr.predicateMappings.get(0).score * 2;
+					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
+					sr.predicateMappings.add(0,nPredicate);
+					
+					//constant type should be object
+					sr.preferredSubj = sr.arg2Word;
+				}
+			}
+			//ent: constant
+			else if(sr.arg1Word.mayEnt)
+			{
+				sr.isArg1Constant = true;
+			}
+			
+			// constant or variable
+			if(sr.arg2Word.mayExtendVariable)
+			{
+				if(sr.arg2Word.mayType)
+					sr.arg2Word.mayType = false;
+				
+				if(sr.arg2Word.mayEnt)
+				{
+					if(arg2WordPos+1 < words.length && words[arg2WordPos+1].posTag.startsWith("N"))
+					{
+						sr.arg2Word.mayExtendVariable = false;
+						sr.isArg2Constant = true;
+					}
+					else
+					{
+						sr.arg2Word.mayEnt = false;
+					}
+				}
+			}
+			// type
+			else if(sr.arg2Word.mayType)
+			{
+				//rule in/of [type] -> constant  |eg, How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
+				if(arg2WordPos >= 2 && (words[arg2WordPos-1].baseForm.equals("in") || words[arg2WordPos-1].baseForm.equals("of")) 
+						&& !words[arg2WordPos-2].posTag.startsWith("V") )
+				{
+					sr.isArg2Constant = true;
+					double largerScore = 1000;
+					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
+						largerScore = sr.predicateMappings.get(0).score * 2;
+					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
+					sr.predicateMappings.add(0,nPredicate);
+					
+					sr.preferredSubj = sr.arg1Word;
+				}
+				//rule: Be ... a type?
+				if(words[0].baseForm.equals("be") && arg2WordPos >=3 && words[arg2WordPos-1].baseForm.equals("a"))
+				{
+					sr.isArg2Constant = true;
+					double largerScore = 1000;
+					if(sr.predicateMappings!=null && sr.predicateMappings.size()>0)
+						largerScore = sr.predicateMappings.get(0).score * 2;
+					PredicateMapping nPredicate = new PredicateMapping(Globals.pd.typePredicateID, largerScore, "[type]");
+					sr.predicateMappings.add(0,nPredicate);
+					
+					sr.preferredSubj = sr.arg1Word;
+				}
+			}
+			else if(sr.arg2Word.mayEnt)
+			{
+				sr.isArg2Constant = true;
+			}
+			
+			if(sr.arg1Word != sr.preferredSubj)
+				sr.swapArg1Arg2();
+		}
 	}
 	
 	public static void main (String[] args) 

@@ -32,7 +32,7 @@ public class DBpediaLookup {
 	public static final String end = "</Label>";
 	public static final int end_length = end.length();
 	
-	public static HashMap<String, String>entMentionDict = null;	//根据redirect数据和wikipedia的页面跳转情况构建mention2ent的词典，目前先人工加一些
+	public static HashMap<String, String>entMentionDict = null;	// TODO: base on redirect data & wikipedia click data to build mention2ent's dictionary, now just manually
 	
 	public DBpediaLookup() 
 	{
@@ -56,7 +56,7 @@ public class DBpediaLookup {
 		
 		ArrayList<EntityMapping> emlist = new ArrayList<EntityMapping>();
 		
-		//这时搜索的string是用下划线分割词的，即orginal
+		// Now string use "_" as delimiter (original)
 		String[] sa = searchString.split("_");
 		int UpperCnt = 0;
 		for(String str: sa)
@@ -70,7 +70,7 @@ public class DBpediaLookup {
 		int count = 40;
 		for (String s : slist) 
 		{
-			//不是全大写，则认为不是某种缩写，那么要判断 edit distance，如果差距过大则踢掉（因为dbpedia lookup有很多噪音）
+			//consider ABBR only when all UPPER; drop when too long edit distance
 			if(UpperCnt < sa.length && EntityFragment.calEditDistance(s, searchString.replace("_", ""))>searchString.length()/2)
 				continue;
 			
@@ -93,8 +93,7 @@ public class DBpediaLookup {
 	}
 	
 	public ArrayList<String> lookForEntityNames (String searchString, QueryLogger qlog) {
-		// URL转换: 小心空格要转换成%20
-		// 虽然可以用replaceAll(“ ”,"%20")，但是如果文本中包含空格的话就悲剧了
+		// URL transition: " " -> %20
 		GetMethod getMethod = new GetMethod((baseURL+searchString).replaceAll(" ", "%20"));
 		ArrayList<String> ret = new ArrayList<String>();
 		int statusCode;
