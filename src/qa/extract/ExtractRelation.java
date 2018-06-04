@@ -39,6 +39,14 @@ public class ExtractRelation {
 		HashSet<String> BoW_T = new HashSet<String>();
 		HashSet<String> SubBoW_T = new HashSet<String>();
 				
+		// (Fix shortest path) Some cases consider the words not in shortest path | eg: What [be] [ent] (famous) for?
+		// what-be-[ent], the word [be] is useless but we need (famous)
+		if(shortestPath.size() == 3 && shortestPath.get(1).word.baseForm.equals("be") && T.nodesList.size() > shortestPath.get(2).word.position)
+		{
+			shortestPath.remove(1);
+			shortestPath.add(1, T.getNodeByIndex(shortestPath.get(1).word.position + 1));
+		}
+			
 		// Shortest path -> SubBag of Words
 		for(DependencyTreeNode curNode: shortestPath)
 		{
@@ -58,6 +66,7 @@ public class ExtractRelation {
 				}
 			}
 		}
+		
 		// DS tree -> Bag of Words
 		for (DependencyTreeNode curNode : T.getNodesList()) 
 		{

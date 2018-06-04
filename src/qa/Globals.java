@@ -33,10 +33,10 @@ public class Globals {
 	 * 2. super SQG, allow CIRCLE and WRONG edge. The structure is decided by DS tree, and can be changed in query evaluation(TOP-K match) stage. 
 	 * */
 	public static int evaluationMethod = 2; 
-	public static boolean isRunAsWebServer = true;	// Run Local: false; Run Server: true
+	public static boolean isRunAsWebServer = false;	// Run Local: false; Run Server: true
 	public static String runningBenchmark = "QALD";	// WQ:WebQuestions; WQSP:WebQuestionsSP; CQ:ComplexQuestions
 													// using different method and Freebase Version (in Virtuoso.java)
-	public static boolean usingOperationCondition = false; // try state transition operations only when condition are satisfied.
+	public static boolean usingOperationCondition = false; // only for EXP: try state transition operations only when condition are satisfied.
 
 	
 	public static String localPath = "/media/wip/husen/NBgAnswer/";

@@ -115,7 +115,7 @@ public class Word implements Comparable<Word>
 	public String isNER () {
 		return this.getNnHead().ner;
 	}
-	
+		
 	public void setIsCovered () {
 		Word w = this.getNnHead();
 		while (w != null) {

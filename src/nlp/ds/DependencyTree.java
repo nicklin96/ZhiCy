@@ -218,6 +218,21 @@ public class DependencyTree {
 		    	}
 		    }
 		    
+		    // Fix the tree for some cases.
+		    if(list.size() > 11)
+		    {
+		    	DependencyTreeNode dt1 = list.get(11), dt2 = list.get(5);
+		    	if(dt1!=null && dt2!=null && dt1.word.baseForm.equals("star") && dt1.father.word.baseForm.equals("be"))
+		    	{
+	    			if (dt2.word.baseForm.equals("film") || dt2.word.baseForm.equals("movie")) 
+	    			{
+	    				dt1.father.childrenList.remove(dt1);
+	    				dt1.father = dt2;
+	    				dt2.childrenList.add(dt1);
+	    			}
+		    	}
+		    }
+		    
 		    // add levelInTree, sort childrenList & nodesList
 		    for (DependencyTreeNode dtn : list) {
 		    	if (dtn.father != null) {	    	

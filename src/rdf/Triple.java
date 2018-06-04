@@ -106,6 +106,12 @@ public class Triple implements Comparable<Triple>{
 	public double getScore() {
 		return score;
 	}
+	
+	@Override 
+	public int hashCode() 
+    { 
+        return new Integer(subjId).hashCode() ^ new Integer(objId).hashCode() ^ new Integer(predicateID).hashCode(); 
+    } 
 		
 	@Override
 	public String toString() {

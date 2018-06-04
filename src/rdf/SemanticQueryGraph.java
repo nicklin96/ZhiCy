@@ -45,6 +45,25 @@ public class SemanticQueryGraph implements Comparable<SemanticQueryGraph>
 				su2.neighborUnitList.add(su1);
 			}
 	}
+	
+	public void merge(SemanticUnit u, SemanticUnit v)
+	{
+		SemanticUnit su1 = null, su2 = null;
+		for(SemanticUnit su: this.semanticUnitList)
+			if(su.equals(u))
+				su1 = su;
+			else if(su.equals(v))
+				su2 = su;
+		if(su1 != null && su2 != null)
+		{
+			for(SemanticUnit su: this.semanticUnitList)
+				if(su != su2 && su.neighborUnitList.contains(su1) && !su.neighborUnitList.contains(su2))	//TODO: Notice, now REJECT multi-edges; The hash function of SR should be modified to allow multi-edges.
+					su.neighborUnitList.add(su2);
+			
+			this.semanticUnitList.remove(su1);
+			su2.neighborUnitList.remove(su1);
+		}
+	}
 
 	@Override
 	public int hashCode() {
@@ -130,7 +149,7 @@ public class SemanticQueryGraph implements Comparable<SemanticQueryGraph>
 		{
 			Word w = su.centerWord;
 			if(w.mayEnt && w.emList.size()>0)
-				entSco += w.emList.get(0).score;
+				entSco += w.emList.get(0).score * 100;
 			if(w.mayType && w.tmList.size()>0)
 				entSco += w.tmList.get(0).score;
 		}

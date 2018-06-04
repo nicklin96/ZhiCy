@@ -197,7 +197,7 @@ public class BuildQueryGraph
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null )
 				{
-					//if(curCenterNode != target) // if target be represented, continue will get empty semantic unit list.
+					if(curCenterNode != target) // if target be represented, continue will get empty semantic unit list.
 					//TODO: it may lose other nodes when prune the represent/coref nodes, the better way is do coref resolution after structure construction.
 						continue;
 				}					
@@ -311,7 +311,7 @@ public class BuildQueryGraph
 		{
 			for(DependencyTreeNode dtn: ds.nodesList)
 			{
-				if(isNode(dtn))
+				if(isNodeWoCorefRe(dtn))	// ! Omit the coreference resolution rules !
 				{
 					semanticUnitList.add(new SemanticUnit(dtn.word, true)); //No prefer subject (default is true)
 				}
@@ -430,6 +430,21 @@ public class BuildQueryGraph
 									QGs.add(tail);
 								}
 							}
+					
+					//Merge (coref resolution)
+					if(head.semanticUnitList.size() > 2)
+						for(SemanticUnit u: head.semanticUnitList)
+							for(SemanticUnit v: head.semanticUnitList)
+								if(!u.equals(v) && (!u.neighborUnitList.contains(v) && !v.neighborUnitList.contains(u)) || (u.neighborUnitList.contains(v) && v.neighborUnitList.contains(u)))
+								{
+									SemanticQueryGraph tail = new SemanticQueryGraph(head);
+									tail.merge(u, v);
+									if(!QGs.contains(tail) && !visited.contains(tail))
+									{
+										tail.calculateScore(qlog.potentialSemanticRelations);
+										QGs.add(tail);
+									}
+								}
 				}
 			}
 			qlog.timeTable.put("BQG_structure", (int)(System.currentTimeMillis()-t));
@@ -756,6 +771,35 @@ public class BuildQueryGraph
 		return false;
 	}
 	
+	/*
+	 * Judge nodes strictly.
+	 * For EXP, do not use COREF resolution rules.
+	 * */
+	public boolean isNodeWoCorefRe(DependencyTreeNode cur)
+	{
+		if(stopNodeList.contains(cur.word.baseForm))
+			return false;
+		
+		if(cur.word.omitNode)
+			return false;
+		
+		// Modifier can NOT be node (They may be added in query graph in the end) e.g., Queen Elizabeth II，Queen(modifier)
+		if(modifierList.contains(cur.word))
+			return false;
+		
+		// NOUN
+		if(cur.word.posTag.startsWith("N"))
+			return true;
+
+		// Wh-word
+		if(whList.contains(cur.word.baseForm))
+			return true;
+		
+		if(cur.word.mayEnt || cur.word.mayType || cur.word.mayCategory)
+			return true;
+		return false;
+	}
+	
 	public DependencyTreeNode detectTarget(DependencyTree ds, QueryLogger qlog)
 	{
 		visited.clear();
@@ -888,9 +932,20 @@ public class BuildQueryGraph
 							continue;
 						if(isNode(child))
 						{
-							target.word.represent = child.word;
-							target = child;
-							break;
+							//sth1
+							boolean hasPrep = false;
+							for(DependencyTreeNode grandson: child.childrenList)
+							{	//prep
+								if(grandson.dep_father2child.equals("prep"))
+									hasPrep = true;
+							}
+							//Detect modifier: what is the sht1's [sth2]? | what is the largest [city]?
+							if(hasPrep || qlog.s.hasModifier(child.word))
+							{
+								target.word.represent = child.word;
+								target = child;
+								break;
+							}
 						}
 					}
 				}
@@ -927,29 +982,34 @@ public class BuildQueryGraph
 			//Detect：who is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
 			//Others: who is sth? who do sth?  | target = who
 			//test case: Who is the daughter of Robert_Kennedy married to?
-			if(target.father != null && ds.nodesList.size()>=5)
+			if(ds.nodesList.size()>=5)
 			{	//who
-				DependencyTreeNode tmp1 = target.father;
-				if(tmp1.word.baseForm.equals("be") || tmp1.word.baseForm.equals("do"))
-				{	//is
-					for(DependencyTreeNode child: tmp1.childrenList)
-					{
-						if(child == target)
-							continue;
-						if(isNode(child))
-						{	//sth1
-							boolean hasPrep = false;
-							for(DependencyTreeNode grandson: child.childrenList)
-							{	//prep
-								if(grandson.dep_father2child.equals("prep"))
-									hasPrep = true;
-							}
-							//Detect: who is the sht1's sth2?
-							if(hasPrep || qlog.s.plainText.contains(child.word.originalForm + " 's"))
-							{
-								target.word.represent = child.word;
-								target = child;
-								break;
+				for(DependencyTreeNode tmp1: ds.nodesList)
+				{
+					if(tmp1 != target.father && !target.childrenList.contains(tmp1))
+						continue;
+					if(tmp1.word.baseForm.equals("be") || tmp1.word.baseForm.equals("do"))
+					{	//is
+						for(DependencyTreeNode child: tmp1.childrenList)
+						{
+							if(child == target)
+								continue;
+							if(isNode(child))
+							{	//sth1
+								boolean hasPrep = false;
+								for(DependencyTreeNode grandson: child.childrenList)
+								{	//prep
+									if(grandson.dep_father2child.equals("prep"))
+										hasPrep = true;
+								}
+								//Detect modifier: who is the sht1's sth2?
+//								if(hasPrep || qlog.s.plainText.contains(child.word.originalForm + " 's")) // replaced by detect modifier directly
+								if(hasPrep || qlog.s.hasModifier(child.word))
+								{
+									target.word.represent = child.word;
+									target = child;
+									break;
+								}
 							}
 						}
 					}
@@ -1097,7 +1157,7 @@ public class BuildQueryGraph
 	/*
 	 * recognize modifier/modified relation in DISCRETE nodes
 	 * 1、[ent1] 's [ent2]
-	 * 2、[ent1] by [ent2]
+	 * 2、[ent1|type] by [ent2]
 	 * Notice: run "getTheModifiedWordBySentence" first!
 	 * */
 	public Word getDiscreteModifiedWordBySentence(Sentence s, Word curWord)
@@ -1109,7 +1169,7 @@ public class BuildQueryGraph
 			return curWord.modifiedWord = s.words[curPos+2];
 		
 		//[ent1] by [ent2](cur), ent2->ent1, usually do NOT appear in SPARQL | eg: Which museum exhibits The Scream by Munch?
-		if(curPos-2 >=0 && curWord.mayEnt && s.words[curPos-1].baseForm.equals("by") && s.words[curPos-2].mayEnt)
+		if(curPos-2 >=0 && (curWord.mayEnt||curWord.mayType) && s.words[curPos-1].baseForm.equals("by") && (s.words[curPos-2].mayEnt||s.words[curPos-2].mayType))
 			return curWord.modifiedWord = s.words[curPos-2];
 		
 		return curWord.modifiedWord;

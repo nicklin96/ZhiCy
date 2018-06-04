@@ -682,7 +682,7 @@ public class CompatibilityChecker {
 			V2.candEntities = newV2cands;
 		}
 		
-		if(V1.candEntities.size() == 0 || V2.candEntities.size() == 0)
+		if(V1.candEntities.size() == 0 || (V2.candEntities.size() == 0 && !RelationFragment.isLiteral(pid)))
 			return 5;
 		else
 			return 0;

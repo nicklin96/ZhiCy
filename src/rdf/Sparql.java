@@ -45,6 +45,21 @@ public class Sparql implements Comparable<Sparql>
 		return ret;
 	}
 	
+	public void deduplicate()
+	{
+		HashSet<String> set = new HashSet<String>();
+		ArrayList<Triple> list = new ArrayList<Triple>();
+		for(Triple t: tripleList)
+		{
+			String st = t.toStringWithoutScore();
+			if(set.contains(st))
+				list.add(t);
+			set.add(st);
+		}
+		for(Triple t: list)
+			this.delTriple(t);
+	}
+	
 	//Use to display (can not execute)
 	public String toStringForGStore() 
 	{
@@ -178,6 +193,26 @@ public class Sparql implements Comparable<Sparql>
 		else
 			return 0;
 	}
+	
+	@Override 
+	public int hashCode() 
+    { 
+		int key = 0;
+		for(Triple t: this.tripleList)
+			key ^= t.hashCode();
+        return key; 
+    } 
+	
+	@Override 
+	public boolean equals(Object spq) 
+	{ 
+	    Sparql tempSparql= (Sparql) spq; 
+	    String s1 = this.toStringForGStore2(), s2 = tempSparql.toStringForGStore2();
+	    if(this.toStringForGStore2().equals(tempSparql.toStringForGStore2()))
+	    	return true; 
+	    else 
+	    	return false; 
+	} 
 	
 	public Sparql(){}
 	public Sparql(HashMap<Integer, SemanticRelation> semanticRelations) 

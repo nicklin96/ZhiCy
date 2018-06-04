@@ -27,6 +27,7 @@ public class SemanticItemMapping {
 	public static int k = 10;	// useless now
 	public static int t = 10;	// Depth of enumerating candidates of each node/edge. O(t^n).
 	ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
+	HashSet<String> checkedSparqlStrs = new HashSet<String>();
 	
 	public ArrayList<ArrayList<EntityMapping>> entityPhrasesList = new ArrayList<ArrayList<EntityMapping>>();
 	public ArrayList<Word> entityWordList = new ArrayList<Word>();
@@ -456,10 +457,16 @@ public class SemanticItemMapping {
 			sparql.adjustTriplesOrder();
 		}
 		
+		// deduplicate
+		sparql.deduplicate();
+		if(checkedSparqlStrs.contains(sparql.toStringForGStore2()))
+			return;
+		checkedSparqlStrs.add(sparql.toStringForGStore2());
+		
 		if (!qlog.MODE_fragment) {
 			// Method 1: do NOT check compatibility
-			 rankedSparqls.add(sparql);
-			 isAnswerFound = true;
+			rankedSparqls.add(sparql);
+			isAnswerFound = true;
 		}
 		else {
 			// Method 2: check compatibility by FRAGMENT (offline index)
@@ -758,7 +765,8 @@ public class SemanticItemMapping {
 					//When query graph contains circle, we just prune this edge 
 					Sparql sparql = currentSpq.copy();
 					reviseScoreByTripleOrders(sparql);
-					rankedSparqls.add(sparql);
+					if(!rankedSparqls.contains(sparql))
+						rankedSparqls.add(sparql);
 					return true;
 				}
 			} 

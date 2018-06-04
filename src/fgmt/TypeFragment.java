@@ -51,6 +51,7 @@ public class TypeFragment extends Fragment {
 		stopYagoTypeList.add("Vice");
 		stopYagoTypeList.add("Dodo");
 		stopYagoTypeList.add("CzechFilms");
+		stopYagoTypeList.add("ChineseFilms");
 	}
 	
 	public TypeFragment(String fgmt, int fid) 

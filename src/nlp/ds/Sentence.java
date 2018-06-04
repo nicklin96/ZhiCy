@@ -68,6 +68,14 @@ public class Sentence {
 		return map.get(k);
 	}
 	
+	public boolean hasModifier(Word w)
+	{
+		for(Word word: words)
+			if(word!=w && word.modifiedWord==w)
+				return true;
+		return false;
+	}
+	
 	public void printNERResult () {
 		for (Word word : words) {
 			System.out.print(word + "   ");
