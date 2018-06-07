@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.PriorityQueue;
 import java.util.Queue;
 
 import fgmt.EntityFragment;
@@ -16,6 +17,7 @@ import qa.Globals;
 import qa.extract.*;
 import qa.mapping.SemanticItemMapping;
 import rdf.PredicateMapping;
+import rdf.SemanticQueryGraph;
 import rdf.Triple;
 import rdf.SemanticRelation;
 import rdf.SimpleRelation;
@@ -195,11 +197,8 @@ public class BuildQueryGraph
 			{	
 				if(curCenterNode.word.represent != null || cr.getRefWord(curCenterNode.word,ds,qlog) != null )
 				{
-					//[2017-1-7]如果target就被represent，continue就直接退出了，semanticUnitList=null，尝试加入规则放过who；治标不治本，还是有空做根本改动，在确定结构后再共指消解
-					//if(curCenterNode != target)
-					//被扩展SU被其他SU代表，则直接略过此次扩展; TODO: 共指消解应该在结构确定后做，直接抛弃可能会丢失部分边信息
-					//[2015-12-13]这样相当于丢失了这个方向，沿该SU继续走本来能找到其他点，但直接continue就断绝了找到这些点的希望; 之所以一直没有发现问题是因为绝大多数情况被代表的SU都在query graph的边缘，即不会中断探索
-					//[2015-12-13]干脆先剥夺他们在dfs中被探索到的权利，即在isNode中拒绝represent，注意先只针对 represent;  
+					if(curCenterNode != target) // if target be represented, continue will get empty semantic unit list.
+					//TODO: it may lose other nodes when prune the represent/coref nodes, the better way is do coref resolution after structure construction.
 						continue;
 				}					
 				
@@ -278,6 +277,271 @@ public class BuildQueryGraph
 		}
 	
 		return semanticUnitList;
+	}
+	
+	/*
+	 * For experiment.
+	 */
+	public ArrayList<SemanticUnit> getNodeList(QueryLogger qlog, DependencyTree ds)
+	{
+		semanticUnitList = new ArrayList<SemanticUnit>();
+						
+		// For ComplexQuestions or WebQuestions, only consider wh-word and at most two entities.
+		if(Globals.runningBenchmark.equals("CQ") || Globals.runningBenchmark.equals("WQ"))
+		{
+//			DependencyTreeNode target = ds.nodesList.get(0);
+//			if(Globals.runningBenchmark.equals("CQ"))
+//				target = detectTargetForCQ(ds, qlog);
+//			qlog.target = target.word;
+//			qlog.SQGlog += "++++ Target detect: "+target+"\n";
+//			
+//			detectTopicConstraint(qlog); 
+//			semanticUnitList.add(new SemanticUnit(qlog.target, false)); //Set variable to object 
+//			if(topicEnt != null)
+//			{
+//				semanticUnitList.add(new SemanticUnit(topicEnt, true)); //Set entity to subject
+//			}
+//			if(constraintEnt != null)
+//			{
+//				semanticUnitList.add(new SemanticUnit(constraintEnt, true)); //Set entity to subject
+//			}
+		}
+		// For general cases (e.g, QALD), consider internal variables.
+		else
+		{
+			for(DependencyTreeNode dtn: ds.nodesList)
+			{
+				if(isNodeWoCorefRe(dtn))	// ! Omit the coreference resolution rules !
+				{
+					semanticUnitList.add(new SemanticUnit(dtn.word, true)); //No prefer subject (default is true)
+				}
+			}
+		}
+		return semanticUnitList;
+	}
+	
+	/*
+	 * (For Experiment) Build query graph using STATE TRANSITION method based on 4 operations (with 4 conditions).
+	 * 1. Condition for Connect operation: do and must do | no other nodes on simple path in DS tree.
+	 * 2. Condition for Merge operation: do and must do | heuristic rules of CoReference Resolution.
+	 * 3. Condition for Fold operation: do or not do | no matches of low confidence of an edge.
+	 * 4. Condition for Expand operation: do and must do | has corresponding information.
+	 * */
+	public ArrayList<SemanticUnit> processEXP(QueryLogger qlog)
+	{
+		//0) Fix stop words
+		DependencyTree ds = qlog.s.dependencyTreeStanford;
+		if(qlog.isMaltParserUsed)
+			ds = qlog.s.dependencyTreeMalt;
+		fixStopWord(qlog, ds);
+		
+		//1) Detect Modifier/Modified
+		//rely on sentence (rather than dependency tree)
+		//with some ADJUSTMENT (eg, ent+noun(noType&&noEnt) -> noun.omitNode=TRUE)
+		for(Word word: qlog.s.words)
+			getTheModifiedWordBySentence(qlog.s, word);	//Find continuous modifier
+		for(Word word: qlog.s.words)
+			getDiscreteModifiedWordBySentence(qlog.s, word); //Find discrete modifier
+		for(Word word: qlog.s.words)
+			if(word.modifiedWord == null)	//Other words modify themselves. NOTICE: only can be called after detecting all modifier.
+				word.modifiedWord = word;
+		
+		//print log
+		for(Word word: qlog.s.words) 
+		{
+			if(word.modifiedWord != null && word.modifiedWord != word)
+			{
+				modifierList.add(word);
+				qlog.SQGlog += "++++ Modify detect: "+word+" --> " + word.modifiedWord + "\n";
+			}
+		}
+		
+		//2) Detect target & 3) Coreference resolution 
+		DependencyTreeNode target = detectTarget(ds,qlog); 
+		qlog.SQGlog += "++++ Target detect: "+target+"\n";
+		
+		if(target == null)
+			return null;
+		
+		qlog.target = target.word;
+		// !target can NOT be entity. (except general question)| which [city] has most people?
+		if(qlog.s.sentenceType != SentenceType.GeneralQuestion && target.word.emList!=null) 
+		{
+			//Counter example：Give me all Seven_Wonders_of_the_Ancient_World | (in fact, it not ENT, but CATEGORY, ?x subject Seve...)
+			target.word.mayEnt = false;
+			target.word.emList.clear();
+		}
+		
+		try 
+		{	
+			// step1: get node list
+			semanticUnitList = getNodeList(qlog, ds);
+			if(semanticUnitList == null || semanticUnitList.isEmpty())
+			{
+				qlog.SQGlog += "ERROR: no nodes found.";
+				return null;
+			}
+			
+			// step2: extract all potential relations
+			long t = System.currentTimeMillis();
+			System.out.println("Potential Relation Extraction start ...");
+			extractPotentialSemanticRelations(semanticUnitList, qlog);
+			qlog.timeTable.put("BQG_relation", (int)(System.currentTimeMillis()-t));
+				
+			// setp3: build query graph structure by 4 operations
+			t = System.currentTimeMillis();
+			SemanticQueryGraph bestSQG = null;
+			if(Globals.usingOperationCondition)
+			{
+				//TODO: use operation condition
+			}
+			else
+			{
+				// for experiment, do not use conditions.
+				PriorityQueue<SemanticQueryGraph> QGs = new PriorityQueue<SemanticQueryGraph>();
+				HashSet<SemanticQueryGraph> visited = new HashSet<>();
+				//Initial state: all nodes isolated.
+				SemanticQueryGraph head = new SemanticQueryGraph(semanticUnitList);
+				QGs.add(head);
+				
+				while(!QGs.isEmpty())
+				{
+					head = QGs.poll();
+					visited.add(head);
+					
+					//Judge: is it a final state?
+					if(head.isFinalState())
+					{
+						bestSQG = head;
+						break;	// now we just find the top-1 SQG
+					}
+					
+					//SQG generation
+					//Connect (enumerate)
+					for(SemanticUnit u: head.semanticUnitList)
+						for(SemanticUnit v: head.semanticUnitList)
+							if(!u.equals(v) && !u.neighborUnitList.contains(v) && !v.neighborUnitList.contains(u))
+							{
+								SemanticQueryGraph tail = new SemanticQueryGraph(head);
+								tail.connect(u, v);
+								if(!QGs.contains(tail) && !visited.contains(tail))
+								{
+									tail.calculateScore(qlog.potentialSemanticRelations);
+									QGs.add(tail);
+								}
+							}
+					
+					//Merge (coref resolution)
+					if(head.semanticUnitList.size() > 2)
+						for(SemanticUnit u: head.semanticUnitList)
+							for(SemanticUnit v: head.semanticUnitList)
+								if(!u.equals(v) && (!u.neighborUnitList.contains(v) && !v.neighborUnitList.contains(u)) || (u.neighborUnitList.contains(v) && v.neighborUnitList.contains(u)))
+								{
+									SemanticQueryGraph tail = new SemanticQueryGraph(head);
+									tail.merge(u, v);
+									if(!QGs.contains(tail) && !visited.contains(tail))
+									{
+										tail.calculateScore(qlog.potentialSemanticRelations);
+										QGs.add(tail);
+									}
+								}
+				}
+			}
+			qlog.timeTable.put("BQG_structure", (int)(System.currentTimeMillis()-t));
+			
+			//Relation Extraction by potentialSR
+			qlog.semanticUnitList = new ArrayList<SemanticUnit>();
+			qlog.semanticRelations = bestSQG.semanticRelations;
+			semanticUnitList = bestSQG.semanticUnitList;
+			matchRelation(semanticUnitList, qlog);
+			
+			//Prepare for item mapping
+			TypeRecognition.AddTypesOfWhwords(qlog.semanticRelations); // Type supplementary
+			TypeRecognition.constantVariableRecognition(qlog.semanticRelations, qlog); // Constant or Variable, embedded triples
+			
+			//(just for display)
+			recordOriginalTriples(semanticUnitList, qlog);
+				
+			//step3: item mapping & top-k join
+			t = System.currentTimeMillis();
+			SemanticItemMapping step5 = new SemanticItemMapping();
+			step5.process(qlog, qlog.semanticRelations);	//top-k join (generate SPARQL queries), disambiguation
+			qlog.timeTable.put("BQG_topkjoin", (int)(System.currentTimeMillis()-t));
+			
+			//step6: implicit relation [modify word]
+			t = System.currentTimeMillis();
+			ExtractImplicitRelation step6 = new ExtractImplicitRelation();
+			step6.supplementTriplesByModifyWord(qlog);
+			qlog.timeTable.put("BQG_implicit", (int)(System.currentTimeMillis()-t));		
+			
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	
+		return semanticUnitList;
+	}
+	
+	public void extractPotentialSemanticRelations(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
+	{
+		ExtractRelation er = new ExtractRelation();
+		ArrayList<SimpleRelation> simpleRelations = new ArrayList<SimpleRelation>();
+		for(SemanticUnit curSU: semanticUnitList)
+		{
+			for(SemanticUnit expandSU: semanticUnitList)
+			{
+				//Deduplicate
+				if(curSU.centerWord.position > expandSU.centerWord.position)
+					continue;
+				
+				ArrayList<SimpleRelation> tmpRelations = null;
+				//get simple relations by PARAPHRASE
+				tmpRelations = er.findRelationsBetweenTwoUnit(curSU, expandSU, qlog);
+				if(tmpRelations!=null && tmpRelations.size()>0)
+					simpleRelations.addAll(tmpRelations);
+				else
+				{
+					tmpRelations = new ArrayList<SimpleRelation>();
+					//Copy relations (for 'and', 'as soon as'...) |eg, In which films did Julia_Roberts and Richard_Gere play?
+					//TODO: judge by dependency tree | other way to supplement relations
+					if(curSU.centerWord.position + 2 == expandSU.centerWord.position && qlog.s.words[curSU.centerWord.position].baseForm.equals("and"))
+					{
+						for(SimpleRelation sr: simpleRelations)
+						{
+							if(sr.arg1Word == curSU.centerWord)
+							{
+								SimpleRelation tsr = new SimpleRelation(sr);
+								tsr.arg1Word = expandSU.centerWord;
+								tmpRelations.add(tsr);
+							}
+							else if (sr.arg2Word == curSU.centerWord)
+							{
+								SimpleRelation tsr = new SimpleRelation(sr);
+								tsr.arg2Word = expandSU.centerWord;
+								tmpRelations.add(tsr);
+							}
+						}
+						if(tmpRelations.size() > 0)
+							simpleRelations.addAll(tmpRelations);
+					}
+				}
+			}
+		}
+		
+		//get semantic relations
+		HashMap<Integer, SemanticRelation> semanticRelations = er.groupSimpleRelationsByArgsAndMapPredicate(simpleRelations);
+		
+		if(Globals.evaluationMethod > 1)
+		{
+			//TODO: recognize unsteady edge by judging connectivity (now we just recognize all edges are unsteady when it has circle)
+			if(semanticRelations.size() >= semanticUnitList.size())	// has CIRCLE
+				for(SemanticRelation sr: semanticRelations.values())
+				{
+					sr.isSteadyEdge = false;
+				}
+		}
+		
+		qlog.potentialSemanticRelations = semanticRelations;
 	}
 	
 	public void extractRelation(ArrayList<SemanticUnit> semanticUnitList, QueryLogger qlog)
@@ -507,6 +771,35 @@ public class BuildQueryGraph
 		return false;
 	}
 	
+	/*
+	 * Judge nodes strictly.
+	 * For EXP, do not use COREF resolution rules.
+	 * */
+	public boolean isNodeWoCorefRe(DependencyTreeNode cur)
+	{
+		if(stopNodeList.contains(cur.word.baseForm))
+			return false;
+		
+		if(cur.word.omitNode)
+			return false;
+		
+		// Modifier can NOT be node (They may be added in query graph in the end) e.g., Queen Elizabeth II，Queen(modifier)
+		if(modifierList.contains(cur.word))
+			return false;
+		
+		// NOUN
+		if(cur.word.posTag.startsWith("N"))
+			return true;
+
+		// Wh-word
+		if(whList.contains(cur.word.baseForm))
+			return true;
+		
+		if(cur.word.mayEnt || cur.word.mayType || cur.word.mayCategory)
+			return true;
+		return false;
+	}
+	
 	public DependencyTreeNode detectTarget(DependencyTree ds, QueryLogger qlog)
 	{
 		visited.clear();
@@ -639,9 +932,20 @@ public class BuildQueryGraph
 							continue;
 						if(isNode(child))
 						{
-							target.word.represent = child.word;
-							target = child;
-							break;
+							//sth1
+							boolean hasPrep = false;
+							for(DependencyTreeNode grandson: child.childrenList)
+							{	//prep
+								if(grandson.dep_father2child.equals("prep"))
+									hasPrep = true;
+							}
+							//Detect modifier: what is the sht1's [sth2]? | what is the largest [city]?
+							if(hasPrep || qlog.s.hasModifier(child.word))
+							{
+								target.word.represent = child.word;
+								target = child;
+								break;
+							}
 						}
 					}
 				}
@@ -678,29 +982,34 @@ public class BuildQueryGraph
 			//Detect：who is/does [the] sth1 prep. sth2?  || Who was the pope that founded the Vatican_Television ? | Who does the voice of Bart Simpson?
 			//Others: who is sth? who do sth?  | target = who
 			//test case: Who is the daughter of Robert_Kennedy married to?
-			if(target.father != null && ds.nodesList.size()>=5)
+			if(ds.nodesList.size()>=5)
 			{	//who
-				DependencyTreeNode tmp1 = target.father;
-				if(tmp1.word.baseForm.equals("be") || tmp1.word.baseForm.equals("do"))
-				{	//is
-					for(DependencyTreeNode child: tmp1.childrenList)
-					{
-						if(child == target)
-							continue;
-						if(isNode(child))
-						{	//sth1
-							boolean hasPrep = false;
-							for(DependencyTreeNode grandson: child.childrenList)
-							{	//prep
-								if(grandson.dep_father2child.equals("prep"))
-									hasPrep = true;
-							}
-							//Detect: who is the sht1's sth2?
-							if(hasPrep || qlog.s.plainText.contains(child.word.originalForm + " 's"))
-							{
-								target.word.represent = child.word;
-								target = child;
-								break;
+				for(DependencyTreeNode tmp1: ds.nodesList)
+				{
+					if(tmp1 != target.father && !target.childrenList.contains(tmp1))
+						continue;
+					if(tmp1.word.baseForm.equals("be") || tmp1.word.baseForm.equals("do"))
+					{	//is
+						for(DependencyTreeNode child: tmp1.childrenList)
+						{
+							if(child == target)
+								continue;
+							if(isNode(child))
+							{	//sth1
+								boolean hasPrep = false;
+								for(DependencyTreeNode grandson: child.childrenList)
+								{	//prep
+									if(grandson.dep_father2child.equals("prep"))
+										hasPrep = true;
+								}
+								//Detect modifier: who is the sht1's sth2?
+//								if(hasPrep || qlog.s.plainText.contains(child.word.originalForm + " 's")) // replaced by detect modifier directly
+								if(hasPrep || qlog.s.hasModifier(child.word))
+								{
+									target.word.represent = child.word;
+									target = child;
+									break;
+								}
 							}
 						}
 					}
@@ -787,16 +1096,15 @@ public class BuildQueryGraph
 	}
 		
 	/*
-	 * 修饰的概念：在正确的dependency tree中，一个word(ent/type)指向另一个word，边通常为mod系列，它们之间没有其他点，并且是独立的两个object
-	 * 例如：Chinese teacher --> Chinese修饰teacher；the Chinese teacher Wang Wei --> Chinese和teacher都修饰Wang Wei；
-	 * 注意：the Television Show Charmed，因为属于一个object的word sequence会被提前识别出来并用下划线连接为一个word，所以Television_Show修饰Charmed
-	 * 找到当前word所修饰的那个word（如果它不修饰别人，返回它自己）
-	 * 通过sentence而不是dependency tree (因为后者常生成错误)
-	 * 通常连续出现的node都是修饰最后一个node的；例外情况如test case 3；采用递归的方式
+	 * Modify：in correct dependency tree, word1(ent/type)--mod-->word2
+	 * eg, Chinese teacher --> Chinese (modify) teacher; the Chinese teacher Wang Wei --> Chinese & teacher (modify) Wang Wei
+	 * Find a word modify which word (modify itself default)
+	 * Trough sentence rather than dependency tree as the latter often incorrect 
+	 * Generally a sequencial nodes always modify the last node, an exception is test case 3. So we apply recursive search method.
 	 * test case:
 	 * 1) the highest Chinese mountain
 	 * 2) the Chinese popular director
-	 * 3) the De_Beers company  (注意这里 company[type]修饰 De_Beers[ent])
+	 * 3) the De_Beers company  (company[type]-> De_Beers[ent])
 	 * */
 	public Word getTheModifiedWordBySentence(Sentence s, Word curWord)
 	{
@@ -804,18 +1112,18 @@ public class BuildQueryGraph
 			return null;
 		if(curWord.modifiedWord != null)
 			return curWord.modifiedWord;
-		//既不是形容词也不是node，与修饰关系无关，设为null
+		// return null if it is not NODE or adjective
 		if(!isNodeCandidate(curWord) && !curWord.posTag.startsWith("JJ") && !curWord.posTag.startsWith("R"))
 			return curWord.modifiedWord = null;
 		
-		curWord.modifiedWord = curWord;	//默认修饰自己，修饰自己的word不算做modifier
+		curWord.modifiedWord = curWord;	//default, modify itself
 		Word preWord = null, nextWord = null;
-		int curPos = curWord.position - 1; //word的position从1开始，所以减一
+		int curPos = curWord.position - 1; //word's position from 1, so need -1
 		if(curPos-1 >= 0)	preWord = s.words[curPos-1];
 		if(curPos+1 < s.words.length)	nextWord = s.words[curPos+1];
 		Word nextModifiedWord = getTheModifiedWordBySentence(s, nextWord);
 		
-		//External rule: 认为 ent+noun(非type|ent)的形式，ent不是修饰词并且后面的noun不是node；
+		//External rule: ent+noun(no type|ent), then ent is not modifier and noun is not node
 		//eg：Does the [Isar] [flow] into a lake? | Who was on the [Apollo 11] [mission] | When was the [De Beers] [company] founded
 		if(curWord.mayEnt && nextWord != null && !nextWord.mayEnt && !nextWord.mayType && !nextWord.mayLiteral)
 		{
@@ -824,44 +1132,44 @@ public class BuildQueryGraph
 				return curWord.modifiedWord = curWord;
 		}
 		
-		//修饰左边: ent + type(cur) : De_Beer company
+		//modify LEFT: ent + type(cur) : De_Beer company
 		if(preWord != null && curWord.mayType && preWord.mayEnt) //ent + type(cur)
 		{
 			if(!checkModifyBetweenEntType(preWord, curWord)) //De_Beer <- company, 注意此时即使type后面还连着node，也不理会了
 				return curWord.modifiedWord = preWord;
 		}
 		
-		//修饰自己: ent(cur) + type : De_Beer company
+		//modify itself: ent(cur) + type : De_Beer company
 		if(nextModifiedWord != null && curWord.mayEnt && nextModifiedWord.mayType)
 		{
 			if(!checkModifyBetweenEntType(curWord, nextModifiedWord))
 				return curWord.modifiedWord = curWord;
 		}
 		
-		//排除特殊情况后，通常情况都是修饰右边
+		//generally, modify RIGHT
 		if(nextModifiedWord != null)
 			return curWord.modifiedWord = nextModifiedWord;
 		
-		//右边没有node了，只能修饰自己
+		//modify itself
 		return curWord.modifiedWord;
 	}
 	
 	/*
-	 * 识别不连续词之间的modifier/modified关系，如：
+	 * recognize modifier/modified relation in DISCRETE nodes
 	 * 1、[ent1] 's [ent2]
-	 * 2、[ent1] by [ent2]
-	 * 注意：需先运行getTheModifiedWordBySentence
+	 * 2、[ent1|type] by [ent2]
+	 * Notice: run "getTheModifiedWordBySentence" first!
 	 * */
 	public Word getDiscreteModifiedWordBySentence(Sentence s, Word curWord)
 	{	
-		int curPos = curWord.position - 1; //word的position从1开始，所以减一
+		int curPos = curWord.position - 1;
 		
-		//[ent1](cur) 's [ent2], 则ent1是ent2的修饰词，且通常不需要出现在sparql中。| eg：Show me all books in Asimov 's Foundation_series
+		//[ent1](cur) 's [ent2], ent1->ent2, usually do NOT appear in SPARQL | eg：Show me all books in Asimov 's Foundation_series
 		if(curPos+2 < s.words.length && curWord.mayEnt && s.words[curPos+1].baseForm.equals("'s") && s.words[curPos+2].mayEnt)
 			return curWord.modifiedWord = s.words[curPos+2];
 		
-		//[ent1] by [ent2](cur), 则ent2是ent1的修饰词，且通常不需要出现在sparql中。 | eg: Which museum exhibits The Scream by Munch?
-		if(curPos-2 >=0 && curWord.mayEnt && s.words[curPos-1].baseForm.equals("by") && s.words[curPos-2].mayEnt)
+		//[ent1] by [ent2](cur), ent2->ent1, usually do NOT appear in SPARQL | eg: Which museum exhibits The Scream by Munch?
+		if(curPos-2 >=0 && (curWord.mayEnt||curWord.mayType) && s.words[curPos-1].baseForm.equals("by") && (s.words[curPos-2].mayEnt||s.words[curPos-2].mayType))
 			return curWord.modifiedWord = s.words[curPos-2];
 		
 		return curWord.modifiedWord;

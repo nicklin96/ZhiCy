@@ -36,12 +36,13 @@ public class QueryLogger {
 	public boolean MODE_debug = false;
 	public boolean MODE_log = true;
 	public boolean MODE_fragment = true;
-	public boolean isMaltParserUsed = false;
+	public boolean isMaltParserUsed = true;	// Notice, we utilize Malt Parser as default parser, which is different from the older version. TODO: some coref rules need changed to fit Malt Parser.
 	
 	public HashMap<String, Integer> timeTable = null;
 	public ArrayList<MergedWord> mWordList = null;
 	public ArrayList<SemanticUnit> semanticUnitList = null;
 	public HashMap<Integer, SemanticRelation> semanticRelations = null;
+	public HashMap<Integer, SemanticRelation> potentialSemanticRelations = null;
 	public HashMap<Word, ArrayList<EntityMapping>> entityDictionary = null;
 	public ArrayList<Sparql> rankedSparqls = null;
 		

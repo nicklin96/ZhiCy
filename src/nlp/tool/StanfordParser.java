@@ -30,7 +30,7 @@ public class StanfordParser {
 	public GrammaticalStructure getGrammaticalStructure (String sentence) {
 	    List<CoreLabel> rawWords2 = 
 		      tokenizerFactory.getTokenizer(new StringReader(sentence)).tokenize();
-	    // Converts a Sentence/List/String into a Tree. （参数可以是Sentence，List，或字符串）
+	    // Converts a Sentence/List/String into a Tree.
 	    // In all circumstances, the input will be treated as a single sentence to be parsed.
 	    Tree parse = lp.apply(rawWords2);
 
@@ -46,6 +46,6 @@ public class StanfordParser {
 	    			+"\tgov.pos="
 	    			+((TreeGraphNode)td.gov().parent()).value());
 	    }*/
-	    //System.out.println(tdl);//只输出依赖关系
+	    //System.out.println(tdl);
 	}
 }

@@ -7,9 +7,8 @@ import qa.extract.EntityRecognition;
 import rdf.MergedWord;
 
 /**
- * Query类主要功能：
- * 1、对question进行预处理
- * 2、对question进行Node Recognition
+ * 1. preprocessing of question
+ * 2. Node Recognition
  * @author husen
  */
 public class Query 
@@ -30,15 +29,9 @@ public class Query
 		NLQuestion = _question;
 		NLQuestion = removeQueryId(NLQuestion);
 				
-		/*
-		 * 把等价替换放在后面，以防有某个实体名包含”as well as“等被替换词
-		 * 算了还是放在前面吧，as well as会被识别成net：as_well.....
-		 * 顺便把word中的"."删除，因为.和_连起来，会被parser拆开；
-		 * 其实","也会影响，但句子中出现的,有分割作用，不能随便删除
-		*/
 		TransferedQuestion = getTransferedQuestion(NLQuestion);	
 		
-		// step1： NODE Recognition
+		// step1. NODE Recognition
 		MergedQuestionList = getMergedQuestionList(TransferedQuestion);
 		
 		// build Sentence
@@ -65,22 +58,22 @@ public class Query
 	}
 	
 	/**
-	 * 将question中部分words用等价形式替代，包括：
-	 * 1、stanfordParser经常解析错误的短语和符号
-	 * 2、同义词统一，movie->film
+	 * some words -> equivalent words
+	 * 1銆乻tanfordParser often parse incorrect.
+	 * 2銆丼ynonyms unify. eg, movie->film
 	 * @param question
-	 * @return 替换后的question
+	 * @return transfered question
 	 */
 	public String getTransferedQuestion(String question)
 	{
-		//rule1: 去掉word中的"."，因为.和_连起来，会被parser拆开; 去掉word末尾的"'"，因为会影响ner
+		//rule1: discard ".", because "." and "_" will be disconnected by parser. Discard word tail's "'", which may pollutes NER
 		question = question.replace("' ", " ");
 		String [] words = question.split(" ");
 		String ret = "";
 		for(String word: words)
 		{
 			String retWord = word;
-			//偷懒只判断word首尾是否为num
+			//TODO: now just check NUM in head/tail
 			if(word.length()>=2 && !isDigit(word.charAt(0)) && !isDigit(word.charAt(word.length()-1)))
 			{
 				retWord = retWord.replace(".", "");
@@ -99,18 +92,20 @@ public class Query
 		//rule3: movie -> film
 		ret = ret.replace(" movie", " film");
 		ret = ret.replace(" movies", " films");
-		ret = ret.replace("American", "United States");
 		
 		//rule4: last
 		ret = ret.replace("last Winter Paralympics", "2014 Winter Paralympics");
+		
+		//rule5: number
+		ret = ret.replace(" ten ", " 10 ");
 		
 		return ret;
 	}
 	
 	/**
-	 * 将KB中的entity & type & literal识别出并用下划线替代同一实体间的空格
+	 * Recognize entity & type & literal in KB and replace " " in Phrases with "_"
 	 * @param question
-	 * @return merged question list，即多种node recognition后的question
+	 * @return merged question list
 	 */
 	public ArrayList<String> getMergedQuestionList(String question)
 	{

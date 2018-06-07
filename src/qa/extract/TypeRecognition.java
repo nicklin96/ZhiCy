@@ -20,16 +20,11 @@ import rdf.TypeMapping;
 
 /*
  * 2016-6-17
- * 1、识别type，包括yago type；
- * 2、手动添加一些type对应，如“USState"-"yago:StatesOfTheUnitedStates"；
- * 3、开始加入一些extend variable，即【自带type的变量】的general版本，【自带triple的变量】；目前主要为形如  ?canadian <birthPlace> <Canada>
+ * 1. Recognize types (include YAGO type)
+ * 2銆丄dd some type mapping manually, eg, "US State"-"yago:StatesOfTheUnitedStates"
+ * 3銆丄dd some extend variable, (generalization of [variable with inherit type] -> [variable with inherit triples]) eg, ?canadian <birthPlace> <Canada>
  * */
 public class TypeRecognition {
-	// dbpedia3.9
-//	public static final int[] type_Person = {19,20,21};
-//	public static final int[] type_Place = {43,45};
-//	public static final int[] type_Organisation = {2,12};	
-	
 	// dbpedia 2014
 	public static final int[] type_Person = {180,279};
 	public static final int[] type_Place = {49,228};
@@ -57,7 +52,7 @@ public class TypeRecognition {
 		extendTypeMap.put("Africa", "yago:AfricanCountries");
 		
 		//!The following IDs are based on DBpedia 2014.
-		//!extend variable (embedded triples) | eg, [?E|surfers]-?uri dbo:occupation res:Surfing | canadians：<?canadian>	<birthPlace>	<Canada>
+		//!extend variable (embedded triples) | eg, [?E|surfers]-?uri dbo:occupation res:Surfing | canadians锟斤拷<?canadian>	<birthPlace>	<Canada>
 		//1) <?canadians>	<birthPlace>	<Canada> | [country people] <birthPlace|1639> [country]
 		triple = new Triple(Triple.VAR_ROLE_ID, Triple.VAR_NAME, 1639, 2112902, "Canada", null, 100);
 		extendVariableMap.put("canadian", triple);
@@ -211,12 +206,12 @@ public class TypeRecognition {
 	}
 	
 	/*
-	 * 1、Priority: mayEnt(Uppercase)>mayType>mayEnt
-	 * 2、mayEnt=1: Constant
-	 * 3、mayType=1:
+	 * 1. Priority: mayEnt(Uppercase)>mayType>mayEnt
+	 * 2. mayEnt=1: Constant
+	 * 3. mayType=1:
 	 * (1)Variable, a triple will be added when evaluation. | eg, Which [books] by Kerouac were published by Viking Press?
 	 * (2)Constant, it modify other words. | eg, Are tree frogs a type of [amphibian]?
-	 * 4、extend variable (a variable embedded triples)
+	 * 4銆乪xtend variable (a variable embedded triples)
 	 * */
 	public static void constantVariableRecognition(HashMap<Integer, SemanticRelation> semanticRelations, QueryLogger qlog) 
 	{
@@ -256,7 +251,7 @@ public class TypeRecognition {
 			// type
 			else if(sr.arg1Word.mayType)
 			{
-				//rule：in/of [type] -> constant  |eg, How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
+				//rule in/of [type] -> constant  |eg, How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
 				if(arg1WordPos >= 2 && (words[arg1WordPos-1].baseForm.equals("in") || words[arg1WordPos-1].baseForm.equals("of"))  
 						&& !words[arg1WordPos-2].posTag.startsWith("V"))
 				{
@@ -299,7 +294,7 @@ public class TypeRecognition {
 			// type
 			else if(sr.arg2Word.mayType)
 			{
-				//rule：in/of [type] -> constant  |eg, How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
+				//rule in/of [type] -> constant  |eg, How many [countries] are there in [exT:Europe] -> ?uri rdf:type yago:EuropeanCountries
 				if(arg2WordPos >= 2 && (words[arg2WordPos-1].baseForm.equals("in") || words[arg2WordPos-1].baseForm.equals("of")) 
 						&& !words[arg2WordPos-2].posTag.startsWith("V") )
 				{

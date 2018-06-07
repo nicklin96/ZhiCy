@@ -18,9 +18,8 @@ public class EntityFragment extends Fragment {
 	public HashSet<Integer> outEdges = new HashSet<Integer>();
 	public HashSet<Integer> types = new HashSet<Integer>();	
 	
-	// inEntÒÔ¼°inEnt¾­¹ıÄÄĞ©edgeÀ´µ½ÕâÀï¡£ÀıÈç <eId><director><tom> <eId><star><tom>, ÄÇÃ´outEntMap¾ÍÓĞÒ»ÏîÊÇ <tom,<director,star>>
-	// ÕâÀïÓÃArrayListÊÇÒòÎªÊäÈëÎÄ¼şÒ²ÊÇÈ¥ÖØµÄ£¬ËùÒÔ²»»ás,p,oÈıÕß¶¼Ò»Ñù¡£ÏÖÔÚs,o¹Ì¶¨£¬ÄÇÃ´p¿Ï¶¨ÊÇÃ»ÓĞÖØ¸´µÄ¡£
-	public HashMap<Integer, ArrayList<Integer>> inEntMap = new HashMap<Integer, ArrayList<Integer>>();
+	// in/out entity and the connected edges. Eg, <eId><director><tom> <eId><star><tom>, then outEntMap of eId contains <tom,<director,star>>
+	public HashMap<Integer, ArrayList<Integer>> inEntMap = new HashMap<Integer, ArrayList<Integer>>(); // notice the input file should no redundant triple.
 	public HashMap<Integer, ArrayList<Integer>> outEntMap = new HashMap<Integer, ArrayList<Integer>>();
 		
 	static double thres1 = 0.4;
@@ -29,21 +28,19 @@ public class EntityFragment extends Fragment {
 	static int k = 50;
 	
 	/**
-	 * ½«Ò»¸öphrase(ÒÑÊ¶±ğÎªÃüÃûÊµÌå)£¬Ó³Éäµ½ÖªÊ¶¿âÖĞÏàÓ¦µÄ<entity>
+	 * mention to entity using Lucene index.
 	 * 
-	 * ·½·¨:
-	 * (1)ÄÃphraseÈ¥ËÑsubjectÓò, °´ÕÕ"¹æÔò"À´ËÑË÷£¬Èç¹û½á¹ûÖĞ³öÏÖ"¾«È·Æ¥Åä"£¬Ôò²»ĞèÒª½øĞĞ²½Öè(2)£»·ñÔòĞèÒª½øĞĞ²½Öè(2)
-	 * dropped: (2)ÄÃphraseÈ¥ËÑliteralÓò£¬°´ÕÕ"¹æÔò"À´ËÑË÷£¬×¢Òâ´¦ÀíºÍ(1)ÖĞÖØ¸´µÄÇéĞÎ¡£
+	 * ruleï¼š
+	 * select top-k results of each phrase. 
+	 * (1)if current lowest score < thres1, drop those score < thres1.
+	 * (2)if current lowest score > thres2, add those score > thres2.
 	 * 
-	 * ¹æÔò£º
-	 * Ã¿¸öphraseÖ»È¡Ç°k¸ö½á¹û£¬(1)ÈôÇ°k¸ö½á¹ûÖĞ³öÏÖ·ÖÊıµÍÓÚthres1µÄ£¬À¹Ñü½Ø¶Ï£¬ÆäºóÉáÈ¥£»
-	 * (2)ÈôÇ°k¸ö½á¹ûÖĞ×îºóÒ»¸ö·ÖÊıÈÔ¸ßÓÚthres2£¬ÔòÈ¡µ½thres2ÎªÖ¹¡£
+	 * exact matchï¼š
+	 * (1)Lucene score = 1.
+	 * (2)String match (lowercase): edit distance <= thres3.
 	 * 
-	 * ¾«È·Æ¥Åä£º
-	 * Ê×ÏÈ£¬Lucene score±ØĞëµÈÓÚ1£»Æä´Î£¬¼ì²é×Ö·û´®ÊÇ·ñÍêÈ«Æ¥Åä£¬(¾ù×ª»»ÎªĞ¡Ğ´ºó)±à¼­¾àÀë²»³¬¹ıãĞÖµthres3¡£
-	 * 
-	 * ·ÖÊı£º
-	 * Ö±½ÓÄÃLuceneµÄ·ÖÊıÀ´ÓÃ£¬ÒòÎªËüÒÑ¾­×ÛºÏ¿¼ÂÇ¶àÖÖÒòËØ¡£
+	 * scoreï¼š
+	 * use Lucene score directly.
 	 * 
 	 * @param phrase
 	 * @return
@@ -51,14 +48,11 @@ public class EntityFragment extends Fragment {
 	public static HashMap<Integer, Double> getCandEntityNames2(String phrase) {
 		
 		HashMap<Integer, Double> ret = new HashMap<Integer, Double>();
-
-		// ´Ë´¦»ñµÃsubjectÓòscore´óÓÚµÈÓÚthres1µÄÆ¥Åä
 		ArrayList<EntityNameAndScore> list1 = getCandEntityNames_subject(phrase, thres1, thres2, k);
 		
 		if(list1 == null)
 			return ret;
 		
-		// °´ÕÕ¹æÔò£¬ÖÁ¶àÖ»Ñ¡ÔñÇ°k¸ö
 		int iter_size = 0;
 		if (list1.size() <= k) {
 			iter_size = list1.size();
@@ -71,8 +65,6 @@ public class EntityFragment extends Fragment {
 				iter_size = k;
 			}
 		}
-		
-		// £¨½ÓÉÏÃæ£©Ñ¡ÔñÇ°k¸ö
 		for(int i = 0; i < iter_size; i ++) {
 			if (i < k) {
 				ret.put(list1.get(i).entityID, getScore(phrase, list1.get(i).entityName, list1.get(i).score));
@@ -107,7 +99,7 @@ public class EntityFragment extends Fragment {
 	}
 	
 	/**
-	 * ¼ÆËã±à¼­¾àÀë£¬²»¿¼ÂÇ´óĞ¡Ğ´£¨´óĞ¡Ğ´ÊÓÎªÏàÍ¬£©
+	 * Edit distance (all lowercase)
 	 * @param s1
 	 * @param s2
 	 * @return
@@ -116,14 +108,11 @@ public class EntityFragment extends Fragment {
 		s1 = s1.toLowerCase();
 		s2 = s2.toLowerCase();
 		
-		int d[][];//¾ØÕó 
+		int d[][];
         int n = s1.length(); 
         int m = s2.length(); 
-        int i;    //±éÀústr1µÄ 
-        int j;    //±éÀústr2µÄ 
-        char ch1;    //str1µÄ 
-        char ch2;    //str2µÄ 
-        int temp;    //¼ÇÂ¼ÏàÍ¬×Ö·û,ÔÚÄ³¸ö¾ØÕóÎ»ÖÃÖµµÄÔöÁ¿,²»ÊÇ0¾ÍÊÇ1 
+        int i, j, temp;
+        char ch1, ch2;
 		
         if(n == 0) { 
             return m; 
@@ -133,16 +122,15 @@ public class EntityFragment extends Fragment {
         } 
 
         d = new int[n+1][m+1]; 
-        for(i=0; i<=n; i++) {    //³õÊ¼»¯µÚÒ»ÁĞ 
+        for(i=0; i<=n; i++) {
             d[i][0] = i; 
         } 
-        for(j=0; j<=m; j++) {    //³õÊ¼»¯µÚÒ»ĞĞ 
+        for(j=0; j<=m; j++) {
             d[0][j] = j; 
         } 
 
-        for(i=1; i<=n; i++) {    //±éÀústr1 
+        for(i=1; i<=n; i++) {
             ch1 = s1.charAt(i-1); 
-            //È¥Æ¥Åästr2 
             for(j=1; j<=m; j++) { 
                 ch2 = s2.charAt(j-1); 
                 if(ch1 == ch2) { 
@@ -150,7 +138,6 @@ public class EntityFragment extends Fragment {
                 } else { 
                     temp = 1; 
                 } 
-                //×ó±ß+1,ÉÏ±ß+1, ×óÉÏ½Ç+tempÈ¡×îĞ¡ 
                 d[i][j] = min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+temp); 
             } 
         } 
@@ -165,7 +152,6 @@ public class EntityFragment extends Fragment {
 	
 	public static ArrayList<EntityNameAndScore> getCandEntityNames_subject(String phrase, double thres1, double thres2, int k) {
 		SearchInEntityFragments sf = new SearchInEntityFragments();
-		
 		//System.out.println("EntityFragment.getCandEntityNames_subject() ...");
 		
 		ArrayList<EntityNameAndScore> ret_sf = null;
@@ -267,6 +253,17 @@ public class EntityFragment extends Fragment {
 					types.add(Integer.parseInt(nums[i]));
 				}
 			}
+		}
+		
+		//TODO: fix data for DBpedia 2014 (should be eliminated when update dataset)
+		if(eid==2640237) //Barack_Obama
+		{
+			inEdges.add(8432); //spouse
+			outEdges.add(8432);
+			ArrayList<Integer> outEdgeList = new ArrayList<Integer>();
+			outEdgeList.add(8432);
+			inEntMap.put(4953443, outEdgeList);
+			outEntMap.put(4953443, outEdgeList);
 		}
 	}
 	

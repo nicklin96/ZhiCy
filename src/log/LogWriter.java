@@ -17,7 +17,7 @@ public class LogWriter {
 			int userFeedback			
 			) {
 		/*
-		  	insert into huangruizhe.ganswerlog (NL_question, sparql, user_feedback, error_num, user_ip, time) 
+		  	insert into ganswer log (NL_question, sparql, user_feedback, error_num, user_ip, time) 
 			values ('Who is the daughter of Bill Clinton married to?',
         	'?daughter <child> Bill_Clinton',
         	5,

@@ -15,18 +15,17 @@ import org.apache.lucene.index.IndexWriter;
 
 //import qa.Globals;
 
-/** */
 /**
- *  Lucene½¨Á¢Ë÷ÒıµÄ»ù±¾µ¥ÔªÊÇdocument£¬Í¬Ê±ÆäÖĞµÄÓòfiled¿ÉÒÔ¸ü¾ßĞèÒª×Ô¼ºÌí¼Ó
+ * Luceneå»ºç«‹ç´¢å¼•çš„åŸºæœ¬å•å…ƒæ˜¯documentï¼ŒåŒæ—¶å…¶ä¸­çš„åŸŸfiledå¯ä»¥æ ¹æ®éœ€è¦è‡ªå·±æ·»åŠ 
  * 
- * DocumentÊÇÒ»¸ö¼ÇÂ¼£¬ÓÃÀ´±íÊ¾Ò»¸öÌõÄ¿£¬Ïàµ±ÓÚÊı¾İ¿âÖĞµÄÒ»ĞĞ¼ÇÂ¼£¬¾ÍÊÇËÑË÷½¨Á¢µÄµ¹ÅÅË÷ÒıµÄÌõÄ¿¡£
- * eg:ÄãÒªËÑË÷×Ô¼ºµçÄÔÉÏµÄÎÄ¼ş£¬Õâ¸öÊ±ºò¾Í¿ÉÒÔ´´½¨field(×Ö¶Î,Ïà¹ØÓÚÊı¾İ¿âÖĞµÄÁĞ¡£ È»ºóÓÃfield×éºÏ³Édocument£¬×îºó»á±ä³ÉÈô¸ÉÎÄ¼ş¡£
- * Õâ¸ödocumentºÍÎÄ¼şÏµÍ³document²»ÊÇÒ»¸ö¸ÅÄî¡£
+ * Documentæ˜¯ä¸€ä¸ªè®°å½•ï¼Œç”¨æ¥è¡¨ç¤ºä¸€ä¸ªæ¡ç›®ï¼Œç›¸å½“äºæ•°æ®åº“ä¸­çš„ä¸€è¡Œè®°å½•ï¼Œå°±æ˜¯æœç´¢å»ºç«‹çš„å€’æ’ç´¢å¼•çš„æ¡ç›®ã€‚
+ * eg:ä½ è¦æœç´¢è‡ªå·±ç”µè„‘ä¸Šçš„æ–‡ä»¶ï¼Œè¿™ä¸ªæ—¶å€™å°±å¯ä»¥åˆ›å»ºfield(å­—æ®µ,ç›¸å…³äºæ•°æ®åº“ä¸­çš„åˆ—ã€‚ ç„¶åç”¨fieldç»„åˆæˆdocumentï¼Œæœ€åä¼šå˜æˆè‹¥å¹²æ–‡ä»¶ã€‚
+ * è¿™ä¸ªdocumentå’Œæ–‡ä»¶ç³»ç»Ÿdocumentä¸æ˜¯ä¸€ä¸ªæ¦‚å¿µã€‚
  * 
- * StandardAnalyzerÊÇluceneÖĞÄÚÖÃµÄ"±ê×¼·ÖÎöÆ÷",¿ÉÒÔ×öÈçÏÂ¹¦ÄÜ: 
- * 1¡¢¶ÔÔ­ÓĞ¾ä×Ó°´ÕÕ¿Õ¸ñ½øĞĞÁË·Ö´Ê
- * 2¡¢ËùÓĞµÄ´óĞ´×ÖÄ¸¶¼¿ÉÒÔÄÜ×ª»»ÎªĞ¡Ğ´µÄ×ÖÄ¸ 
- * 3¡¢¿ÉÒÔÈ¥µôÒ»Ğ©Ã»ÓĞÓÃ´¦µÄµ¥´Ê£¬ÀıÈç"is","the","are"µÈµ¥´Ê£¬Ò²É¾³ıÁËËùÓĞµÄ±êµã
+ * StandardAnalyzeræ˜¯luceneä¸­å†…ç½®çš„"æ ‡å‡†åˆ†æå™¨",å¯ä»¥åšå¦‚ä¸‹åŠŸèƒ½: 
+ * 1ã€å¯¹åŸæœ‰å¥å­æŒ‰ç…§ç©ºæ ¼è¿›è¡Œäº†åˆ†è¯
+ * 2ã€æ‰€æœ‰çš„å¤§å†™å­—æ¯éƒ½å¯ä»¥èƒ½è½¬æ¢ä¸ºå°å†™çš„å­—æ¯ 
+ * 3ã€å¯ä»¥å»æ‰ä¸€äº›æ²¡æœ‰ç”¨å¤„çš„å•è¯ï¼Œä¾‹å¦‚"is","the","are"ç­‰å•è¯ï¼Œä¹Ÿåˆ é™¤äº†æ‰€æœ‰çš„æ ‡ç‚¹
  */
 public class BuildIndexForEntityFragments{
 	public void indexforentity() throws Exception
@@ -36,19 +35,16 @@ public class BuildIndexForEntityFragments{
 		
 		long startTime = new Date().getTime();
 		
-		//File indexDir_en = new File("E:\\Hanshuo\\DBpedia3.9\\reducedDBpedia3.9\\fragments\\entity_fragment_index");
-		//File sourceDir_en = new File("E:\\Hanshuo\\DBpedia3.9\\reducedDBpedia3.9\\fragments\\entity_fragment.txt");
-		
-//Try update offline to DBpedia2015. by husen 2016-04-08	// use DBpedia2014, by husen 2016-04-22
+//Try update offline to DBpedia2015. by husen 2016-04-08 | use DBpedia2014 as DBpedia2015 is unfriendly. by husen 2016-04-22
 		File indexDir_en = new File("D:\\husen\\DBpedia2014\\reducedDBpedia2014\\fragments\\entity_fragment_index");
 		File sourceDir_en = new File("D:\\husen\\DBpedia2014\\reducedDBpedia2014\\fragments\\entity_fragment.txt");
 		
 		Analyzer luceneAnalyzer_en = new StandardAnalyzer();  
 		IndexWriter indexWriter_en = new IndexWriter(indexDir_en, luceneAnalyzer_en,true); 
 		
-		int mergeFactor = 100000;    //Ä¬ÈÏÊÇ10
-		int maxBufferedDoc = 1000;  // Ä¬ÈÏÊÇ10
-		int maxMergeDoc = Integer.MAX_VALUE;  //Ä¬ÈÏÎŞÇî´ó
+		int mergeFactor = 100000;    //default 10
+		int maxBufferedDoc = 1000;   //default 10
+		int maxMergeDoc = Integer.MAX_VALUE;  //INF
 		
 		//indexWriter.DEFAULT_MERGE_FACTOR = mergeFactor;
 		indexWriter_en.setMergeFactor(mergeFactor);
@@ -58,14 +54,9 @@ public class BuildIndexForEntityFragments{
 		
 		FileInputStream file = new FileInputStream(sourceDir_en);		
 		InputStreamReader in = new InputStreamReader(file,"UTF-8");	
-		//InputStreamReader in = new InputStreamReader(file,"utf-16");	
 		BufferedReader br = new BufferedReader(in);		
 		
 		int count = 0;
-		
-		//×î³õÊÇÓÃ sc.hasNext() ÅĞ¶ÏÊÇ·ñÓĞÏÂÒ»ĞĞ
-		//»òÕßÖ±½ÓÓÃ br.readLine()
-		//while(br.readLine() != null)
 		while(true)
 		{			
 			String _line = br.readLine();

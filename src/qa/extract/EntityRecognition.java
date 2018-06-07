@@ -547,18 +547,11 @@ public class EntityRecognition {
 		}
 		
 		/*
-		 * sort by score and remove duplicate
-		 * <"video_game" "ent:Video game" "50.0"> <"a_video_game" "ent:Video game" "45.0">, 则组合成多种方案，每个方案内部不冲突。
-		 * 按照得分最高的对应实体的得分排序，砍掉重复的低分。注意实际上并没有在mWordList中删除任何信息。
-		 * type的判断较严，认为不会出现这种情况啊
-		 * 
-		 * 2015-11-28
-		 * 对于每一个需要连下滑线的词序列（即Node），选择连线（将他们的识别信息保留下去）或不连线（放弃这个词序列的识别信息）
-		 * 因为type是全匹配而且很少有噪音，所以识别出type的那个word是必选的；
-		 * 因为literal只识别纯数字，所以识别出literal的那个word也是必选的；
-		 * KB中同一ent对应query中不同mergedWord的，取得分高的
-		*/
-		// KB中同一ent对应query中不同mergedWord的，取得分高的
+		 * Sort by score and remove duplicate.
+		 * eg, <"video_game" "ent:Video game" "50.0"> <"a_video_game" "ent:Video game" "45.0">.
+		 * Notice, reserve all information in mWordList.
+		 */
+		// one ENT maps different mergedWord in query, reserve the higher score.
 		ByValueComparator bvc = new ByValueComparator(entityScores,words.length+1);
 		List<Integer> keys = new ArrayList<Integer>(entityMappings.keySet());
         Collections.sort(keys, bvc);
@@ -598,7 +591,7 @@ public class EntityRecognition {
         	}
         }
         
-        // Conflict resolvtion
+        // Conflict resolution
         ArrayList<Integer> noConflictSelected = new ArrayList<Integer>();
     	
 		//select longer one when conflict
@@ -754,7 +747,7 @@ public class EntityRecognition {
 			String eName = m2e.get(entity);
 			EntityMapping em = new EntityMapping(EntityFragmentFields.entityName2Id.get(eName), eName, 1000);
 			ret.add(em);
-			return ret; //目前认为handwrite一定对，直接返回
+			return ret; //handwriting is always correct
 		}
 		
 		//2. Lucene index
@@ -904,7 +897,7 @@ public class EntityRecognition {
 //					question = strArray[1];
 //					id = strArray[0];
 //				}
-//				//去掉句尾符号，另外注意"?"会导致lucene/dbpedia lookup报错
+//				//Notice "?" may leads lucene/dbpedia lookup error
 //				if(question.length()>1 && question.charAt(question.length()-1)=='.' || question.charAt(question.length()-1)=='?')
 //					question = question.substring(0,question.length()-1);
 //				if(question.isEmpty())

@@ -20,8 +20,7 @@ import edu.stanford.nlp.util.CoreMap;
 
 public class CoreNLP {
 
-	// CoreNLP 还有识别时间、数字的功能，见SUTime
-	
+	// CoreNLP can also recognize TIME and NUMBER (see SUTime)
 	private StanfordCoreNLP pipeline_lemma;
 	
 	public CoreNLP () {
@@ -48,7 +47,7 @@ public class CoreNLP {
 
 	    // these are all the sentences in this document
 	    // a CoreMap is essentially a Map that uses class objects as keys and has values with custom types
-	    // 在这里切句子
+	    // 锟斤拷锟斤拷锟斤拷锟叫撅拷锟斤拷
 	    List<CoreMap> sentences = document.get(SentencesAnnotation.class);
 	    
 	    int count = 0;

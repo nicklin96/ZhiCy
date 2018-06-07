@@ -138,7 +138,7 @@ public class QaldJsonDataParser
 				continue;
 			
 			int cnt = 0;
-			ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
+			ArrayList<String> lastSpqList = new ArrayList<String>();	
 			for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
 			{
 				Sparql spq = qlog.rankedSparqls.get(j);
@@ -157,7 +157,7 @@ public class QaldJsonDataParser
 					break;
 			}
 			
-			//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
+			//Try dropping types, as some types are useless (?x <type> <yago:Wife>)
 			Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 			if(untypedSparql != null)
 			{
@@ -210,8 +210,8 @@ public class QaldJsonDataParser
 		}
 		
 		int cnt = 0;
-		ArrayList<String> lastSpqList = new ArrayList<String>();	//简单去一下重
-		for(int j=qlog.rankedSparqls.size()-1; j>=0; j--)
+		ArrayList<String> lastSpqList = new ArrayList<String>();
+		for(int j=0; j<qlog.rankedSparqls.size()-1; j++)
 		{
 			Sparql spq = qlog.rankedSparqls.get(j);
 			String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, spq);
@@ -229,7 +229,7 @@ public class QaldJsonDataParser
 				break;
 		}
 		
-		//因为经常出现无用type导致查询不到结果(如 <type> <yago:Wife>)，追加一个untyped SPQ
+		//Try dropping types, as some types are useless (?x <type> <yago:Wife>)
 		Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(qlog.rankedSparqls.size()-1));
 		if(untypedSparql != null)
 		{

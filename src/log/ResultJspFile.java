@@ -115,7 +115,7 @@ public class ResultJspFile
 					}
 					ret.append("</td>");
 				}
-				else // ³£Á¿Öµ
+				else
 				{
 					ret.append("<td id=\"hit\">");
 					ret.append(ans.questionFocusValue);
@@ -152,81 +152,6 @@ public class ResultJspFile
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-		}
-	}
-	
-	public void saveAnswerJspForNBganswer() 
-	{
-		//System.out.println("printAnswerJsp..."+beginResult+" "+endResult+ " "+ qlog.answers.size());
-		if (qlog==null || qlog.match == null 
-			|| qlog.match.answers == null 
-			|| qlog.match.answers.length == 0
-			|| qlog.sparql == null) {
-			return ;
-		}
-		try 
-		{	
-			int resultCount = qlog.answers.size();
-			
-			StringBuilder ret = new StringBuilder("");
-
-			for (int i = 0; i < resultCount; i ++) 
-			{
-				Answer ans = qlog.answers.get(i);
-				
-				if (i%2 == 0)
-					ret.append("<tr>");
-				if (!Character.isDigit(ans.questionFocusValue.charAt(0)) && !ans.questionFocusValue.equals("false") && !ans.questionFocusValue.equals("true")) // ÊµÌå
-				{
-					String link = null;
-					if (ans.questionFocusValue.startsWith("http")) 
-					{
-						link = ans.questionFocusValue;
-					}
-					else 
-					{
-						link = "http://en.wikipedia.org/wiki/"+ans.questionFocusValue;
-					}
-					ret.append("<td id=\"hit\"><a id=\"entity_name\" href=\""+link+"\" target=\"_blank\">");
-					ret.append(ans.questionFocusValue);
-					ret.append("</a><br/>");
-					for (int j = 0; j < ans.otherInformationKey.size(); j ++) 
-					{
-						ret.append("<span id=\"properties\">"+ans.otherInformationKey.get(j).substring(1)
-								+":</span><span id=\"values\">"
-								+ans.otherInformationValue.get(j)
-								+"   </span>");
-					}
-					ret.append("</td>");
-				}
-				else // ³£Á¿Öµ
-				{
-					ret.append("<td id=\"hit\">");
-					ret.append(ans.questionFocusValue);
-					ret.append("<br/>");
-					for (int j = 0; j < ans.otherInformationKey.size(); j ++) {
-						ret.append("<span id=\"properties\">"+ans.otherInformationKey.get(j).substring(1)
-								+":</span><span id=\"values\">"
-								+ans.otherInformationValue.get(j)
-								+"   </span>");
-					}
-					ret.append("</td>");
-				}
-				
-				if (i%2 == 1)
-					ret.append("</tr>");
-				
-			}
-			
-			String path = localpath+"ansJsp.dat";
-			File outputFile = new File(path);
-			FileWriter writer = new FileWriter(outputFile);
-			writer.write(ret.toString());
-			writer.close();
-			
-			
-		} catch (Exception e) {
-			e.printStackTrace();					
 		}
 	}
 	

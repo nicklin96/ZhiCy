@@ -36,8 +36,6 @@ public class ParaphraseDictionary {
 	public HashSet<String> prepositions;
 	public HashSet<String> bannedTypes;
 	
-	//public final int typePredicateID = 88; // dbpedia: <type1>=88
-	//public final int typePredicateID = 471; // dbpedia3.9: <type1>=471
 	//public final int typePredicateID = 1541;	//dbpedia2015 <type>=1541
 	public final int typePredicateID = 6042;	//Dbpedia 2014 <type>=6042
 	public int totalPredCount = 0;
@@ -53,8 +51,6 @@ public class ParaphraseDictionary {
 		String fixedPath = Globals.localPath;
 
 		System.out.println(System.getProperty("user.dir"));
-		//localDataPath = System.getProperty("user.dir") + "\\data\\";//MainFrame2.class.getProtectionDomain().getCodeSource().getLocation().getFile();
-		//localDataPath = fixedPath + "\\data\\DBpedia\\parapharse\\";
 		localDataPath = fixedPath + "data/DBpedia2014/parapharse/";
 		dbpedia_relation_paraphrases_baseform_withScore_rerank = localDataPath + "dbpedia-relation-paraphrases-withScore-baseform-merge-sorted-rerank-slct.txt";
 		dbpedia_relation_paraphrases_handwrite = localDataPath + "dbpedia-relation-paraphrase-handwrite.txt";
@@ -235,7 +231,8 @@ public class ParaphraseDictionary {
 			System.out.println("Predicate.size = " + predicate_2_id.size());
 			System.out.println("Warning: Predicates not in DBpedia 2014 count: "+missInDBP2014.size());
 
-			addPredicateAsNLPattern();
+			// Notice predicate itself and handwritten patterns have no wordSelectivity.
+			addPredicateAsNLPattern(); // This is very important. 
 			addHandwriteAsNLPattern();
 			
 			Iterator<String> it = nlPattern_2_predicateList.keySet().iterator();
@@ -254,21 +251,7 @@ public class ParaphraseDictionary {
 				}
 			}
 		}
-		
-		System.out.println("Number of NL-Patterns-to-predicate mappings = " + lineCount);
-		System.out.println("NLPatterns.size = " + nlPattern_2_predicateList.size());
-		System.out.println("Predicate.size = " + predicate_2_id.size());
-		
-		System.out.println("Warning: Predicates not in DBpedia 2014 count: "+missInDBP2014.size());
-
-		//Globals.systemPause();
-		
-		// This is very important.
-		// 注意：目前predicate本身和handwrittern的NL patterns是没有wordSelectivity的
-		
-		// sort
 		System.out.println("NLPatterns.Paradict() : ok!");
-		
 	}
 	
 	/**
@@ -279,14 +262,14 @@ public class ParaphraseDictionary {
 		int predicate_id;
 		for (String p : predicate_2_id.keySet()) 
 		{
-			//忽略一些基本不会用到，反而常常作为错误谓词出现的predicate（如film）
+			// TODO: Omitting some bad relations (should be discarded in future)
 			if(p.equals("state") || p.equals("states"))
 				continue;
 			
 			predicate_id = predicate_2_id.get(p);
 			StringBuilder pattern = new StringBuilder("");
 			
-			// Work/runtime	11,SpaceStation/volume	68 等有前缀的predicate (DBpedia 2015及后续版本)，生成pattern时，去掉前缀 
+			// Work/runtime	11,SpaceStation/volume	68 and some predicates have prefix (DBpedia 2015), discard the prefix when generating pattern
 			if(p.contains("/"))
 			{
 				if(p.charAt(0)>='A' && p.charAt(0)<='Z')
@@ -329,7 +312,7 @@ public class ParaphraseDictionary {
 				}
 			}
 			
-			// pattern还要转化为base form
+			// pattern -> base form
 			/*String[] ptns = pattern.toString().split(" ");
 			pattern = new StringBuilder("");
 			for (String s : ptns) {
@@ -339,7 +322,7 @@ public class ParaphraseDictionary {
 			pattern.deleteCharAt(pattern.length()-1);
 			String patternString = pattern.toString();*/
 			
-			// 还是不能够完全转化为 base form，例如foundingYear	//可能要用Porter's Algorithm
+			// Special case cannot use base form, eg, foundingYear	//TODO: maybe Porter's Algorithm
 			String patternString = Globals.coreNLP.getBaseFormOfPattern(pattern.toString());
 			//System.out.println(p + "-->" + patternString);
 			
@@ -449,8 +432,6 @@ public class ParaphraseDictionary {
 		System.out.println("NLPatterns.buildInvertedIndex(): ok!");
 	}
 	
-	
-
 	public static void main (String[] args) {
 		Globals.coreNLP = new CoreNLP();
 		Globals.pd = new ParaphraseDictionary();

@@ -47,6 +47,9 @@ public class AddtionalFix
 	
 	public void fixCategory(QueryLogger qlog)
 	{
+		if(qlog == null || qlog.semanticUnitList == null)
+			return;
+		
 		String var = null, category = null;
 		for(SemanticUnit su: qlog.semanticUnitList)
 		{
@@ -78,19 +81,17 @@ public class AddtionalFix
 	}
 	
 	/* recognize one-Node query 
-	 * 两种情况：1、特殊疑问句|祈使句	2、一般疑问句
-	 * 1-1：how many [], highest [] ...  | 对单个 variable（一般为type）添加一些额外限制(aggregation)
-	 * 1-2: What is backgammon? | What is a bipolar syndrome? | (有时会把what识别成node，有时则会被消解)查询  ent的定义，无额外限制；目前认为直接返回该 ent 
-	 * 1-3: Give me all Seven Wonders of the Ancient World. | 注意Seven Wonders of the Ancient World需要先被识别为ent（实际他是category而不是ent）
+	 * Two cases：1、Special question|Imperative sentence	2、General question
+	 * 1-1：how many [], highest [] ...  | For single variable, add constraint (aggregation)
+	 * 1-2: What is backgammon? | What is a bipolar syndrome? | Search an entity (return itself or its type/description ...)
+	 * 1-3: Give me all Seven Wonders of the Ancient World. | Notice, "Seven Wonders of the Ancient World" should be recognized as ENT before. (in fact it is CATEGORY in DBpeida)
  	 * 2-1: Are there any [castles_in_the_United_States](yago:type)
- 	 * 2-2：Was Sigmund Freud married? | 谓词易抽取，只是缺少一个variable node
- 	 * 2-3：Are penguins endangered? | 蕴含信息，需要变换
+ 	 * 2-2：Was Sigmund Freud married? | Lack of variable node.
+ 	 * 2-3：Are penguins endangered? | No suitable relation matching, need transition.
 	 */ 
 	public void oneNode(QueryLogger qlog)
 	{
-		//避免和ask-one-triple重复，这里先判断一下sparqlList是否为空 |如果有两个或更多的node也退出
-		//因为merge words后是从得分低的decision到得分高的来做，低分时可能通过该函数增加一条sparql了，若这里因为sparqlList不为空return则会错过高分（正确）decision
-		if(qlog.semanticUnitList.size()>1)
+		if(qlog == null || qlog.semanticUnitList == null || qlog.semanticUnitList.size()>1)
 			return;
 		
 		Word target = qlog.target;
@@ -98,7 +99,7 @@ public class AddtionalFix
 		if(qlog.s.sentenceType != SentenceType.GeneralQuestion)
 		{
 			//1-1: how many [type] are there | List all [type]
-			if(target.mayType && target.tmList!=null)
+			if(target.mayType && target.tmList != null)
 			{
 				String subName = "?"+target.originalForm;
 				String typeName = target.tmList.get(0).typeName;
@@ -159,7 +160,7 @@ public class AddtionalFix
 					qlog.rankedSparqls.add(sparql);
 				}
 		
-				//2-3：Are penguins endangered? | 蕴含信息，需要变换
+				//2-3：Are penguins endangered?
 				else
 				{
 					if(target.position < words.length && pattern2category.containsKey(words[target.position].baseForm))
@@ -188,7 +189,7 @@ public class AddtionalFix
 				qlog.rankedSparqls.add(sparql);
 			}
 		}
-		/*TODO: 处理target是ent的情况，例如下面；需要一个候选谓词列表
+		/*TODO: Target is ENT, need candidate relations.
 		 * res:Aldi dbo:numberOfLocations ?number .
 		 */
 	}
@@ -199,6 +200,9 @@ public class AddtionalFix
 	 * */ 
 	public void oneTriple (QueryLogger qlog)
 	{
+		if(qlog == null || qlog.semanticUnitList == null)
+			return;
+		
 		if(qlog.s.sentenceType == SentenceType.SpecialQuestion)
 		{
 			Word[] words = qlog.s.words;

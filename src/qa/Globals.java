@@ -34,6 +34,10 @@ public class Globals {
 	 * */
 	public static int evaluationMethod = 2; 
 	public static boolean isRunAsWebServer = false;	// Run Local: false; Run Server: true
+	public static String runningBenchmark = "QALD";	// WQ:WebQuestions; WQSP:WebQuestionsSP; CQ:ComplexQuestions
+													// using different method and Freebase Version (in Virtuoso.java)
+	public static boolean usingOperationCondition = false; // only for EXP: try state transition operations only when condition are satisfied.
+
 	
 	public static String localPath = "/media/wip/husen/NBgAnswer/";
 	public static String QueryEngineIP = "127.0.0.1";	// Notice, PORT number is in the evaluation function.

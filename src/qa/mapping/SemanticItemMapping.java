@@ -24,9 +24,10 @@ import rdf.TypeMapping;
 public class SemanticItemMapping {
 	
 	public HashMap<Word, ArrayList<EntityMapping>> entityDictionary = new HashMap<Word, ArrayList<EntityMapping>>();
-	public static int k = 10;	// Ä¿Ç°Ã»ÓÃµ½
+	public static int k = 10;	// useless now
 	public static int t = 10;	// Depth of enumerating candidates of each node/edge. O(t^n).
 	ArrayList<Sparql> rankedSparqls = new ArrayList<Sparql>();
+	HashSet<String> checkedSparqlStrs = new HashSet<String>();
 	
 	public ArrayList<ArrayList<EntityMapping>> entityPhrasesList = new ArrayList<ArrayList<EntityMapping>>();
 	public ArrayList<Word> entityWordList = new ArrayList<Word>();
@@ -205,14 +206,14 @@ public class SemanticItemMapping {
 	}
 
 	/*
-	 * ÔËĞĞÕâ¸öº¯ÊıÖ¤Ã÷¶ÔÓÚÃ¿¸öĞèÒª×éºÏµÄÔªËØ¶¼ÒÑÑ¡ÔñÒ»¸öÈ·¶¨µÄÖµ£»£¨Í¨¹ıcurrentEntityMappings¡¢currentPredicateMappings£©
-	 * ¼´predicate¡¢entity¶¼ÒÑÈ·¶¨£¬ÔÚÕâÀï1¡¢¸ù¾İÈ·¶¨µÄentºÍpÒÔ¼°Ò»Ğ©Ïà¹ØĞÔĞÅÏ¢Éú³ÉÒ»×ésparql£¬È»ºó½øĞĞËéÆ¬Æ¥Åä£¨×¢ÒâËéÆ¬¼ì²âÓĞÁ½ÂÖ£©£¬Èç¹ûÍ¨¹ıÔòÆÀ·Ö²¢±£Áô
-	 * ×¢Òâ£ºÔÚÕâÀï¼ÓÈëembedded typeĞÅÏ¢£º
-	 * ÀıÈç£ºÎª?who <height> ?how ²¹³ä  ?who <type1> <Person> »òÕß ?book <author> <Tom> ²¹³ä ?book <type1> <Book>
-	 * ×¢Òâ£ºÔÚÕâÀï¼ÓÈëconstant typeĞÅÏ¢£º
-	 * ÀıÈç£ºask: <YaoMing> <type1> <BasketballPlayer> 
-	 * ×¢Òâ£ºÔÚÕâÀï¼ÓÈëembedded tripleĞÅÏ¢£º
-	 * ÀıÈç£ºÎª ?Canadians <residence> <Unitied_State> ²¹³ä ?Canadians <birthPlace> <Canada>
+	 * Run this function when all nodes/edges have set value (through currentEntityMappingsã€currentPredicateMappings)
+	 * Generate SPARQL according current ENTs and RELATIONs, then fragment checking
+	 * Notice: add embedded type informationï¼š
+	 * eg, ?who <height> ?how --add-->  ?who <type1> <Person> | ?book <author> <Tom> --add--> ?book <type1> <Book>
+	 * Notice: add constant type informationï¼š
+	 * eg, ask: <YaoMing> <type1> <BasketballPlayer> 
+	 * Notice: add embedded triple informationï¼š
+	 * eg, ?Canadians <residence> <Unitied_State> --add--> ?Canadians <birthPlace> <Canada>
 	 * */
 	public void scoringAndRanking() 
 	{		
@@ -381,7 +382,7 @@ public class SemanticItemMapping {
 			{
 				if (sub.startsWith("?") && obj.startsWith("?")) // two variables
 				{
-					// ÏÖÔÚÁ½¸ö¶¼ÊÇ±äÁ¿£¬¼´¶¼¿ÉÄÜÊÇÔÚobjÎ»ÖÃ×öliteral£¬ËùÒÔÔÚtypeºóÃæ¶¼¼Óliteral
+					// two variables have both possibility as object literal
 					if (subt != null) {
 						subt.object += ("|" + "literal_HRZ");
 					}
@@ -391,7 +392,7 @@ public class SemanticItemMapping {
 					
 					if (subt==null && objt!=null) 
 					{						
-						//ÈôobjÓĞtype£¬subÎŞtypeÔò¸üÓĞ¿ÉÄÜ½»»»subºÍobjµÄÎ»ÖÃ£¬ÒòÎªliteralÒ»°ãÃ»ÓĞtype¡¾µ«ÊÇ¿ÉÄÜ»áÓĞyago£ºtype¡¿
+						// if object has type, subject has no type, more possible to change sub/obj because literal has no type in general [however maybe have yago:type]
 						String temp = sub;
 						int tmpId = subjId;
 						sub = obj;
@@ -403,8 +404,7 @@ public class SemanticItemMapping {
 					
 				}
 				else if (sub.startsWith("?") && !obj.startsWith("?")) {
-					// ĞèÒª½»»»subj/objµÄË³Ğò
-					// µ«ÊÇsubjt/objtµÄË³Ğò¿ÉÒÔ²»½»»»£¬ÒòÎª·´Õı¶¼ÊÇÒªÌí¼Ó½øsparqlÖĞ
+					// need change subj/obj order
 					if (subt != null) {
 						subt.object += ("|" + "literal_HRZ");
 					}					
@@ -424,19 +424,18 @@ public class SemanticItemMapping {
 					}				
 				}
 			}
-
 			
 			Triple t = new Triple(subjId, sub, pid, objId, obj, sr, score,isSubjObjOrderSameWithSemRltn);		
 			//System.out.println("triple: "+t+" "+isTripleCompatibleCanSwap(t));
 			
 			sparql.addTriple(t);
 			
-			//¶ÔÓÚsubjectºÍobjectµÄtypeĞÅÏ¢µÄ·ÖÊı£¬ÒªÓëtriple±¾ÉíµÄ·ÖÊıÏà¹Ø
+			// score of subject/object's type should correlative with the score of triple itself
 			if (subt != null) 
 			{
 				subt.score += t.score*0.2;
 				sparql.addTriple(subt);
-				typeSetFlag.add(subt.subject);//Ğ¡ĞÄ£¬²»ÄÜÓÃsub£¬ÒòÎªÔÚ´¦Àíliteral±ßµÄÊ±ºò£¬¿ÉÄÜsubj/objË³Ğò½»»»
+				typeSetFlag.add(subt.subject); // be cautious to NOT use sub, it may has changed subj/obj order
 			}
 			if (objt != null) 
 			{
@@ -445,7 +444,7 @@ public class SemanticItemMapping {
 				typeSetFlag.add(objt.subject);
 			}
 			
-			// ¼ÓÈëargument×ÔÉíÔÌº¬µÄtripleĞÅÏ¢£¬ÀıÈç  ?canadian	<birthPlace>	<Canada>
+			// add argument' embedded triple, eg, ?canadian	<birthPlace>	<Canada>
 			if(!sr.isArg1Constant && sr.arg1Word.mayExtendVariable && sr.arg1Word.embbededTriple != null)
 			{
 				sparql.addTriple(sr.arg1Word.embbededTriple);
@@ -458,14 +457,20 @@ public class SemanticItemMapping {
 			sparql.adjustTriplesOrder();
 		}
 		
+		// deduplicate
+		sparql.deduplicate();
+		if(checkedSparqlStrs.contains(sparql.toStringForGStore2()))
+			return;
+		checkedSparqlStrs.add(sparql.toStringForGStore2());
+		
 		if (!qlog.MODE_fragment) {
 			// Method 1: do NOT check compatibility
-			 rankedSparqls.add(sparql);
-			 isAnswerFound = true;
+			rankedSparqls.add(sparql);
+			isAnswerFound = true;
 		}
 		else {
-			// Method 2£ºcheck compatibility by FRAGMENT (offline index)
-			//1. single-triple check (a quickly prune), allow to swap subject and object.
+			// Method 2: check compatibility by FRAGMENT (offline index)
+			//1. single-triple check (a quickly prune), allow to swap subject and object. Try to adjust to the best order.
 			tripleCheckCallCnt++;
 			long t1 = System.currentTimeMillis();
 			for (Triple t : sparql.tripleList)				
@@ -486,14 +491,13 @@ public class SemanticItemMapping {
 	}
 	
 	/*
-	 * ×¢Òâ£º
-	 * typeId=-1ËµÃ÷Ã»ÓĞÏà¹ØÍ¼ËéÆ¬£¬¸Ãtype²»ÄÜ×÷ÎªËéÆ¬¼ì²éÊ±µÄÒÀ¾İ
+	 * Noticeï¼š
+	 * typeId=-1 then no data fragment
 	 * */
 	public static TypeFragment getTypeFragmentByWord(Word word)
 	{
 		TypeFragment tf = null;
-		//extendType µÄ id=-1£¬ÒòÎªÄ¿Ç°KB/fragmentÖĞÃ»ÓĞextendTypeµÄÊı¾İ£¬ËùÒÔid=-1Ôò²»ÌáÈ¡typeFragment
-		if(word.tmList!=null && word.tmList.size()>0)
+		if(word!=null && word.tmList!=null && word.tmList.size()>0)
 		{
 			int typeId = word.tmList.get(0).typeID;
 			if(typeId != -1)
@@ -503,9 +507,8 @@ public class SemanticItemMapping {
 	}
 	
 	/*
-	 * Õâ¸öº¯ÊıÖ»×÷Îª¡±³õ²½¼ì²â¡°£¬ÔÚºóÃæenumerateSubjObjOrdersÖĞ»á½øÒ»²½ÏêÏ¸¼ì²â£¬ºóÃæÔËÓÃÁË¡±predicateµÄÇ°ºó¡¾ent¼¯ºÏµÄtype¡¿ĞÅÏ¢¡°
-	 * ×¢Òâ£¬predicate = typeµÄÈıÔª×é²»»á½øÈëÕâ¸öº¯Êı
-	 * Õâ¸öº¯ÊıÖ»ÊÇ·Ö±ğcheckÃ¿Ìõtriple£¬Ã»ÓĞ½áºÏ³ÉÕûÌåcheck
+	 * (Just PRE CHECK [single triple check] in this function, the final check in enumerateSubjObjOrders which utilize more INDEX)
+	 * notice: predicate = type cannot entrance this function 
 	 * */
 	public boolean isTripleCompatibleCanSwap (Triple t) {
 		
@@ -522,14 +525,14 @@ public class SemanticItemMapping {
 		}
 		else
 		{	
-			//±äÁ¿£¬±äÁ¿
+			//var & var
 			if(t.subject.startsWith("?") && t.object.startsWith("?"))
 			{
 				Word subjWord = t.getSubjectWord(), objWord = t.getObjectWord();
 				TypeFragment subjTf = getTypeFragmentByWord(subjWord), objTf = getTypeFragmentByWord(objWord);
 				
-				//¸ù¾İÁ½¸ö±äÁ¿type fragmentµÄ³öÈë±ßÊÇ·ñ°üº¬predicate£¬¼ÆËãÊÇ·ñĞèÒªµ÷»»Ë³ĞòÒÔ¼°¸ÃtripleÊÇ·ñÄÜ¹»³ÉÁ¢
-				//¼ÆËã·½·¨Îª¼òµ¥µÄÍ¶Æ±¿´ÄÄ¸ö¸üºÃ
+				//based on whether the two varabile's type fragment's in/out edge contain predicate, calculate whether need change order
+				//just vote
 				int nowOrderCnt = 0, reverseOrderCnt = 0;
 				if(subjTf == null || subjTf.outEdges.contains(t.predicateID))
 					nowOrderCnt ++;
@@ -551,9 +554,9 @@ public class SemanticItemMapping {
 				{
 					t.swapSubjObjOrder();
 				}
-				else	//now orderºÍreverse order¶¼Í¨¹ıÁËtype fragment¼ì²â£¬ĞèÒªÑ¡ÔñÒ»¸ö
+				else	//now order and reverse order both passed type fragment checking, need SELECT one
 				{
-					//rule1: ?inventor <occupation> ?occupation || ... <name> ?name£¬ ¼´×Ö·û´®Ô½ÏñµÄ·ÅÔÚºó±ß
+					//rule1: ?inventor <occupation> ?occupation || ... <name> ?name -> more similar string will be put latter
 					String p = Globals.pd.getPredicateById(t.predicateID);
 					int ed1 = EntityFragment.calEditDistance(subjWord.baseForm, p);
 					int ed2 = EntityFragment.calEditDistance(objWord.baseForm, p);
@@ -564,14 +567,14 @@ public class SemanticItemMapping {
 				}
 				return true;
 			}
-			//ÊµÌå£¬ÊµÌå || ±äÁ¿£¬ÊµÌå
+			///ent & ent || var & ent
 			else
 			{
 				boolean flag = false;
 				if (fragmentCompatible(t.subjId, t.predicateID, t.objId)) {			
 					flag = true;
 				}			
-				if (fragmentCompatible(t.objId, t.predicateID, t.subjId)) {			
+				else if (fragmentCompatible(t.objId, t.predicateID, t.subjId)) {			
 					t.swapSubjObjOrder();
 					flag = true;
 				}	
@@ -629,7 +632,7 @@ public class SemanticItemMapping {
 		EntityFragment ef1 = efd.getEntityFragmentByEid(id1);
 		EntityFragment ef2 = efd.getEntityFragmentByEid(id2);
 	
-		// ÊÇºÏ·¨µÄentity¾Í±ØÓĞfragment£¬ÕâÀïÈÏÎªDBpediaLookup·µ»ØµÄent¶¼»áÔÚÀëÏßÊı¾İÖĞ³öÏÖ
+		// valid entity MUST has fragment
 		if (id1!=Triple.TYPE_ROLE_ID && id1!=Triple.VAR_ROLE_ID && ef1 == null) return false;
 		if (id2!=Triple.TYPE_ROLE_ID && id2!=Triple.VAR_ROLE_ID && ef2 == null) return false;
 		
@@ -656,7 +659,7 @@ public class SemanticItemMapping {
 //			}
 		}
 		
-		//¶ÔÓÚselectĞÍsparql£¬ÒªÑÏ¸ñ±£Ö¤predicateÓësubjectºÍobjectµÄÆ¥Åä£»¶øaskĞÍ¿ÉÒÔ·Å¿í
+		// for SELECT sparql, EXCAT match between predicate and subject and object, ASK sparql can be relaxed
 		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)	
 			return entityCnt-compatibleCnt<=1;		
 		else		
@@ -732,8 +735,8 @@ public class SemanticItemMapping {
 			spq.delTriple(shouldDel);
 	}
 	
-	// Ã¶¾Ùsubject/objectË³Ğò £¬½øÒ»²½½øĞĞ fragment check
-	// ĞŞÕıTripleµÄµÃ·Ö
+	// enumerate subject/object order, fragment check
+	// Modify score of "ask one triple"
 	public boolean enumerateSubjObjOrders (Sparql originalSpq, Sparql currentSpq, int level) 
 	{
 		if (level == originalSpq.tripleList.size()) 
@@ -743,9 +746,9 @@ public class SemanticItemMapping {
 			
 			CompatibilityChecker cc = new CompatibilityChecker(efd);
 			
-			if (qlog.s.sentenceType==SentenceType.GeneralQuestion) //ask whereÀàĞÍsparql ²»ĞèÒª×öfragment check
+			if (qlog.s.sentenceType==SentenceType.GeneralQuestion) //ask where sparql: no need for fragment check
 			{
-				if(cc.isSparqlCompatible3(currentSpq))	//ËäÈ»²»ĞèÒªcheck£¬µ«¶ÔÓÚ½á¹ûÎªtrueµÄask£¬µÃ·Ö¼Ó±¶
+				if(cc.isSparqlCompatible3(currentSpq))	//reward score for "TRUE"
 				{
 					for(Triple triple: currentSpq.tripleList)
 						triple.addScore(triple.getScore());
@@ -758,11 +761,12 @@ public class SemanticItemMapping {
 				sparqlCheckId++;
 				if (cc.isSparqlCompatible3(currentSpq)) 
 				{
-					//ĞŞÕıSPARQLµÃ·Ö£¬ÓĞÊ±Î½´Ê¾ßÓĞË³ĞòÆ«ºÃĞÔ£¬ ?who <president> <United_States_Navy> ¾ÍÓ¦¸ÃÓĞ·ÖÊı³Í·£ 
+					//eg, ?who <president> <United_States_Navy>
 					//When query graph contains circle, we just prune this edge 
 					Sparql sparql = currentSpq.copy();
 					reviseScoreByTripleOrders(sparql);
-					rankedSparqls.add(sparql);
+					if(!rankedSparqls.contains(sparql))
+						rankedSparqls.add(sparql);
 					return true;
 				}
 			} 
@@ -775,19 +779,15 @@ public class SemanticItemMapping {
 		
 		Triple cur_t = originalSpq.tripleList.get(level);
 		
-		// ÏÈÊÔÒ»·¢³õÊ¼Ë³Ğò£¬Ò»°ã³õÊ¼µÄË³ĞòÊÇcompatibleµÄ
-		// ³õÊ¼µÄË³ĞòÊÇpreferredµÄ
+		// first try default order
 		currentSpq.addTriple(cur_t);
 		boolean flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
 		currentSpq.removeLastTriple();
 		
-		// ¼´Ê¹³õÊ¼Ë³Ğòcompatible£¬»¹ÊÇÒªÃ¶¾Ù½»»»Ö÷±öÎ»ÖÃµÄSPARQL
-//		if(flag) return flag;
-		
-		//[¿ÉÒÔ½ÓliteralµÄÎ½´Ê]ÀíÂÛÉÏ²»Ó¦¸Ã½»»»tripleË³Ğò£¬µ«ÊÇÓĞÌ«¶àÔàÊı¾İ£¬ÕâÀï»¹ÊÇĞèÒª³¢ÊÔ½»»» 
+		// !deprecated: not change triple order for [literal relation]
 //		if (RelationFragment.isLiteral(cur_t.predicateID)) return false;
 		
-		//Èç¹ûµ±Ç°tripleµÄpredicateÊÇtypeµÄ»°£¬»¹ĞèÒªÃ¶¾ÙÒª²»ÒªÕâ¸ötypeĞÅÏ¢ 
+		// Enumerate reserve/drop the type info
 		if (cur_t.predicateID == Globals.pd.typePredicateID)
 		{
 			flag = enumerateSubjObjOrders(originalSpq, currentSpq, level+1);
@@ -795,7 +795,7 @@ public class SemanticItemMapping {
 		}
 		else
 		{		
-			// swapºó£¬»¹ÊÇÏÈ½øĞĞsingle triple check
+			// single triple check after swap
 			Triple swapped_t = cur_t.copySwap();
 			swapped_t.score = swapped_t.score*0.8;
 			if (isTripleCompatibleNotSwap(swapped_t))

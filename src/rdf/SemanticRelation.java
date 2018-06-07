@@ -7,12 +7,12 @@ import rdf.SimpleRelation;
 import nlp.ds.Word;
 
 public class SemanticRelation {
-	public Word arg1Word = null;	// 记录对应哪个Word
+	public Word arg1Word = null;
 	public Word arg2Word = null;
-	public String relationParaphrase = null;	// 按照最长匹配获得
-	public double LongestMatchingScore = 0;		// 得分最高的是最长匹配
+	public String relationParaphrase = null;	// longest match
+	public double LongestMatchingScore = 0;		// longest match score
 	
-	//用于special pattern复制semantic relation时判断区别
+	//judge difference when copy semantic relation from special pattern
 	public int arg1SuffixId = 0;
 	public int arg2SuffixId = 0;
 	
