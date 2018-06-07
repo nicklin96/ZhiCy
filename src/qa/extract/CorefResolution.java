@@ -15,9 +15,7 @@ import rdf.SimpleRelation;
 public class CorefResolution {
 	/**
 	 * 1. a very simple reference resolution
-	 * 2. 指代消解必须保证在下列操作之前使用，否则可能导致错误：
-	 *    抽取特殊关系，type识别，mapping.
-	 * 3. 也就是说指代消解必须紧跟着最basic的关系抽取
+	 * 2. Coref Resolution should be done after relation extraction and before items mapping
 	 */
 	public void process(ArrayList<SimpleRelation> simpleRelations, QueryLogger qlog) {
 		if (qlog.s.words.length <= 4) return; // if the sentence is too short, skip the coref step.
@@ -58,7 +56,7 @@ public class CorefResolution {
 		System.out.println("===================================");
 	}
 
-	// 返回w指代的词
+	// return the reference word of w
 	public Word getRefWord (Word w, DependencyTree dt, QueryLogger qlog) {
 		w = w.getNnHead();
 		
@@ -67,20 +65,19 @@ public class CorefResolution {
 		}
 						
 		/*
-		 * method:
+		 * method: (suitable for stanford parser (old version))
 		 * (1) WDT --det--> []   eg: Which city is located in China?
 		 * (2) WDT -------> V/J --rcmod--> []   eg: Who is married to someone that was born in Rome?
-		 * when is the sth与这条冲突，故去掉这条(3) W   -------> be <------- []	eg: Who is the author of WikiLeaks? //(3) WDT --attr-> be <------- []	eg: Who is the author of WikiLeaks?
+		 * "when is the sth" is conflict with this rule, so discarded. (3) W   -------> be <------- []	eg: Who is the author of WikiLeaks?
 		 * (4) WDT -------> V --ccomp--> []   eg: The actor that married the child of a politician.
-		 * (5) DT(that, which) --dep--> V  eg:The actors that married an athlete.   //这个只能说是语法树生成的问题
-		 * (6) W(position=1) ------> NN	eg:What are the language used in China?	//语法树很诡异，和情况(1)不同 ,应该排除WRB的情况：When was Carlo Giuliani shot?
+		 * (5) DT(that, which) --dep--> V  eg:The actors that married an athlete.   // DS parser error.
+		 * (6) W(position=1) ------> NN	eg:What are the language used in China?	// DS parser error, should eliminate "WRB"锛歐hen was Carlo Giuliani shot?
 		 * (7) where <--advmod-- V <--advcl-- V --prep/pobj--> []  eg: Who graduate from the school where Keqiang Li graduates?
-		 * 
 		 */
 
 		DependencyTreeNode dtn = dt.getNodeByIndex(w.position);
 	
-		// 认为根节点不需要进行指代消解
+		// no need for root 
 		if (dtn.father == null) return null;
 		
 		try {

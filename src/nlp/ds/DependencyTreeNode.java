@@ -99,7 +99,7 @@ public class DependencyTreeNode {
 	}
 	
 	public Word linkNN(DependencyTree T) {
-		// 从它到它的父亲回溯NN关系，从它到它的所有子孙探索NN关系，如果存在多个词，则按照wordPosition排序
+		// (Now useless) backtracking the NN connections.
 		ArrayList<DependencyTreeNode> nn = new ArrayList<DependencyTreeNode>();
 		
 		nn.add(this);

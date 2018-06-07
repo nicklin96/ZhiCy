@@ -31,7 +31,7 @@ public class Sentence {
 	{
 		plainText = s;
 		words = Globals.coreNLP.getTaggedWords(plainText);
-		//¼Ì³Ð NodeRecognitionµÄÐÅÏ¢
+		// inherit NodeRecognition's information
 		for(Word word: words)
 		{
 			for(MergedWord mWord: query.mWordList)
@@ -66,6 +66,14 @@ public class Sentence {
 	
 	public Word getWordByKey (String k) {
 		return map.get(k);
+	}
+	
+	public boolean hasModifier(Word w)
+	{
+		for(Word word: words)
+			if(word!=w && word.modifiedWord==w)
+				return true;
+		return false;
 	}
 	
 	public void printNERResult () {

@@ -24,8 +24,8 @@ import nlp.tool.CoreNLP;
 
 public class ExtractImplicitRelation {
 	
-	static final int SamplingNumber = 100;	//计算过程中，候选实体过多时，选择的最大数目
-	static final int k = 3;	//可能有多个关系时，选择前top-k个；word可能对应多个ent时，选择前k个
+	static final int SamplingNumber = 100;	// the maximum sampling number in calculation
+	static final int k = 3;	// select top-k when many suitable relations; select top-k entities for a word
 	public HashMap<String, Integer> implicitEntRel = new HashMap<String, Integer>();
 	
 	/*

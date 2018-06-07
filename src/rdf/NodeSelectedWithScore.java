@@ -5,7 +5,7 @@ import java.util.ArrayList;
 public class NodeSelectedWithScore implements Comparable<NodeSelectedWithScore>
 {
 	public ArrayList<Integer> selected;
-	int size; //用来把key分成st和ed
+	int size; //split key to st and ed
 	public double score = 0;
 	
 	public NodeSelectedWithScore(ArrayList<Integer> a, double b)

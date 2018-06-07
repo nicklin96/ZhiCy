@@ -34,7 +34,7 @@ public class StandardSparqlGeneration
 	
 	ArrayList<QuestionResult> qrList = new  ArrayList<QuestionResult>();
 	HashSet<String> dboPredicates = new HashSet<String>();
-	HashSet<String> dbp_dboPredicates = new HashSet<String>();	//同名谓词有的实体要dbo有的实体有只有dbp；例如dbo:author |dbp:author
+	HashSet<String> dbp_dboPredicates = new HashSet<String>();	//Sometimes need union different prefix, dbo:author | dbp:author
 	
 	HashMap<Integer, String> handwriteSpqs = new HashMap<Integer, String>();
 	HashSet<Integer> outOfScopes = new HashSet<Integer>();
@@ -107,7 +107,7 @@ public class StandardSparqlGeneration
 				}
 			}
 			
-			// If allow "not response"　or "handwriteSpq", then delete following two lines.
+			// If allow "not response"锟斤拷or "handwriteSpq", then delete following two lines.
 			handwriteSpqs.clear();
 			notResponses.clear();
 			
@@ -273,7 +273,7 @@ OFFSET 0 LIMIT 1
 							hasDboType = true;
 						}
 						else
-							o = o.replace("yago:", "yago:Wikicat");	// 新版yago许多type的命名方式改变 | 适用于http://dbpedia.org/sparql | 旧版适用于http://live.dbpedia.org/sparql
+							o = o.replace("yago:", "yago:Wikicat");	// 锟铰帮拷yago锟斤拷锟絫ype锟斤拷锟斤拷锟斤拷锟斤拷式锟侥憋拷 | 锟斤拷锟斤拷锟斤拷http://dbpedia.org/sparql | 锟缴帮拷锟斤拷锟斤拷锟斤拷http://live.dbpedia.org/sparql
 					}
 					else
 					{
@@ -384,7 +384,7 @@ OFFSET 0 LIMIT 1
 		String result = "";
 		try 
 		{
-			//发送 POST 请求
+			//锟斤拷锟斤拷 POST 锟斤拷锟斤拷
 			String uSparql;
 			uSparql = URLEncoder.encode(sparql,"utf-8");
 			result = HttpRequest.sendPost("http://dbpedia.org/sparql", "default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+uSparql+"&format=application%2Fsparql-results%2Bjson&CXML_redir_for_subjs=121&CXML_redir_for_hrefs=&timeout=30000&debug=on");
@@ -407,7 +407,7 @@ OFFSET 0 LIMIT 1
 			{
 				String result = getAnswersFromVirtuoso(spq);
 				
-				//选择第一个查到结果的 spq，作为最终spq
+				//选锟斤拷锟揭伙拷锟斤拷榈斤拷锟斤拷锟斤拷 spq锟斤拷锟斤拷为锟斤拷锟斤拷spq
 				if(qr.firstJsonAnswer == null && !result.contains("\"bindings\": [ ]"))
 					qr.firstJsonAnswer = result;
 				
@@ -568,10 +568,10 @@ OFFSET 0 LIMIT 1
 	public static void main(String[] args) 
 	{
 		/*
-		 * 运行前注意：
-		 * 1、修改文件路径
-		 * 2、注意 handwrite、outOfscope、noResponse 的使用与否。
-		 * 3、注意修改 QuestionResult->getSelectedJsonAnswer()中，对于一些固定ID的选择策略。
+		 * Notice:
+		 * 1. File path
+		 * 2. use/not use handwrite, outOfscope, noResponse
+		 * 3. QuestionResult->getSelectedJsonAnswer(), how to choose final SPQ
 		 * */
 		
 		StandardSparqlGeneration ssg = new StandardSparqlGeneration();

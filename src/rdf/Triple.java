@@ -106,6 +106,12 @@ public class Triple implements Comparable<Triple>{
 	public double getScore() {
 		return score;
 	}
+	
+	@Override 
+	public int hashCode() 
+    { 
+        return new Integer(subjId).hashCode() ^ new Integer(objId).hashCode() ^ new Integer(predicateID).hashCode(); 
+    } 
 		
 	@Override
 	public String toString() {
@@ -170,13 +176,13 @@ public class Triple implements Comparable<Triple>{
 			return !subject.startsWith("?");
 		}
 		else {
-			// 这是正统抽取得到的triple，从semantic relation得来
+			// Triple from semantic (obvious) relation 
 			if(semRltn != null)
 			{
 				if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg1Constant;
 				else return semRltn.isArg2Constant;
 			}
-			// 这是implicit relation得来，没有semantic relation；由implicit relation出来就已经是最终版triple，即已经定好顺序
+			// Triple from implicit relation (no semantic relation), it is final triple
 			else
 			{
 				if(subjId != Triple.VAR_ROLE_ID && subjId != Triple.TYPE_ROLE_ID)
@@ -192,13 +198,11 @@ public class Triple implements Comparable<Triple>{
 			return !object.startsWith("?");
 		}
 		else {
-			// 这是正统抽取得到的triple，从semantic relation得来
 			if(semRltn != null)
 			{
 				if (isSubjObjOrderSameWithSemRltn) return semRltn.isArg2Constant;
 				else return semRltn.isArg1Constant;
 			}
-			// 这是implicit relation得来，没有semantic relation；由implicit relation出来就已经是最终版triple，即已经定好顺序
 			else
 			{
 				if(objId != Triple.VAR_ROLE_ID && objId != Triple.TYPE_ROLE_ID)

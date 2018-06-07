@@ -11,9 +11,9 @@ import nlp.ds.Word;
 import rdf.SemanticRelation;
 
 /**
- * 在recognizeSemanticRelations前使用，被识别为special patterns的语法树结点不再参与relation extraction
+ * !! Now Deprecated
+ * Recognize special relation patterns, before relation extraction
  * @author huangruizhe
- *
  */
 public class SpecialRelationRecognition {
 	
@@ -29,7 +29,7 @@ public class SpecialRelationRecognition {
 	}
 
 	/**
-	 * 识别语法树上的special patterns，将这些special patterns中的结点标记为shouldIgnore，将special patterns中的信息保存起来
+	 * recognize special patterns in DS tree, set "ignore" for those nodes and reserve information
 	 * @param dependencyTree
 	 */
 	public void recognize () {
@@ -57,7 +57,7 @@ public class SpecialRelationRecognition {
 	}
 	
 	/**
-	 * 识别 and或as well as关系
+	 * Recognize: and & as well as
 	 * AND: Who is a scientist and politician?
 	 * AS WELL AS: Who is an athlete as well as an actor?
 	 * 
@@ -65,8 +65,8 @@ public class SpecialRelationRecognition {
 	 * word1 as well as word2
 	 * 
 	 * RULE:
-	 * (1) word1拥有的三元组(type1除外)，word2均复制一份
-	 * (2) word2生成自己的type1
+	 * (1) word1's triples (exclude "type") --copy--> word2
+	 * (2) word2's own type
 	 * 
 	 * type = 1
 	 * 
@@ -101,15 +101,15 @@ public class SpecialRelationRecognition {
 	}
 
 	/**
-	 * 识别the same关系
+	 * Recognize: the same
 	 * THE SAME 1: Which countries use the same official languages?
-	 * THE SAME 2: Which two countries use the same offical language?
+	 * THE SAME 2: Which two countries use the same official language?
 	 * 
-	 * the same word1, 且不出现as
+	 * the same word (no "as")
 	 * 
 	 * RULE:
-	 * (1) word1拥有的三元组(type1除外)，均复制一份，其subject或object增加后缀1&2
-	 * (2) 1&2的type1相同
+	 * (1) word's triples (exclude "type") --copy--> word1 & word2
+	 * (2) 1&2 have same type1
 	 * 
 	 * type = 2
 	 * 
@@ -164,20 +164,20 @@ public class SpecialRelationRecognition {
 	}
 	
 	/**
-	 * 识别the same as关系
-	 * THE SAME AS 1: Which country use the same language as the United States? [the same修饰动词]
-	 * THE SAME AS 2: Who was born in the same city as Athlete? [the same修饰名词]
-	 * THE SAME AS 3: Who starred in the same movie as Gong Li? [the same修饰带介词的动词]
+	 * Recognize: the same as
+	 * THE SAME AS 1: Which country use the same language as the United States? [the same modify VERB]
+	 * THE SAME AS 2: Who was born in the same city as Athlete? [the same modify NOUN]
+	 * THE SAME AS 3: Who starred in the same movie as Gong Li? [the same modify VERB with PREP]
 	 * 
-	 * the same word1 as word2, 出现as
+	 * the same word1 as word2 (has "as")
 	 * 
 	 * RULE:
-	 * (1) word1拥有的三元组(type1除外)，均复制一份，其subject或object改名为word2
-	 * (2) word2自己识别type1
+	 * (1) word's triples (exclude "type") --copy--> word2
+	 * (2) word2 recognize its own type
 	 * 
 	 * type = 3
 	 * 
-	 * update2013/05/07:增加了the same with, the same like
+	 * update2013/05/07: add "the same with", "the same like"
 	 * 
 	 * @param dependencyTree
 	 * @return ret[0]: word1   ret[1]: word2
@@ -307,9 +307,6 @@ public class SpecialRelationRecognition {
 				srnew.extractingMethod = 'R';
 				srnew.dependOnSemanticRelation = sr;
 				
-//				现在type信息放在word中了，所以不需要下面这条语句
-//				srnew.arg1Types = tr.recognize(word2.getBaseFormEntityName());
-				
 				newRelations.add(srnew);
 			}
 			else if (sr.arg2Word == word1) {
@@ -318,10 +315,7 @@ public class SpecialRelationRecognition {
 				srnew.arg2Word = word2;
 				srnew.extractingMethod = 'R';
 				srnew.dependOnSemanticRelation = sr;
-				
-//				现在type信息放在word中了，所以不需要下面这条语句
-//				srnew.arg2Types = tr.recognize(word2.getBaseFormEntityName());
-				
+
 				newRelations.add(srnew);
 			}
 		}
@@ -340,7 +334,7 @@ public class SpecialRelationRecognition {
 				SemanticRelation srnew1 = new SemanticRelation(sr);
 				SemanticRelation srnew2 = new SemanticRelation(sr);
 				
-				srnew1.arg2SuffixId = 1;//不能直接改sr, 否则报错java.util.ConcurrentModificationException
+				srnew1.arg2SuffixId = 1;
 				srnew2.arg2SuffixId = 2;
 				srnew2.extractingMethod = 'R';
 				srnew2.dependOnSemanticRelation = srnew1;
@@ -386,9 +380,6 @@ public class SpecialRelationRecognition {
 				srnew.extractingMethod = 'R';
 				srnew.dependOnSemanticRelation = sr;
 				
-//				现在type信息放在word中了，所以不需要下面这条语句
-//				srnew.arg2Types = tr.recognize(word2.getBaseFormEntityName());
-
 				newRelations.add(srnew);
 			}
 			else if (sr.arg2Word == word1) 
@@ -398,9 +389,6 @@ public class SpecialRelationRecognition {
 				srnew.arg1Word = word2;
 				srnew.extractingMethod = 'R';
 				srnew.dependOnSemanticRelation = sr;
-				
-//				现在type信息放在word中了，所以不需要下面这条语句
-//				srnew.arg1Types = tr.recognize(word2.getBaseFormEntityName());
 				
 				newRelations.add(srnew);
 			}

@@ -17,7 +17,7 @@ import qa.Globals;
 public class SearchInEntityFragments {
 
 	/*
-	 * 由lucene搜索entity的最底层函数
+	 * Search entity in Lucene
 	 * */
 	public ArrayList<EntityNameAndScore> searchName(String literal, double thres1, double thres2, int k) throws IOException {
 		Hits hits = null;

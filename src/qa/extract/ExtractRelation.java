@@ -39,6 +39,14 @@ public class ExtractRelation {
 		HashSet<String> BoW_T = new HashSet<String>();
 		HashSet<String> SubBoW_T = new HashSet<String>();
 				
+		// (Fix shortest path) Some cases consider the words not in shortest path | eg: What [be] [ent] (famous) for?
+		// what-be-[ent], the word [be] is useless but we need (famous)
+		if(shortestPath.size() == 3 && shortestPath.get(1).word.baseForm.equals("be") && T.nodesList.size() > shortestPath.get(2).word.position)
+		{
+			shortestPath.remove(1);
+			shortestPath.add(1, T.getNodeByIndex(shortestPath.get(1).word.position + 1));
+		}
+			
 		// Shortest path -> SubBag of Words
 		for(DependencyTreeNode curNode: shortestPath)
 		{
@@ -58,6 +66,7 @@ public class ExtractRelation {
 				}
 			}
 		}
+		
 		// DS tree -> Bag of Words
 		for (DependencyTreeNode curNode : T.getNodesList()) 
 		{
@@ -205,16 +214,16 @@ public class ExtractRelation {
 			{
 				if(s.equals(curOuterNode.word.baseForm))
 				{
-					// 开始尝试匹配所有点
+					// try to match all nodes
 					ArrayList<DependencyTreeNode> subTreeNodes = new ArrayList<DependencyTreeNode>();
 					Queue<DependencyTreeNode> queue2 = new LinkedList<DependencyTreeNode>();
 					queue2.add(curOuterNode);
 					
-					int unMappedLeft = BoW_P.length;	//尚未匹配的单词数
-					int mappedCharacterCount = 0;	// 匹配的"字符数"
-					int hitPathCnt = 0;	//pattern中的word落在shortest path上，显然比落在外面更可信
-					int hitPathBetweenTwoArgCnt = 0; //pattern中的word落在shortest path上，并且不包括两端的两个变量
-					double mappedCharacterCountPunishment = 0;	// 我们不希望[[]]这种排在前面，给点惩罚
+					int unMappedLeft = BoW_P.length;
+					int mappedCharacterCount = 0;
+					int hitPathCnt = 0;	// words in pattern hit the shortest path
+					int hitPathBetweenTwoArgCnt = 0; //words in pattern hit the shortest path and excluding the two target nodes
+					double mappedCharacterCountPunishment = 0;	// punishment when contains [[]] (function word)
 					
 					DependencyTreeNode curNode;
 					boolean[] matchedFlag = new boolean[BoW_P.length];
@@ -252,7 +261,7 @@ public class ExtractRelation {
 									subTreeNodes.add(curNode);
 									queue2.addAll(curNode.childrenList);
 									matchedFlag[idx] = true;
-									mappedCharacterCount += curNode.word.baseForm.length();//稍微和上面不同
+									mappedCharacterCount += curNode.word.baseForm.length();
 									mappedCharacterCountPunishment += 0.01;
 									break;
 								}
@@ -279,14 +288,13 @@ public class ExtractRelation {
 						break outer;
 					}
 					
-					// 匹配的部分必须有实词，不能全是停用词
-					// 匹配的非停用词个数大于0
+					// MUST have notional words matched, non stop words > 0
 					if (matchedNoneStopWordCount == 0){
 						if(qlog.MODE_debug) System.out.println("----But the matching for pattern \"" + pattern + "\" does not have content words.");
 						break outer;
 					}
 					
-					// 如果是“不完全匹配”，若匹配的部分恰好是另一个完整pattern，则当前pattern就不考虑了
+					// IF partial match and be covered by other pattern, give up the current pattern
 					if (unMappedLeft > 0) {
 						StringBuilder subpattern = new StringBuilder();
 						for (int idx = 0; idx < BoW_P.length; idx ++) {
@@ -333,16 +341,16 @@ public class ExtractRelation {
 					if (matched_score > 0.95) 
 						matched_score *= 10; // Award for WHOLE match
 					
-					//pattern与path重合的部分比例越大，分数越高；如果没有于两边的arg重合，分数更高
+					// The match ratio between pattern and path larger, the score higher; especially when uncovered with the two target nodes
 					if(hitPathCnt != 0)
 					{
 						double hitScore = 1 + (double)hitPathCnt/(double)BoW_P.length;
 						if(hitPathBetweenTwoArgCnt == hitPathCnt)
 							hitScore += 1;
-						else if(shortestPath.size() >= 4)	//如果path足够长，pattern却依然与arg重合，认为要扣分
+						else if(shortestPath.size() >= 4)	// If path long enough, pattern still cover with the target nodes, punishment 
 						{
 							//hitScore = 0.5;
-							if(hitPathBetweenTwoArgCnt == 0) //path足够长，但pattern完全与arg重合,扣分更多
+							if(hitPathBetweenTwoArgCnt == 0) // If path long enough, pattern cover with target nodes totally, punishment a lot
 								hitScore = 0.25;
 						}
 						matched_score *= hitScore;
@@ -423,8 +431,7 @@ public class ExtractRelation {
 				semr.relationParaphrase = simr.relationParaphrase;
 			}
 			
-			//这里只考虑“pattern和pid之间的匹配分数“而不考虑之前抽取时的”matching score“合理吗？ 自答：抽取分数已经在pasList的得分里了，paslist的得分=抽取得分乘以匹配得分乘以一个修正的东西
-			//这里的意思是，对于一个特定的pid=x，不管你是哪个pattern来的，也不管你抽取时的匹配程度，我就记录下最大”综合得分“和它对应的pattern。
+			// for pid=x, no wonder from which pattern, we only record the highest score and the related pattern.
 			for (int pid : simr.pasList.keySet()) {
 				double score = simr.pasList.get(pid);
 				if (!pasMap.containsKey(pid)) {

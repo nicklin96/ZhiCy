@@ -14,7 +14,7 @@ public class EntityMapping implements Comparable<EntityMapping> {
 		entityName = en;
 		score = sco;
 		
-		//惩罚一下以?开头的entity
+		//punishment if entity start with "?"
 		if (entityName.startsWith("?"))
 			score *=0.5;
 	}

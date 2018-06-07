@@ -7,9 +7,9 @@ import rdf.TypeMapping;
 
 public class MergedWord implements Comparable<MergedWord> 
 {
-	//原句中的起止位置（单位为word)
+	//original position
 	public int st,ed;
-	//merge后的位置，如果未被选中则为-1
+	//position after merge (unselected is -1)
 	public int mergedPos = -1;
 	public String name;
 	public boolean mayCategory = false;
@@ -28,7 +28,7 @@ public class MergedWord implements Comparable<MergedWord>
 	}
 	
 	@Override
-	//由长到短
+	//long to short
 	public int compareTo(MergedWord o) 
 	{
 		int lenDiff = (this.ed-this.st) - (o.ed-o.st);
