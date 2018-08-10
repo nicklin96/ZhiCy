@@ -4,31 +4,23 @@ import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
 import jgsc.GstoreConnector;
 import log.QueryLogger;
 import nlp.ds.Sentence;
-import nlp.ds.Word;
 import nlp.ds.Sentence.SentenceType;
-import qa.mapping.SemanticItemMapping;
 import qa.parsing.QuestionParsing;
 import qa.parsing.BuildQueryGraph;
-import rdf.EntityMapping;
-import rdf.PredicateMapping;
-import rdf.SemanticRelation;
 import rdf.Sparql;
-import rdf.Triple;
 import utils.FileUtil;
 import addition.AddtionalFix;
 import qa.Globals;
 
 public class GAnswer {
 	
-	public static final int terminateThreshold = 5;
-	public static int curSparqlIdx = 0;
+	public static final int MAX_SPQ_NUM = 3;
 	
 	public static void init() {
 		System.out.println("gAnswer2 init ...");
@@ -100,12 +92,10 @@ public class GAnswer {
 			
 			// Sort (descending order).
 			Collections.sort(rankedSparqls);
-			curSparqlIdx = 0;
 			qlog.rankedSparqls = rankedSparqls;
 			System.out.println("number of rankedSparqls = " + qlog.rankedSparqls.size());
 			
-			// Detect question focus. Notice terminateThreshold (5 now).
-			int count = 0;
+			// Detect question focus.
 			for (int i=0; i<qlog.rankedSparqls.size(); i++) 
 			{
 				// First detect by SPARQLs.
@@ -117,10 +107,6 @@ public class GAnswer {
 					questionFocus = "?"+qlog.target.originalForm;
 				
 				spq.questionFocus = questionFocus;
-				
-				count ++;
-				if (count == terminateThreshold)
-					break;
 			}
 						
 			return qlog;
@@ -129,20 +115,6 @@ public class GAnswer {
 			e.printStackTrace();
 			return qlog;
 		}	
-	}
-	
-	public Sparql getNextSparql(QueryLogger qlog) 
-	{
-		// Notice, only return TOP-K queries.
-		if (qlog == null || qlog.rankedSparqls.size()==0 || curSparqlIdx < 0 || curSparqlIdx >= qlog.rankedSparqls.size() 
-				|| curSparqlIdx >= terminateThreshold)
-			return null;
-		else 
-		{
-			Sparql ret = qlog.rankedSparqls.get(curSparqlIdx);
-			curSparqlIdx ++;
-			return ret;
-		}
 	}
 	
 	public String getStdSparqlWoPrefix(QueryLogger qlog, Sparql curSpq) 
@@ -323,212 +295,6 @@ public class GAnswer {
 		return ret;
 	}
 	
-	public String printAnswerJsp(QueryLogger qlog,int beginResult,int endResult) {
-		System.out.println("printAnswerJsp..."+beginResult+" "+endResult+ " "+ qlog.answers.size());
-		if (qlog==null || qlog.match == null 
-			|| qlog.match.answers == null 
-			|| qlog.match.answers.length == 0
-			|| qlog.sparql == null) {
-			return "";
-		}
-		try {
-			//String[][] answers = qlog.match.answers;
-			//String qf = qlog.sparql.questionFocus;
-			//int max = Matches.pageNum;			
-		
-			StringBuilder ret = new StringBuilder("");
-			//String questionFocus=qf;
-			//String sparqlString = qlog.sparql.toStringForGStore();
-			
-			//HashSet<String> printed = new HashSet<String>();
-			for (int i = beginResult; i < Math.min(endResult,qlog.answers.size()); i ++) {
-				Answer ans = qlog.answers.get(i);
-				if (!Character.isDigit(ans.questionFocusValue.charAt(0))) {
-					String link = null;
-					if (ans.questionFocusValue.startsWith("http")) {
-						link = ans.questionFocusValue;
-					}
-					else {
-						link = "http://en.wikipedia.org/wiki/"+ans.questionFocusValue;
-					}
-					ret.append("<tr><td id=\"hit\"><a id=\"entity_name\" href=\""+link+"\" target=\"_blank\">");
-					ret.append(ans.questionFocusValue);
-					ret.append("</a><br/>");
-					for (int j = 0; j < ans.otherInformationKey.size(); j ++) {
-						ret.append("<span id=\"properties\">"+ans.otherInformationKey.get(j).substring(1)
-								+":</span><span id=\"values\">"
-								+ans.otherInformationValue.get(j)
-								+"   </span>");
-					}
-					ret.append("</td></tr>");
-				}
-				else {
-					//String link = ans.questionFocusValue;
-					ret.append("<tr><td id=\"hit\">");
-					ret.append(ans.questionFocusValue);
-					ret.append("<br/>");
-					for (int j = 0; j < ans.otherInformationKey.size(); j ++) {
-						ret.append("<span id=\"properties\">"+ans.otherInformationKey.get(j).substring(1)
-								+":</span><span id=\"values\">"
-								+ans.otherInformationValue.get(j)
-								+"   </span>");
-					}
-					ret.append("</td></tr>");
-				}
-			}
-			
-			return ret.toString();
-		} 
-		catch (Exception e) {	
-			e.printStackTrace();
-			return "";
-		}
-	}
-	
-	public String printDependencyTreeJsp(QueryLogger qlog) {
-		if (qlog == null) {
-			return "";
-		}
-		if (qlog.sparql == null) {
-			return qlog.s.dependencyTreeStanford.toString();
-		}
-
-		
-		int countStanford = 0;
-		int countMalt = 0;
-		for (Triple t : qlog.sparql.tripleList) {
-			if (t.semRltn != null) {
-				if(t.semRltn.extractingMethod == 'S') countStanford ++;
-				else if(t.semRltn.extractingMethod == 'M') countMalt ++;
-			}
-		}
-		
-		if (countStanford > countMalt) return qlog.s.dependencyTreeStanford.toString();
-		else return qlog.s.dependencyTreeMalt.toString();
-	}
-	
-	public String printTextCoverageJsp (QueryLogger qlog) {
-		if (qlog == null || qlog.s == null) 
-			return "";
-		Sentence s = qlog.s;
-		StringBuilder sb = new StringBuilder("");
-		int notCoveredCount = 0;
-		for (Word w : s.words) {
-			if (w.isCovered || w.isIgnored || w.posTag.equals(".")) {
-				sb.append("["+w.originalForm+"] ");
-			}
-			else {
-				sb.append(w.originalForm + " ");
-				notCoveredCount ++;
-			}
-		}
-		sb.append(" <not covered:"+notCoveredCount + "/" +s.words.length+">");
-		return sb.toString();
-	}
-	
-	public String printSemanticRelations (QueryLogger qlog) {
-		if (qlog == null || qlog.sparql == null || qlog.sparql.semanticRelations == null) {
-			return "";
-		}
-		StringBuilder sb = new StringBuilder("");
-		HashMap<Integer, SemanticRelation> semRltns = qlog.sparql.semanticRelations;
-		for (Integer key : semRltns.keySet()) {
-			sb.append("(\"" + semRltns.get(key).arg1Word.getFullEntityName() + "\"");
-			sb.append(", \"" + semRltns.get(key).arg2Word.getFullEntityName() + "\"");
-			sb.append(", \"" + semRltns.get(key).predicateMappings.get(0).parapharase + "\"");
-			sb.append(", " + ((int)(semRltns.get(key).LongestMatchingScore*1000))/1000.0 + ")\n");
-		}
-		return sb.toString();
-	}
-	
-	public String printMappingJsp (QueryLogger qlog) {
-		if (qlog == null || qlog.sparql == null) {
-			return "";
-		}
-		StringBuilder sb = new StringBuilder("");
-		HashSet<Word> printed = new HashSet<Word>();
-
-		int threshold = SemanticItemMapping.t;
-		if (threshold > 5) threshold = 5;
-		
-		for (Triple triple : qlog.sparql.tripleList) {
-			if (triple.predicateID == Globals.pd.typePredicateID) continue;
-			SemanticRelation sr = triple.semRltn;
-			if (sr == null) continue;
-			Word subjWord = triple.getSubjectWord();
-			Word objWord = triple.getObjectWord();
-			if (!printed.contains(subjWord)) {
-				printed.add(subjWord);
-				if (!triple.subject.startsWith("?")) {
-					ArrayList<EntityMapping> emlist = qlog.entityDictionary.get(subjWord);
-					
-					int emlist_size = 0;
-					if (emlist != null) emlist_size = emlist.size();
-					else emlist_size = 0;
-					
-					sb.append("\"" + subjWord.getFullEntityName() + "\"" + "(" + emlist_size + ") --> ");
-					if (emlist_size > 0) {
-						int i = 0;
-						for (EntityMapping em : emlist) {
-							sb.append("<" + em.entityName.replace(" ", "_") + ">,");
-							i ++;
-							if (i == threshold) break;
-						}
-					}
-					sb.append("\n");
-				}
-				else {
-					sb.append("\"" + subjWord.getFullEntityName() + "\"" + "(" + 1 + ") --> "+triple.subject);
-					sb.append("\n");					
-				}
-			}
-			if (!printed.contains(objWord)) {
-				printed.add(objWord);
-				if (!triple.object.startsWith("?")) {
-					ArrayList<EntityMapping> emlist = qlog.entityDictionary.get(objWord);
-					if (emlist==null) continue;
-					sb.append("\"" + objWord.getFullEntityName() + "\"" + "(" + emlist.size() + ") --> ");
-					int i = 0;
-					for (EntityMapping em : emlist) {
-						sb.append("<" + em.entityName.replace(" ", "_") + ">,");
-						i ++;
-						if (i == threshold) break;
-					}
-					sb.append("\n");
-				}
-				else {
-					sb.append("\"" + objWord.getFullEntityName() + "\"" + "(" + 1 + ") --> " + triple.object);
-					sb.append("\n");
-				}
-			}
-			if (sr.dependOnSemanticRelation == null) {
-				sb.append("\"" + triple.semRltn.predicateMappings.get(0).parapharase + "\"" + "(" + triple.semRltn.predicateMappings.size() +") --> ");
-				int i = 0;
-				for (PredicateMapping pm : triple.semRltn.predicateMappings) {
-					sb.append("<" + Globals.pd.getPredicateById(pm.pid) + ">,");
-					i ++;
-					if (i == threshold) break;
-				}
-				sb.append("\n");
-			}
-		}
-		return sb.toString();
-	}
-	
-	public String printCRR (QueryLogger qlog) {
-		StringBuilder sb = new StringBuilder("");
-		HashSet<Word> printed = new HashSet<Word>();
-		for (Word w : qlog.s.words) {
-			w = w.getNnHead();
-			if (printed.contains(w)) 
-				continue;
-			if (w.crr != null) 
-				sb.append("\""+w.getFullEntityName() + "\" = \"" + w.crr.getFullEntityName() + "\"");
-			printed.add(w);
-		}
-		return sb.toString();
-	}
-	
 	public static void main (String[] args)
 	{			
 		Globals.init();
@@ -542,12 +308,8 @@ public class GAnswer {
 			long parsing_st_time = System.currentTimeMillis();
 			
 			QueryLogger qlog = ga.getSparqlList(input);
-			if(qlog == null)
+			if(qlog == null || qlog.rankedSparqls == null)
 				continue;
-			
-			Sparql curSpq = ga.getNextSparql(qlog);		
-			Sparql bestSpq = curSpq;
-			int idx_sparql = 0;
 			
 			long parsing_ed_time = System.currentTimeMillis();
 			System.out.println("Question Understanding time: "+ (int)(parsing_ed_time - parsing_st_time)+ "ms");
@@ -564,55 +326,50 @@ public class GAnswer {
 			Matches m = null;
 			System.out.println("[RESULT]");
 			ArrayList<String> lastSpqList = new ArrayList<String>();
-			while (curSpq != null) 
+			int idx;
+			for(idx=1; idx<=qlog.rankedSparqls.size(); idx++) 
 			{
-				qlog.sparql = curSpq;
+				Sparql curSpq = qlog.rankedSparqls.get(idx-1);
 				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
+				lastSpqList.add(stdSPQwoPrefix);
 				
-				if(!lastSpqList.contains(stdSPQwoPrefix))
-				{
-					idx_sparql++;
-					System.out.println("[" + idx_sparql + "]" + "score=" + curSpq.score);
-					System.out.println(stdSPQwoPrefix);
+				System.out.println("[" + idx + "]" + "score=" + curSpq.score);
+				System.out.println(stdSPQwoPrefix);
 
-					// Print top-3 SPARQLs to file.
-					if(idx_sparql <= 3)
-					{
-						outputs.add("[" + idx_sparql + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
-						lastSpqList.add(stdSPQwoPrefix);
-					}
+				// Print top-3 SPARQLs to file.
+				if(idx <= MAX_SPQ_NUM)
+					outputs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
 					
-					// Execute by Virtuoso or GStore when answers not found
-//					if(m == null || m.answers == null)
+//				// Execute by Virtuoso or GStore when answers not found
+//				if(m == null || m.answers == null)
+//				{
+//					if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
 //					{
-//						if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
-//						{
-//							if(ga.isBGP(qlog, curSpq))
-//                                m = ga.getAnswerFromGStore2(curSpq);
-//                            else
-//                                m = ga.getAnswerFromVirtuoso(qlog, curSpq);
-//						}
-//						if (m != null && m.answers != null) 
-//                        {
-//                            // Found results using current SPQ, then we can break and print result.
-//                            qlog.sparql = curSpq;
-//                            qlog.match = m;
-//                            qlog.reviseAnswers();
-//                            System.out.println("Query Executing time: "+ (int)(System.currentTimeMillis() - excuting_st_time)+ "ms");
-//                        }
+//						if(ga.isBGP(qlog, curSpq))
+//                            m = ga.getAnswerFromGStore2(curSpq);
+//                        else
+//                            m = ga.getAnswerFromVirtuoso(qlog, curSpq);
 //					}
-				}
-				curSpq = ga.getNextSparql(qlog);
+//					if (m != null && m.answers != null) 
+//                    {
+//                        // Found results using current SPQ, then we can break and print result.
+//                        qlog.sparql = curSpq;
+//                        qlog.match = m;
+//                        qlog.reviseAnswers();
+//                        System.out.println("Query Executing time: "+ (int)(System.currentTimeMillis() - excuting_st_time)+ "ms");
+//                    }
+//				}
 			}		
 			
 			// Some TYPEs can be omitted, (such as <type> <yago:Wife>)
-			Sparql untypedSparql = ga.getUntypedSparql(bestSpq);
-			if(untypedSparql != null)
+			if(!qlog.rankedSparqls.isEmpty())
 			{
-				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
-				if(!lastSpqList.contains(stdSPQwoPrefix))
+				Sparql untypedSparql = ga.getUntypedSparql(qlog.rankedSparqls.get(0));
+				if(untypedSparql != null)
 				{
-					outputs.add("[" + Math.min(4,idx_sparql) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
+					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
+					if(!lastSpqList.contains(stdSPQwoPrefix))
+						outputs.add("[" + Math.min(MAX_SPQ_NUM+1, idx) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
 				}
 			}
 			

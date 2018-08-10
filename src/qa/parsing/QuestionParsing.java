@@ -28,11 +28,10 @@ public class QuestionParsing {
 		long t2 = System.currentTimeMillis();
 		try{
 			qlog.s.dependencyTreeMalt = new DependencyTree(qlog.s, Globals.maltParser);
-		}catch(MaltChainedException e){
+		}catch(Exception e){
 			//if errors occur, abandon malt tree
 			qlog.s.dependencyTreeMalt = qlog.s.dependencyTreeStanford;
-		}catch(Exception e){
-			
+			System.err.println("MALT parser error! Use stanford parser instead.");
 		}					
 		
 		try {
