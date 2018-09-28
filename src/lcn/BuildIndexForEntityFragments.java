@@ -13,6 +13,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 
+import qa.Globals;
+
 //import qa.Globals;
 
 /**
@@ -36,8 +38,8 @@ public class BuildIndexForEntityFragments{
 		long startTime = new Date().getTime();
 		
 //Try update offline to DBpedia2015. by husen 2016-04-08 | use DBpedia2014 as DBpedia2015 is unfriendly. by husen 2016-04-22
-		File indexDir_en = new File("D:\\husen\\DBpedia2014\\reducedDBpedia2014\\fragments\\entity_fragment_index");
-		File sourceDir_en = new File("D:\\husen\\DBpedia2014\\reducedDBpedia2014\\fragments\\entity_fragment.txt");
+		File indexDir_en = new File("D:/husen/gAnswer/data/DBpedia2016/lucene/entity_fragment_index");
+		File sourceDir_en = new File("D:/husen/gAnswer/data/DBpedia2016/fragments/entity_RDF_fragment/16entity_fragment.txt");
 		
 		Analyzer luceneAnalyzer_en = new StandardAnalyzer();  
 		IndexWriter indexWriter_en = new IndexWriter(indexDir_en, luceneAnalyzer_en,true); 
@@ -117,6 +119,7 @@ public class BuildIndexForEntityFragments{
 		
 		try
 		{
+			Globals.localPath="D:/husen/gAnswer/";
 			bef.indexforentity();
 		}
 		catch (Exception e) 

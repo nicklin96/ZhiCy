@@ -24,7 +24,7 @@ public class SearchInEntityFragments {
 		String queryString = null;
 		Query query = null;
 	
-		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2014/lucene/entity_fragment_index");
+		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2016/lucene/entity_fragment_index");
 		
 		ArrayList<EntityNameAndScore> result = new ArrayList<EntityNameAndScore>(); 
 

@@ -31,6 +31,7 @@ public class QuestionParsing {
 		}catch(Exception e){
 			//if errors occur, abandon malt tree
 			qlog.s.dependencyTreeMalt = qlog.s.dependencyTreeStanford;
+			System.err.println("MALT parser error! Use stanford parser instead.");
 		}					
 		
 		try {

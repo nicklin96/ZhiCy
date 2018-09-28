@@ -20,7 +20,7 @@ public class NERecognizer {
 	//public static String localPath="E:\\Hanshuo\\gAnswer\\";
 		
 	public NERecognizer() {
-		serializedClassifier = Globals.localPath+"lib/stanford-ner-2012-11-11/stanford-ner-2012-11-11/classifiers/english.all.3class.distsim.crf.ser.gz";
+		serializedClassifier = Globals.localPath+"lib/stanford-ner-2012-11-11/classifiers/english.all.3class.distsim.crf.ser.gz";
 		classifier  = CRFClassifier.getClassifierNoExceptions(serializedClassifier);
 	}
 	
