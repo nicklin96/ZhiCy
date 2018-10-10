@@ -254,8 +254,14 @@ public class GAnswer {
 	{
 		// modified by Lin Yinnian using ghttp - 2018-9-28
 		GstoreConnector gc = new GstoreConnector("172.31.222.94", 9000);
-        String answer = gc.query("root", "123456", "dbpedia16", spq.toStringForGStore2());
+    String answer = gc.query("root", "123456", "dbpedia16", spq.toStringForGStore2());
 		String[] rawLines = answer.split("\n");
+
+//		GstoreConnector gc = new GstoreConnector(Globals.QueryEngineIP, 3304);
+//    gc.load("DBpediaYago");
+//		String rawAnswer = gc.query(spq.toStringForGStore2());
+//		String[] rawLines = rawAnswer.split("\n");
+
 		
 		Matches ret = new Matches();
 		if (rawLines.length == 0 || rawLines[0].equals("[empty result]"))
@@ -321,7 +327,11 @@ public class GAnswer {
 			System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms");
 			System.out.println("Ranked Sparqls: " + qlog.rankedSparqls.size());
 			
-				
+//			outputs.add(qlog.SQGlog);
+//			outputs.add(qlog.SQGlog + "Building HQG time: "+ (qlog.timeTable.get("step0")+qlog.timeTable.get("step1")+qlog.timeTable.get("step2")-qlog.timeTable.get("BQG_topkjoin")) + "ms");
+//			outputs.add("TopKjoin time: "+ qlog.timeTable.get("BQG_topkjoin") + "ms");
+//			outputs.add("Question Understanding time: "+ (int)(parsing_ed_time - parsing_st_time)+ "ms");
+			
 			long excuting_st_time = System.currentTimeMillis();
 			Matches m = null;
 			System.out.println("[RESULT]");
@@ -339,7 +349,28 @@ public class GAnswer {
 
 				// Print top-3 SPARQLs to file.
 				if(idx <= MAX_SPQ_NUM)
-					spqs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+				  spqs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+//					outputs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+					
+//				// Execute by Virtuoso or GStore when answers not found
+//				if(m == null || m.answers == null)
+//				{
+//					if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
+//					{
+//						if(ga.isBGP(qlog, curSpq))
+//                            m = ga.getAnswerFromGStore2(curSpq);
+//                        else
+//                            m = ga.getAnswerFromVirtuoso(qlog, curSpq);
+//					}
+//					if (m != null && m.answers != null) 
+//                    {
+//                        // Found results using current SPQ, then we can break and print result.
+//                        qlog.sparql = curSpq;
+//                        qlog.match = m;
+//                        qlog.reviseAnswers();
+//                        System.out.println("Query Executing time: "+ (int)(System.currentTimeMillis() - excuting_st_time)+ "ms");
+//                    }
+//				}
 			}		
 			
 			// Some TYPEs can be omitted, (such as <type> <yago:Wife>)
@@ -351,6 +382,7 @@ public class GAnswer {
 					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
 					if(!lastSpqList.contains(stdSPQwoPrefix))
 						spqs.add("[" + Math.min(MAX_SPQ_NUM+1, idx) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
+						// outputs.add("[" + Math.min(MAX_SPQ_NUM+1, idx) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
 				}
 			}
 			
