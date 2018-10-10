@@ -469,8 +469,6 @@ public class GstoreConnector {
         //boolean flag = gc.load("dbpedia16", "root", "123456");
         //System.out.println(flag);
         String answer = gc.query("root", "123456", "dbpedia16", sparql);
-        String[] rawLines = answer.split("\n");
-        System.out.println(rawLines.length);
         System.out.println(answer);
 
 		//To count the time cost

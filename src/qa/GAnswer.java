@@ -331,7 +331,7 @@ public class GAnswer {
 		int i =1;
 		
 		//file in/output
-		List<String> inputList = FileUtil.readFile("E:/Linyinnian/qald9_1.txt");
+		List<String> inputList = FileUtil.readFile("E:/Linyinnian/qald9_15.txt");
 		for(String input: inputList) 
 		{	
 			ArrayList<String> outputs = new ArrayList<String>();
@@ -351,7 +351,11 @@ public class GAnswer {
 			System.out.println("SparqlCheck time: "+ qlog.timeTable.get("SparqlCheck") + "ms");
 			System.out.println("Ranked Sparqls: " + qlog.rankedSparqls.size());
 			
-				
+//			outputs.add(qlog.SQGlog);
+//			outputs.add(qlog.SQGlog + "Building HQG time: "+ (qlog.timeTable.get("step0")+qlog.timeTable.get("step1")+qlog.timeTable.get("step2")-qlog.timeTable.get("BQG_topkjoin")) + "ms");
+//			outputs.add("TopKjoin time: "+ qlog.timeTable.get("BQG_topkjoin") + "ms");
+//			outputs.add("Question Understanding time: "+ (int)(parsing_ed_time - parsing_st_time)+ "ms");
+			
 			long excuting_st_time = System.currentTimeMillis();
 			Matches m = null;
 			System.out.println("[RESULT]");
@@ -361,7 +365,6 @@ public class GAnswer {
 			for(idx=1; idx<=Math.min(qlog.rankedSparqls.size(), 5); idx++) 
 			{
 				Sparql curSpq = qlog.rankedSparqls.get(idx-1);
-				ga.getAnswerFromGStore2(curSpq);
 				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
 				lastSpqList.add(stdSPQwoPrefix);
 				
@@ -370,7 +373,28 @@ public class GAnswer {
 
 				// Print top-3 SPARQLs to file.
 				if(idx <= MAX_SPQ_NUM)
-					spqs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+				  spqs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+//					outputs.add("[" + idx + "]" + "score=" + curSpq.score + "\n" + stdSPQwoPrefix);
+					
+//				// Execute by Virtuoso or GStore when answers not found
+//				if(m == null || m.answers == null)
+//				{
+//					if (curSpq.tripleList.size()>0 && curSpq.questionFocus!=null)
+//					{
+//						if(ga.isBGP(qlog, curSpq))
+//                            m = ga.getAnswerFromGStore2(curSpq);
+//                        else
+//                            m = ga.getAnswerFromVirtuoso(qlog, curSpq);
+//					}
+//					if (m != null && m.answers != null) 
+//                    {
+//                        // Found results using current SPQ, then we can break and print result.
+//                        qlog.sparql = curSpq;
+//                        qlog.match = m;
+//                        qlog.reviseAnswers();
+//                        System.out.println("Query Executing time: "+ (int)(System.currentTimeMillis() - excuting_st_time)+ "ms");
+//                    }
+//				}
 			}		
 			
 			// Some TYPEs can be omitted, (such as <type> <yago:Wife>)
@@ -382,10 +406,11 @@ public class GAnswer {
 					String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, untypedSparql);
 					if(!lastSpqList.contains(stdSPQwoPrefix))
 						spqs.add("[" + Math.min(MAX_SPQ_NUM+1, idx) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
+						// outputs.add("[" + Math.min(MAX_SPQ_NUM+1, idx) + "]" + "score=" + 1000 + "\n" + stdSPQwoPrefix + "\n");
 				}
 			}
 			
-			FileUtil.writeFile(spqs, "E:/Linyinnian/qald9_out7.txt", true);
+			FileUtil.writeFile(spqs, "E:/Linyinnian/qald9_out6.txt", true);
 		}
 			
 	}
