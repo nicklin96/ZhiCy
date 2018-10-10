@@ -314,7 +314,7 @@ public class GstoreConnector
 				+ "?x	<type>	<Film>. "
 				+ "}";
 				
-		sparql = "select DISTINCT ?moons where {<Mars>	<satellites>	?moons. }";
+//		sparql = "select DISTINCT ?moons where {<Pohang_University_of_Science_and_Technology>	<location>	?moons. }";
 				
 	    //boolean flag = gc.load("db_dbpedia_ganswer");
 	    boolean flag = gc.load("DBpediaYago");
@@ -328,7 +328,7 @@ public class GstoreConnector
 //		
 //		sparql = "select ?x where {"
 //				+ "?x	<rdf:type>	<cdblp.cn/class/Paper>. "
-//				+ "?x	<cdblp.cn/schema/property/has_author>	<cdblp.cn/author/ÓÚ¸ê>. "
+//				+ "?x	<cdblp.cn/schema/property/has_author>	<cdblp.cn/author/ï¿½Ú¸ï¿½>. "
 //				+ "}";	
 //	    answer = gc.query(sparql);	    
 //		System.out.println(answer);	

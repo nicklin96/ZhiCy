@@ -19,7 +19,7 @@ public class MaltParser {
 			service = new MaltParserService();
 			// Inititalize the parser model 'model0' and sets the working directory to '.' and sets the logging file to 'parser.log'
 			//service.initializeParserModel("-c engmalt.linear-1.7 -m parse -w . -lfi parser.log");
-			service.initializeParserModel("-c engmalt.linear-1.7 -m parse -w "+Globals.localPath+"project -lfi parser.log");
+			service.initializeParserModel("-c engmalt.linear-1.7 -m parse -w "+Globals.localPath+"lib/maltparser-1.9.1 -lfi parser.log");
 			firstParse();
 			System.out.println("ok!");
 		} catch (MaltChainedException e) {

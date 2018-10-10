@@ -327,7 +327,8 @@ public class GAnswer {
 			System.out.println("[RESULT]");
 			ArrayList<String> lastSpqList = new ArrayList<String>();
 			int idx;
-			for(idx=1; idx<=qlog.rankedSparqls.size(); idx++) 
+			// Consider top-5 SPARQLs
+			for(idx=1; idx<=Math.min(qlog.rankedSparqls.size(), 5); idx++) 
 			{
 				Sparql curSpq = qlog.rankedSparqls.get(idx-1);
 				String stdSPQwoPrefix = ga.getStdSparqlWoPrefix(qlog, curSpq);
