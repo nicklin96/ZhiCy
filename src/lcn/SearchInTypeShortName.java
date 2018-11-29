@@ -22,7 +22,7 @@ public class SearchInTypeShortName {
 		String queryString = s;
 		Query query = null;
 		
-		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2014/lucene/type_fragment_index");
+		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2016/lucene/type_fragment_index");
 
 		ArrayList<TypeMapping> tmList = new ArrayList<TypeMapping>();
 
@@ -93,7 +93,7 @@ public class SearchInTypeShortName {
 		String queryString = null;
 		Query query = null;
 		
-		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2014/lucene/type_fragment_index");
+		IndexSearcher searcher = new IndexSearcher(Globals.localPath+"data/DBpedia2016/lucene/type_fragment_index");
 		
 		ArrayList<String> typeNames = new ArrayList<String>(); 
 		

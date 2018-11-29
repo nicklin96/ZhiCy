@@ -26,9 +26,14 @@ import rdf.TypeMapping;
  * */
 public class TypeRecognition {
 	// dbpedia 2014
-	public static final int[] type_Person = {180,279};
-	public static final int[] type_Place = {49,228};
-	public static final int[] type_Organisation = {419,53};
+	//public static final int[] type_Person = {180,279};
+	//public static final int[] type_Place = {49,228};
+	//public static final int[] type_Organisation = {419,53};
+	
+	//dbpedia 2016
+	public static final int[] type_Person = {5828,15985};
+	public static final int[] type_Place = {11197,2188};
+	public static final int[] type_Organisation = {1335,4716};
 	
 	public static HashMap<String, String> extendTypeMap = null; 
 	public static HashMap<String, Triple> extendVariableMap = null;

@@ -37,7 +37,7 @@ public class ParaphraseDictionary {
 	public HashSet<String> bannedTypes;
 	
 	//public final int typePredicateID = 1541;	//dbpedia2015 <type>=1541
-	public final int typePredicateID = 6042;	//Dbpedia 2014 <type>=6042
+	public final int typePredicateID = 5166;	//Dbpedia 2016 <type>=5166
 	public int totalPredCount = 0;
 	public int paraphrasedPredCount = 0;
 	public int lineCount = 0;
@@ -51,12 +51,12 @@ public class ParaphraseDictionary {
 		String fixedPath = Globals.localPath;
 
 		System.out.println(System.getProperty("user.dir"));
-		localDataPath = fixedPath + "data/DBpedia2014/parapharse/";
+		localDataPath = fixedPath + "data/DBpedia2016/parapharse/";
 		dbpedia_relation_paraphrases_baseform_withScore_rerank = localDataPath + "dbpedia-relation-paraphrases-withScore-baseform-merge-sorted-rerank-slct.txt";
 		dbpedia_relation_paraphrases_handwrite = localDataPath + "dbpedia-relation-paraphrase-handwrite.txt";
 		
-		dbpedia_predicate_id = localDataPath + "DBpedia2014_predicates_id.txt";
-		dbpedia_dbo_predicate = localDataPath + "DBpedia2014_dbo_predicates.txt";
+		dbpedia_predicate_id = localDataPath + "16predicate_id.txt";
+		dbpedia_dbo_predicate = localDataPath + "16dbo_predicates.txt";
 		
 		bannedTypes = new HashSet<String>();
 		bannedTypes.add("Mayor");
@@ -123,6 +123,7 @@ public class ParaphraseDictionary {
 		}	
 		}catch(IOException e){
 			System.out.println("NLPatterns.loadPredicateId() : IOException!");
+			e.printStackTrace();
 		}finally{
 			if(br != null){
 				try{
