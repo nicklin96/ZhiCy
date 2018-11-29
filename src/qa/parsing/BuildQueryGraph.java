@@ -251,6 +251,7 @@ public class BuildQueryGraph
 			extractRelation(semanticUnitList, qlog); // RE for each two connected nodes
 			matchRelation(semanticUnitList, qlog);	// Drop the nodes who cannot find relations (except implicit relation)
 			qlog.timeTable.put("BQG_relation", (int)(System.currentTimeMillis()-t));
+			
 		
 			//Prepare for item mapping
 			TypeRecognition.AddTypesOfWhwords(qlog.semanticRelations); // Type supplementary
@@ -264,6 +265,13 @@ public class BuildQueryGraph
 			SemanticItemMapping step5 = new SemanticItemMapping();
 			step5.process(qlog, qlog.semanticRelations);	//top-k join (generate SPARQL queries), disambiguation
 			qlog.timeTable.put("BQG_topkjoin", (int)(System.currentTimeMillis()-t));
+			System.out.println("Semantic relation:");
+			for (Integer key : qlog.semanticRelations.keySet()) 
+			{
+				SemanticRelation sr = qlog.semanticRelations.get(key);
+				System.out.println(sr.toString());
+			}
+			System.out.println("Semantic relation ends");
 			
 			//step6: implicit relation [modify word]
 			t = System.currentTimeMillis();

@@ -46,7 +46,7 @@ public class SearchInTypeShortName {
 					    {
 					    	//System.out.println("Score>=thres1("+thres1+") ---" + hits.doc(i).get("TypeShortName") + " : " + hits.score(i));
 					    	String type = hits.doc(i).get("TypeShortName");
-					    	System.out.println("Matched type: " + type + " : " + hits.score(i));
+					    	//System.out.println("Matched type: " + type + " : " + hits.score(i));
 					    	
 					    	ArrayList<Integer> ret_in = TypeFragment.typeShortName2IdList.get(type);
 					    	if(ret_in!=null)

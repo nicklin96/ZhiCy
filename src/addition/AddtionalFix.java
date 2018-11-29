@@ -81,13 +81,13 @@ public class AddtionalFix
 	}
 	
 	/* recognize one-Node query 
-	 * Two cases：1、Special question|Imperative sentence	2、General question
-	 * 1-1：how many [], highest [] ...  | For single variable, add constraint (aggregation)
+	 * Two cases锛�1銆丼pecial question|Imperative sentence	2銆丟eneral question
+	 * 1-1锛歨ow many [], highest [] ...  | For single variable, add constraint (aggregation)
 	 * 1-2: What is backgammon? | What is a bipolar syndrome? | Search an entity (return itself or its type/description ...)
 	 * 1-3: Give me all Seven Wonders of the Ancient World. | Notice, "Seven Wonders of the Ancient World" should be recognized as ENT before. (in fact it is CATEGORY in DBpeida)
  	 * 2-1: Are there any [castles_in_the_United_States](yago:type)
- 	 * 2-2：Was Sigmund Freud married? | Lack of variable node.
- 	 * 2-3：Are penguins endangered? | No suitable relation matching, need transition.
+ 	 * 2-2锛歐as Sigmund Freud married? | Lack of variable node.
+ 	 * 2-3锛欰re penguins endangered? | No suitable relation matching, need transition.
 	 */ 
 	public void oneNode(QueryLogger qlog)
 	{
@@ -106,6 +106,7 @@ public class AddtionalFix
 				Triple triple =	new Triple(Triple.VAR_ROLE_ID, subName, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeName, null, 100);
 				Sparql sparql = new Sparql();
 				sparql.addTriple(triple);
+				System.out.println(sparql);
 				qlog.rankedSparqls.add(sparql);
 			}
 			//1-2: What is [ent]?
@@ -118,6 +119,7 @@ public class AddtionalFix
 					Triple triple =	new Triple(eid, subName, Globals.pd.typePredicateID, Triple.VAR_ROLE_ID, "?"+target.originalForm, null, target.emList.get(0).score);
 					Sparql sparql = new Sparql();
 					sparql.addTriple(triple);
+					System.out.println(sparql);
 					qlog.rankedSparqls.add(sparql);
 				}
 			}
@@ -130,6 +132,7 @@ public class AddtionalFix
 				Triple triple =	new Triple(Triple.VAR_ROLE_ID, "?"+target.originalForm, pid, Triple.CAT_ROLE_ID, oName, null, 100);
 				Sparql sparql = new Sparql();
 				sparql.addTriple(triple);
+				System.out.println(sparql);
 				qlog.rankedSparqls.add(sparql);
 			}
 		}
@@ -137,7 +140,7 @@ public class AddtionalFix
 		{
 			if(target.mayEnt && target.emList != null)
 			{
-				//2-2：Was Sigmund Freud married?
+				//2-2锛歐as Sigmund Freud married?
 				String relMention = "";
 				for(Word word: words)
 					if(word != target && !word.baseForm.equals(".") && !word.baseForm.equals("?"))
@@ -157,10 +160,11 @@ public class AddtionalFix
 					Triple triple =	new Triple(eid, subName, pid, Triple.VAR_ROLE_ID, "?x", null, 100);
 					Sparql sparql = new Sparql();
 					sparql.addTriple(triple);
+					System.out.println(sparql);
 					qlog.rankedSparqls.add(sparql);
 				}
 		
-				//2-3：Are penguins endangered?
+				//2-3锛欰re penguins endangered?
 				else
 				{
 					if(target.position < words.length && pattern2category.containsKey(words[target.position].baseForm))
@@ -173,6 +177,7 @@ public class AddtionalFix
 						Triple triple =	new Triple(eid, subName, pid, Triple.CAT_ROLE_ID, oName, null, 100);
 						Sparql sparql = new Sparql();
 						sparql.addTriple(triple);
+						System.out.println(sparql);
 						qlog.rankedSparqls.add(sparql);
 					}
 				}
@@ -186,6 +191,7 @@ public class AddtionalFix
 				Triple triple =	new Triple(Triple.VAR_ROLE_ID, subName, Globals.pd.typePredicateID, Triple.TYPE_ROLE_ID, typeName, null, 100);
 				Sparql sparql = new Sparql();
 				sparql.addTriple(triple);
+				System.out.println(sparql);
 				qlog.rankedSparqls.add(sparql);
 			}
 		}
@@ -224,6 +230,7 @@ public class AddtionalFix
 					Triple triple =	new Triple(eid, subName, Globals.pd.typePredicateID, Triple.VAR_ROLE_ID, "?"+whWord.originalForm, null, entWord.emList.get(0).score);
 					Sparql sparql = new Sparql();
 					sparql.addTriple(triple);
+					System.out.println(sparql);
 					qlog.rankedSparqls.add(sparql);
 				}
 				// !Special case for Category
@@ -241,6 +248,7 @@ public class AddtionalFix
 						Triple triple =	new Triple(Triple.VAR_ROLE_ID, "?"+whWord.originalForm, pid, Triple.CAT_ROLE_ID, oName, null, 10000);
 						Sparql sparql = new Sparql();
 						sparql.addTriple(triple);
+						System.out.println(sparql);
 						qlog.rankedSparqls.add(sparql);
 					}
 				}

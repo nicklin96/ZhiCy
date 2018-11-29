@@ -92,8 +92,8 @@ public class ExtractImplicitRelation {
 					String tName = word.modifiedWord.originalForm;
 					for(int i=0; i<k&&i<word.emList.size(); i++) // select the top-k entities
 					{
-						int eId = word.emList.get(0).entityID;
-						String eName = word.emList.get(0).entityName;
+						int eId = word.emList.get(i).entityID;
+						String eName = word.emList.get(i).entityName;
 						irList = getPrefferdPidListBetween_Entity_TypeVariable(eId, tId);
 						
 						// !Handwriting implicit relations
@@ -106,6 +106,7 @@ public class ExtractImplicitRelation {
 						
 						if(irList!=null && irList.size()>0)
 						{
+							System.out.println("irList ok");
 							ImplicitRelation ir = irList.get(0);
 							String subjName = null, objName = null;
 							Word subjWord = null, objWord = null;
@@ -164,7 +165,7 @@ public class ExtractImplicitRelation {
 	}
 	
 	/*
-	 * eg：Czech|ent movies|?type	Chinese|ent actor|?type
+	 * eg Czech|ent movies|?type	Chinese|ent actor|?type
 	 * type variable + entity -> entities belong to type + entity 
 	 * */
 	public ArrayList<ImplicitRelation> getPrefferdPidListBetween_Entity_TypeVariable(Integer entId, Integer typeId)
@@ -175,7 +176,7 @@ public class ExtractImplicitRelation {
 		EntityFragment ef2 = EntityFragment.getEntityFragmentByEntityId(entId);
 		if(tf == null || ef2 == null)
 		{
-			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity ：Type(" + 
+			System.out.println("Error in getPrefferdPidListBetween_TypeVariable_Entity type(" + 
 					TypeFragment.typeId2ShortName.get(typeId) + ") or Entity(" + EntityFragmentFields.entityId2Name.get(entId) + ") no fragments.");
 			return null;
 		}
@@ -186,12 +187,14 @@ public class ExtractImplicitRelation {
 		for(int candidateEid: tf.entSet)
 		{
 			EntityFragment ef1 = EntityFragment.getEntityFragmentByEntityId(candidateEid);
-			if(ef1 == null)
+			if(ef1 == null){
+				System.out.println("ef1 found null! "+candidateEid);
 				continue;
-			
+			}
 			ArrayList<ImplicitRelation> tmp = getPrefferdPidListBetween_TwoEntities(ef1, ef2);
-			if(tmp == null || tmp.size() == 0)
+			if(tmp == null || tmp.size() == 0){
 				continue;
+			}
 			
 			if(samplingCnt++ > SamplingNumber)
 				break;
@@ -359,7 +362,7 @@ public class ExtractImplicitRelation {
 		
 		int eId1 = ef1.eId;
 		int eId2 = ef2.eId;
-		
+		//System.out.println("Checking "+eId1 + " and "+eId2);
 		// subj : ent1
 		if(ef1.outEntMap.containsKey(eId2))
 		{

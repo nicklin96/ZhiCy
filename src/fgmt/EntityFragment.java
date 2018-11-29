@@ -30,16 +30,16 @@ public class EntityFragment extends Fragment {
 	/**
 	 * mention to entity using Lucene index.
 	 * 
-	 * rule：
+	 * rule
 	 * select top-k results of each phrase. 
 	 * (1)if current lowest score < thres1, drop those score < thres1.
 	 * (2)if current lowest score > thres2, add those score > thres2.
 	 * 
-	 * exact match：
+	 * exact match
 	 * (1)Lucene score = 1.
 	 * (2)String match (lowercase): edit distance <= thres3.
 	 * 
-	 * score：
+	 * score
 	 * use Lucene score directly.
 	 * 
 	 * @param phrase
