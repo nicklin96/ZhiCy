@@ -26,14 +26,9 @@ import rdf.TypeMapping;
  * */
 public class TypeRecognition {
 	// dbpedia 2014
-	//public static final int[] type_Person = {180,279};
-	//public static final int[] type_Place = {49,228};
-	//public static final int[] type_Organisation = {419,53};
-	
-	//dbpedia 2016
-	public static final int[] type_Person = {223,302};
-	public static final int[] type_Place = {422,94};
-	public static final int[] type_Organisation = {187,52};
+	public static final int[] type_Person = {180,279};
+	public static final int[] type_Place = {49,228};
+	public static final int[] type_Organisation = {419,53};
 	
 	public static HashMap<String, String> extendTypeMap = null; 
 	public static HashMap<String, Triple> extendVariableMap = null;
@@ -96,24 +91,15 @@ public class TypeRecognition {
 		//search in YAGO type
 		if(TypeFragment.yagoTypeList.contains(allUpperFormWord))
 		{
-			//without YAGO prefix
-			String typeName = allUpperFormWord;
+			//YAGO prefix
+			String typeName = "yago:"+allUpperFormWord;
 			TypeMapping tm = new TypeMapping(-1,typeName,Globals.pd.typePredicateID,1);
-			System.out.println(typeName);
-			tmList.add(tm);
-		}
-		else if(TypeFragment.yagoTypeList.contains("yago:Wikicat"+allUpperFormWord)){
-			//with YAGO prefix
-			String typeName = "yago:Wikicat" + allUpperFormWord;
-			TypeMapping tm = new TypeMapping(-1,typeName,Globals.pd.typePredicateID,1);
-			System.out.println(typeName);
 			tmList.add(tm);
 		}
 		else if(extendTypeMap.containsKey(allUpperFormWord))
 		{
 			String typeName = extendTypeMap.get(allUpperFormWord);
 			TypeMapping tm = new TypeMapping(-1,typeName,Globals.pd.typePredicateID,1);
-			System.out.println(typeName);
 			tmList.add(tm);
 		}
 		if(tmList.size()>0)

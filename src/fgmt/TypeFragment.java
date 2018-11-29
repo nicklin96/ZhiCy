@@ -100,7 +100,7 @@ public class TypeFragment extends Fragment {
 	
 	public static void load() throws Exception 
 	{	
-		String filename = Globals.localPath+"data/DBpedia2016/fragments/class_RDF_fragment/16type_fragment.txt"; 
+		String filename = Globals.localPath+"data/DBpedia2014/fragments/class_RDF_fragment/type_fragment.txt"; 
 		
 		File file = new File(filename);
 		InputStreamReader in = new InputStreamReader(new FileInputStream(file),"utf-8");
@@ -112,12 +112,9 @@ public class TypeFragment extends Fragment {
 		String line;
 		while((line = br.readLine()) != null) {			
 			String[] lines = line.split("\t");
-			TypeFragment tfgmt = null;
 			if(lines[0].length() > 0 && !lines[0].equals("literal")) {
 				int tid = Integer.parseInt(lines[0]);
-				try{tfgmt = new TypeFragment(lines[1], tid);}
-				catch(Exception e){}
-				
+				TypeFragment tfgmt = new TypeFragment(lines[1], tid);
 				
 				typeFragments.put(tid, tfgmt);
 			}
@@ -133,8 +130,8 @@ public class TypeFragment extends Fragment {
 	
 	public static void loadId() throws IOException 
 	{
-		String filename = Globals.localPath+"data/DBpedia2016/fragments/id_mappings/16basic_types_id.txt";
-		String yagoFileName = Globals.localPath+"data/DBpedia2016/fragments/id_mappings/16yago_types_list.txt";
+		String filename = Globals.localPath+"data/DBpedia2014/fragments/id_mappings/DBpedia2014_types_id.txt";
+		String yagoFileName = Globals.localPath+"data/DBpedia2014/fragments/id_mappings/yagoTypeList_sortedByFrequency_clean&primary.txt";
 
 		File file = new File(filename);
 		InputStreamReader in = new InputStreamReader(new FileInputStream(file),"utf-8");

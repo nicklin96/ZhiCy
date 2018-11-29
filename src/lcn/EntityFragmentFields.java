@@ -18,8 +18,8 @@ public class EntityFragmentFields {
 	
 	public static void load() throws IOException 
 	{
-		String filename = Globals.localPath+"data/DBpedia2016/fragments/id_mappings/16entity_id.txt";
-		String fragmentFileName = Globals.localPath+"data/DBpedia2016/fragments/entity_RDF_fragment/16entity_fragment.txt";
+		String filename = Globals.localPath+"data/DBpedia2014/fragments/id_mappings/DBpedia2014_entities_id.txt";
+		String fragmentFileName = Globals.localPath+"data/DBpedia2014/fragments/entity_RDF_fragment/entity_fragment.txt";
 		File file = new File(filename);
 		BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file),"utf-8"));
 

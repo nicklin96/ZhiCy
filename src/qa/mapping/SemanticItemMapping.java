@@ -75,13 +75,14 @@ public class SemanticItemMapping {
         {
             Map.Entry<Integer, SemanticRelation> entry = it.next();
             SemanticRelation sr = entry.getValue();
+            
             //We now only tackle Constant of Entity & Type. TODO: consider Literal.
 			if(sr.isArg1Constant && !sr.arg1Word.mayType && !sr.arg1Word.mayEnt || sr.isArg2Constant && !sr.arg2Word.mayType && !sr.arg2Word.mayEnt) 
 			{
-				System.out.println("Not tackling semantic relation: "+ sr);
 				it.remove();
 				continue;
 			}
+			
 			//Type constant will be solved in ScoreAndRanking function.
 			if(sr.isArg1Constant && sr.arg1Word.mayEnt) 
 			{
@@ -92,13 +93,13 @@ public class SemanticItemMapping {
 			}
 			if(sr.isArg2Constant && !sr.arg2Word.mayType) 
 			{	
-				System.out.println("Checking arg2Word emList: "+sr.arg2Word.emList.size());
 				if (!entityDictionary.containsKey(sr.arg2Word)) 
 					entityDictionary.put(sr.arg2Word, sr.arg2Word.emList);
 				entityPhrasesList.add(sr.arg2Word.emList);
 				entityWordList.add(sr.arg2Word);
 			}
         }
+		
 		// 2. collect info of edges(relations).
 		for (Integer key : semanticRelations.keySet()) 
 		{
@@ -110,6 +111,7 @@ public class SemanticItemMapping {
 			if(Globals.evaluationMethod > 1 && !sr.isSteadyEdge)
 				t = 5;
 		}
+		
 		// 3. top-k join
 		t1 = System.currentTimeMillis();
 		if(semanticRelations.size()>0)
@@ -511,7 +513,7 @@ public class SemanticItemMapping {
 	public boolean isTripleCompatibleCanSwap (Triple t) {
 		
 		if (qlog.s.sentenceType==SentenceType.GeneralQuestion)
-		{
+		{	
 			if (fragmentCompatible2(t.subjId, t.predicateID, t.objId) >
 				fragmentCompatible2(t.objId, t.predicateID, t.subjId)) 
 				t.swapSubjObjOrder();

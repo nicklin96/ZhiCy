@@ -32,7 +32,7 @@ import addition.*;
  */
 public class EntityRecognition {
 	public String preLog = "";
-	public String stopEntFilePath = Globals.localPath + "data/DBpedia2016/parapharse/stopEntDict.txt";
+	public String stopEntFilePath = Globals.localPath + "data/DBpedia2014/parapharse/stopEntDict.txt";
 	
 	double EntAcceptedScore = 26;
 	double TypeAcceptedScore = 0.5;

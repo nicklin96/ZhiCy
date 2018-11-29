@@ -12,14 +12,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 
-import qa.Globals;
 import fgmt.TypeFragment;
 
 public class BuildIndexForTypeShortName {
 	public static void buildIndex(HashMap<String, ArrayList<Integer>> typeShortName2IdList) throws Exception
 	{
 		long startTime = new Date().getTime();
-		File indexDir_li = new File("D:/husen/gAnswer/data/DBpedia2016/lucene/type_fragment_index");
+		File indexDir_li = new File("D:\\husen\\DBpedia2014\\reducedDBpedia2014\\fragments\\type_fragment_index");
 		
 		Analyzer luceneAnalyzer_li = new StandardAnalyzer();  
 		IndexWriter indexWriter_li = new IndexWriter(indexDir_li, luceneAnalyzer_li,true); 
@@ -96,7 +95,6 @@ public class BuildIndexForTypeShortName {
 	
 	public static void main (String[] args) {
 		try {
-			Globals.localPath="D:/husen/gAnswer/";
 			TypeFragment.load();
 			BuildIndexForTypeShortName.buildIndex(TypeFragment.typeShortName2IdList);
 		} catch (Exception e) {
